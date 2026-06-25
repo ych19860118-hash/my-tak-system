@@ -7,6 +7,29 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <style>
+        /* 摺疊面板控制 */
+.panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+.panel-content.hidden {
+    display: none;
+}
+.btn-collapse {
+    width: 100%;
+    padding: 8px;
+    background: #00ffcc;
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 10px;
+    text-align: center;
+}
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -25,10 +48,10 @@
         .user-list-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; max-height: 120px; overflow-y: auto; font-size: 11px; }
         .user-item { display: flex; align-items: center; gap: 5px; color: #00ffcc; margin-bottom: 2px; }
 
-<div class="action-panel">
-    <button class="btn-toggle-menu" onclick="togglePanel()">≡ 隱藏/展開選單</button>
+        <div class="action-panel">
+    <button class="btn-collapse" onclick="toggleTacticalPanel()">≡ 顯示/隱藏戰術選單</button>
     
-    <div id="tactical-controls" class="collapsible-content">
+    <div id="tactical-panel-content" class="panel-content">
         <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
         <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
         
@@ -45,6 +68,7 @@
                 <option value="SU----">飛彈部隊 (Missile)</option>
                 <option value="C4----">通信信號 (Signal)</option>
             </select>
+
             <label class="select-label">🔹 選擇層級/編裝階級</label>
             <select id="mil-size-select" class="select-input">
                 <option value="00">未指定階級</option>
@@ -55,6 +79,7 @@
                 <option value="55">營 (Battalion / ｜｜)</option>
                 <option value="66">旅 (Brigade / ❌)</option>
             </select>
+
             <label class="select-label">▼ 選擇陣營並放置</label>
             <div class="grid-2">
                 <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')"><span style="color:#00a2ff;">█</span>友軍</button>
@@ -77,6 +102,27 @@
         <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 刪除所有人標繪</button>
     </div>
 </div>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>WEB-TAK 戰術登入</h2>
+            <label class="select-label" style="text-align:left;">👤 輸入作戰呼號 (Callsign)</label>
+            <input type="text" id="user-callsign" class="login-input" value="ALPHA-01">
+            
+            <label class="select-label" style="text-align:left;">⛺ 選擇/建立戰術房間</label>
+            <select id="room-type-select" class="select-input" onchange="toggleCustomRoomInput()">
+                <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
+                <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
+                <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
+            </select>
+            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
+            
+            <button class="login-btn" onclick="joinTacticalNetwork()">連線進入 COP 系統</button>
+        </div>
+    </div>
+
     <div id="map"></div>
     
     <div class="status-panel">
@@ -151,9 +197,9 @@
     <script src="/socket.io/socket.io.js" onerror="console.warn('未偵測到後端伺服器，切換至單機模擬模式')"></script>
     
     <script>
-        function togglePanel() {
-    const content = document.getElementById('tactical-controls');
-    content.classList.toggle('collapsed');
+        function toggleTacticalPanel() {
+    const content = document.getElementById('tactical-panel-content');
+    content.classList.toggle('hidden');
 }
         let myCallsign = "ALPHA-01";
         let myRoomID = "PUBLIC_01";
