@@ -7,6 +7,40 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <style>
+        /* 修改原有的 action-panel */
+.action-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* 稍微縮小間距 */
+    width: 190px;
+    transition: transform 0.3s ease;
+}
+
+/* 隱藏內容的容器 */
+.collapsible-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+/* 控制顯示隱藏 */
+.collapsed {
+    max-height: 0;
+    padding: 0;
+    opacity: 0;
+}
+
+/* 針對內容面板進行縮小 */
+.panel-section {
+    padding: 6px; /* 縮小內距 */
+    font-size: 10px; /* 縮小字體 */
+}
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -88,10 +122,13 @@
         </div>
     </div>
 
-    <div class="action-panel">
-        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
-        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
-        
+<div class="action-panel">
+    <button onclick="togglePanel()" style="background:#00ffcc; border:none; padding:5px; cursor:pointer;">≡ 選單</button>
+    
+    <div id="tactical-controls" class="collapsible-content">
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖</button>
+        </div>
+</div>
         <div class="panel-section">
             <div class="panel-title">1. 兵棋自選選單</div>
             <label class="select-label">🔹 選擇兵科/主要兵種</label>
@@ -144,6 +181,10 @@
     <script src="/socket.io/socket.io.js" onerror="console.warn('未偵測到後端伺服器，切換至單機模擬模式')"></script>
     
     <script>
+        function togglePanel() {
+        const content = document.getElementById('tactical-controls');
+        content.classList.toggle('collapsed');
+    }
         let myCallsign = "ALPHA-01";
         let myRoomID = "PUBLIC_01";
         let localUserList = [];
