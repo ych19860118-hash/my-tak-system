@@ -7,40 +7,6 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <style>
-        /* 觸發按鈕樣式 */
-.menu-trigger {
-    position: absolute;
-    top: 10px;
-    z-index: 100;
-    width: 40px;
-    height: 40px;
-    background: #00ffcc;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 20px;
-}
-#btn-left { left: 10px; }
-#btn-right { right: 10px; }
-
-/* 面板隱藏邏輯 */
-.panel-wrapper.hidden { display: none; }
-.panel-wrapper { 
-    position: absolute; 
-    z-index: 99; 
-    /* 這裡延用你原本的 action-panel 寬高設定 */
-}
-
-/* 確保手機版時面板滿版顯示 */
-@media screen and (max-width: 600px) {
-    .panel-wrapper {
-        top: 60px;
-        left: 5px;
-        right: 5px;
-        background: rgba(0,0,0,0.8);
-        padding: 10px;
-    }
-}
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -82,44 +48,6 @@
         .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
         .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
         .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
-    /* 手機版優化 (螢幕寬度小於 600px) */
-/* 手機版優化 (針對小螢幕手機) */
-@media screen and (max-width: 600px) {
-    /* 調整右側面板：減小寬度，讓更多地圖空間露出 */
-    .action-panel {
-        right: 5px;
-        left: 5px;
-        width: auto;
-        max-height: 35vh; /* 進一步限制高度 */
-        bottom: 10px;
-        top: auto;
-        padding: 5px;
-        gap: 5px;
-    }
-    
-    /* 縮小左側狀態面板，避免遮擋資訊 */
-    .status-panel {
-        width: 140px; 
-        font-size: 10px; /* 文字更小一點 */
-        padding: 8px;
-    }
-
-    /* 按鈕更小一點，並調整字體 */
-    .btn, .btn-toggle-map, .btn-gps, .btn-clear {
-        height: 35px; /* 高度縮小 */
-        font-size: 10px; /* 字體縮小以容納更多內容 */
-    }
-
-    /* 隱藏較不重要的標題或縮小間距 */
-    .panel-title {
-        margin-bottom: 2px;
-        font-size: 9px;
-    }
-
-    .grid-2 {
-        gap: 3px;
-    }
-}
     </style>
 </head>
 <body>
@@ -144,15 +72,59 @@
 
     <div id="map"></div>
     
-  <button class="menu-trigger" id="btn-left" onclick="togglePanel('status-panel')">⚙️</button>
-<button class="menu-trigger" id="btn-right" onclick="togglePanel('action-panel')">🎯</button>
+    <div class="status-panel">
+        <div><strong>WEB-TAK COP PLATFORM</strong></div>
+        <div>房間: <span id="current-room" style="color: #fff;">未連線</span></div>
+        <div>模式: <span id="current-mode" style="color: #fff;">STANDBY</span></div>
+        <div id="gps-status">座標: 24.94430 , 121.21540 (模擬定位)</div>
+        
+        <div class="weather-box" id="weather-box">
+            戰術氣象加載中...
+        </div>
+        
+        <div class="user-list-box">
+            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
+            <div id="user-list"></div>
+        </div>
+    </div>
 
-<div id="status-panel-wrapper" class="panel-wrapper hidden">
-    <div class="status-panel">...內容保持不變...</div>
-</div>
-<div id="action-panel-wrapper" class="panel-wrapper hidden">
-    <div class="action-panel">...內容保持不變...</div>
-</div>
+    <div class="action-panel">
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
+        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
+        
+        <div class="panel-section">
+            <div class="panel-title">1. 兵棋自選選單</div>
+            <label class="select-label">🔹 選擇兵科/主要兵種</label>
+            <select id="mil-branch-select" class="select-input">
+                <option value="ST----">步兵兵科 (Infantry ☒)</option>
+                <option value="UC----">裝甲兵科 (Armor ⎔)</option>
+                <option value="SF----">砲兵兵科 (Artillery 🎯)</option>
+                <option value="AV----">陸航航空 (Aviation)</option>
+                <option value="E-----">工兵兵科 (Engineer)</option>
+                <option value="MD----">醫療部隊 (Medical ✚)</option>
+                <option value="SU----">飛彈部隊 (Missile)</option>
+                <option value="C4----">通信信號 (Signal)</option>
+            </select>
+
+            <label class="select-label">🔹 選擇層級/編裝階級</label>
+            <select id="mil-size-select" class="select-input">
+                <option value="00">未指定階級</option>
+                <option value="11">組 (Team / ●)</option>
+                <option value="22">班 (Squad / ●●)</option>
+                <option value="33">排 (Platoon / ●●●)</option>
+                <option value="44">連 (Company / ｜)</option>
+                <option value="55">營 (Battalion / ｜｜)</option>
+                <option value="66">旅 (Brigade / ❌)</option>
+            </select>
+
+            <label class="select-label">▼ 選擇陣營並放置</label>
+            <div class="grid-2">
+                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')"><span style="color:#00a2ff;">█</span>友軍</button>
+                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')"><span style="color:#ff3333;">◆</span>敵軍</button>
+                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')"><span style="color:#00ff33;">■</span>中立</button>
+                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')"><span style="color:#ffff00;">●</span>不明</button>
+            </div>
+        </div>
         
         <div class="panel-section">
             <div class="panel-title">2. 範圍工具 (戰術圖形)</div>
@@ -536,14 +508,6 @@
             let rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">${frameSvg}${interiorSvg}${sizeSvg}</svg>`;
             return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
         }
-        function togglePanel(panelClass) {
-    const wrapper = document.getElementById(panelClass + '-wrapper');
-    if (wrapper.classList.contains('hidden')) {
-        wrapper.classList.remove('hidden');
-    } else {
-        wrapper.classList.add('hidden');
-    }
-}
     </script>
 </body>
 </html>
