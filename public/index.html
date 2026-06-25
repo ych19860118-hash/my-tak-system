@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEB-TAK 共同作戰圖像平台 (終極標準兵棋版)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* 登入與房間選擇覆蓋層 */
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; color: #00ffcc; }
+        .login-box { background: rgba(15, 25, 35, 0.9); border: 2px solid #00ffcc; box-shadow: 0 0 25px rgba(0, 255, 204, 0.5); padding: 30px; border-radius: 8px; width: 320px; text-align: center; }
+        .login-box h2 { margin-bottom: 20px; letter-spacing: 2px; font-size: 20px; }
+        .login-input { width: 100%; height: 35px; background: #141e28; border: 1px solid #00ffcc; color: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 15px; font-family: inherit; }
+        .login-btn { width: 100%; height: 40px; background: #00ffcc; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 14px; transition: all 0.2s; }
+        .login-btn:hover { background: #00ccaa; box-shadow: 0 0 10px rgba(0, 255, 204, 0.8); }
+
+        /* 左側戰術狀態與天氣面板 */
+        .status-panel { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.3); padding: 15px; border-radius: 6px; color: #00ffcc; font-size: 13px; line-height: 1.6; pointer-events: auto; width: 250px; }
+        .weather-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; font-size: 12px; color: #fff; }
+        .user-list-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; max-height: 120px; overflow-y: auto; font-size: 11px; }
+        .user-item { display: flex; align-items: center; gap: 5px; color: #00ffcc; margin-bottom: 2px; }
+
+        /* 右側戰術控制台 */
+        .action-panel { position: absolute; top: 20px; right: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; width: 195px; }
+        .panel-section { background: rgba(10, 15, 25, 0.9); border: 1px solid #445566; padding: 8px; border-radius: 8px; color: #fff; font-size: 11px; }
+        .panel-title { text-align: center; font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        
+        /* 選單與按鈕樣式 */
+        .select-label { display: block; font-size: 10px; color: #00ffcc; margin: 4px 0 2px 0; font-weight: bold; }
+        .select-input { width: 100%; height: 28px; background: #141e28; border: 1px solid #556677; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
+        .select-input:focus { border-color: #00ffcc; outline: none; }
+        .btn { width: 100%; height: 45px; background: rgba(20, 30, 40, 0.8); border: 1px solid #556677; border-radius: 6px; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 11px; font-weight: bold; }
+        .btn:hover, .btn.active { border-color: #00ffcc; box-shadow: 0 0 8px rgba(0, 255, 204, 0.5); color: #00ffcc; }
+        .btn-toggle-map { background: #34495e; color: #fff; border: 1px solid #7f8c8d; height: 35px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-toggle-map:hover { background: #2c3e50; border-color: #00ffcc; }
+        .btn-gps { border-color: #00ffcc; color: #00ffcc; width: 100%; height: 40px; margin-bottom: 5px; font-weight: bold; background: rgba(0,40,40,0.5); cursor: pointer; border-radius: 6px; }
+        .btn-clear { border-color: #e74c3c; color: #e74c3c; width: 100%; height: 40px; margin-top: 5px; background: rgba(40,0,0,0.5); cursor: pointer; border-radius: 6px; font-weight: bold; }
+        
+        /* 表單快顯視窗 */
+        .props-form { font-family: monospace; padding: 5px; min-width: 180px; }
+        .props-form label { display: block; font-size: 11px; color: #333; margin-top: 4px; margin-bottom: 2px; font-weight: bold; }
+        .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+        .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
+        .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>WEB-TAK 戰術登入</h2>
+            <label class="select-label" style="text-align:left;">👤 輸入作戰呼號 (Callsign)</label>
+            <input type="text" id="user-callsign" class="login-input" value="ALPHA-01">
+            
+            <label class="select-label" style="text-align:left;">⛺ 選擇/建立戰術房間</label>
+            <select id="room-type-select" class="select-input" onchange="toggleCustomRoomInput()">
+                <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
+                <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
+                <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
+            </select>
+            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
+            
+            <button class="login-btn" onclick="joinTacticalNetwork()">連線進入 COP 系統</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+    
+    <div class="status-panel">
+        <div><strong>WEB-TAK COP PLATFORM</strong></div>
+        <div>房間: <span id="current-room" style="color: #fff;">未連線</span></div>
+        <div>模式: <span id="current-mode" style="color: #fff;">STANDBY</span></div>
+        <div id="gps-status">座標: 24.94430 , 121.21540 (模擬定位)</div>
+        
+        <div class="weather-box" id="weather-box">
+            戰術氣象加載中...
+        </div>
+        
+        <div class="user-list-box">
+            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
+            <div id="user-list"></div>
+        </div>
+    </div>
+
+    <div class="action-panel">
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
+        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
+        
+        <div class="panel-section">
+            <div class="panel-title">1. 兵棋自選選單</div>
+            <label class="select-label">🔹 選擇兵科/主要兵種</label>
+            <select id="mil-branch-select" class="select-input">
+                <option value="ST----">步兵兵科 (Infantry ☒)</option>
+                <option value="UC----">裝甲兵科 (Armor ⎔)</option>
+                <option value="SF----">砲兵兵科 (Artillery 🎯)</option>
+                <option value="AV----">陸航航空 (Aviation)</option>
+                <option value="E-----">工兵兵科 (Engineer)</option>
+                <option value="MD----">醫療部隊 (Medical ✚)</option>
+                <option value="SU----">飛彈部隊 (Missile)</option>
+                <option value="C4----">通信信號 (Signal)</option>
+            </select>
+
+            <label class="select-label">🔹 選擇層級/編裝階級</label>
+            <select id="mil-size-select" class="select-input">
+                <option value="00">未指定階級</option>
+                <option value="11">組 (Team / ●)</option>
+                <option value="22">班 (Squad / ●●)</option>
+                <option value="33">排 (Platoon / ●●●)</option>
+                <option value="44">連 (Company / ｜)</option>
+                <option value="55">營 (Battalion / ｜｜)</option>
+                <option value="66">旅 (Brigade / ❌)</option>
+            </select>
+
+            <label class="select-label">▼ 選擇陣營並放置</label>
+            <div class="grid-2">
+                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')"><span style="color:#00a2ff;">█</span>友軍</button>
+                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')"><span style="color:#ff3333;">◆</span>敵軍</button>
+                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')"><span style="color:#00ff33;">■</span>中立</button>
+                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')"><span style="color:#ffff00;">●</span>不明</button>
+            </div>
+        </div>
+        
+        <div class="panel-section">
+            <div class="panel-title">2. 範圍工具 (戰術圖形)</div>
+            <div class="grid-2">
+                <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
+                <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
+                <button class="btn" id="btn-poly" onclick="setMode('poly')">⬡ 多邊形</button>
+                <button class="btn" id="btn-line" onclick="setMode('line')">📈 線條</button>
+            </div>
+        </div>
+        
+        <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 刪除所有人標繪</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="/socket.io/socket.io.js" onerror="console.warn('未偵測到後端伺服器，切換至單機模擬模式')"></script>
+    
+    <script>
+        let myCallsign = "ALPHA-01";
+        let myRoomID = "PUBLIC_01";
+        let localUserList = [];
+
+        // 確保建立 Socket 連線
+        const socket = (typeof io !== 'undefined') ? io() : { 
+            emit: (event, data) => { console.log(`[WebSocket 模擬發送 -> ${event}]:`, data); }, 
+            on: (event, callback) => {} 
+        };
+
+        const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14); 
+        
+        const lightLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' });
+        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' });
+        lightLayer.addTo(map);
+        let isDarkStyle = false;
+
+        function toggleMapStyle() {
+            if (isDarkStyle) { map.removeLayer(darkLayer); lightLayer.addTo(map); isDarkStyle = false; } 
+            else { map.removeLayer(lightLayer); darkLayer.addTo(map); isDarkStyle = true; }
+        }
+
+        function toggleCustomRoomInput() {
+            const select = document.getElementById('room-type-select');
+            document.getElementById('custom-room-id').style.display = (select.value === 'CUSTOM') ? 'block' : 'none';
+        }
+
+        // 🎯 修正：全新渲染邏輯，防止人數不對與不顯示別人
+        function updateUserListUI() {
+            const listContainer = document.getElementById('user-list');
+            
+            // 確保名單中過濾掉自己，由 UI 頂部獨立渲染
+            const filteredList = localUserList.filter(u => u !== myCallsign);
+            document.getElementById('user-count').innerText = filteredList.length + 1;
+            
+            let html = `<div class="user-item"><span style="color:#00ffcc;">●</span> [${myCallsign}] (你)</div>`;
+            filteredList.forEach(u => {
+                html += `<div class="user-item"><span style="color:#00a2ff;">●</span> [${u}]</div>`;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        function joinTacticalNetwork() {
+            myCallsign = document.getElementById('user-callsign').value.trim() || "無名隊員";
+            const selectValue = document.getElementById('room-type-select').value;
+            myRoomID = (selectValue === 'CUSTOM') ? (document.getElementById('custom-room-id').value.trim() || "PRIVATE_ROOM") : selectValue;
+
+            document.getElementById('current-room').innerText = myRoomID;
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('current-mode').innerText = "CONNECTED";
+
+            updateUserListUI();
+            socket.emit('join_room', { room: myRoomID, username: myCallsign });
+            getLiveWeather();
+        }
+
+        // 🎯 修正：綁定最新的後端列表傳輸事件
+        socket.on('init_user_list', (users) => {
+            localUserList = users;
+            updateUserListUI();
+        });
+
+        socket.on('user_joined', (data) => {
+            console.log(`📡 隊友 [${data.username}] 已進入相同戰術頻道`);
+            if(!localUserList.includes(data.username)) {
+                localUserList.push(data.username);
+                updateUserListUI();
+            }
+        });
+
+        socket.on('user_left', (data) => {
+            console.log(`❌ 隊友 [${data.username}] 已離開頻道`);
+            localUserList = localUserList.filter(u => u !== data.username);
+            updateUserListUI();
+        });
+
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        let activeMode = null;
+        let currentDrawHandler = null;
+        let selfMarker = null;
+        let currentEditingLayer = null;
+
+        socket.on('init_layers', (layers) => { 
+            console.log("正在載入歷史兵棋...", layers);
+            Object.values(layers).forEach(data => renderIncomingLayer(data)); 
+        });
+
+        socket.on('receive_marker', (data) => { 
+            console.log("收到其他隊員的即時標繪:", data);
+            const existingLayer = drawnItems.getLayer(data.id); 
+            if (existingLayer) drawnItems.removeLayer(existingLayer); 
+            renderIncomingLayer(data); 
+        });
+
+        socket.on('layer_removed', (layerId) => { 
+            const existingLayer = drawnItems.getLayer(layerId); 
+            if (existingLayer) drawnItems.removeLayer(existingLayer); 
+        });
+
+        socket.on('all_cleared', () => { 
+            drawnItems.clearLayers(); 
+        });
+
+        function sendLayerUpdate(layer, layerType, customId = null) {
+            const id = customId || L.stamp(layer);
+            const name = layer.customData ? layer.customData.name : "未命名戰術物件";
+            const color = layer.customData ? layer.customData.color : "#ffffff";
+            
+            let payload = { 
+                room: myRoomID,
+                id: id, 
+                type: layerType, 
+                name: name, 
+                color: color, 
+                username: myCallsign 
+            };
+            
+            if (layerType.startsWith('mil-')) {
+                payload.latlng = layer.getLatLng();
+                payload.sidc = layer.customData ? layer.customData.sidc : null; 
+            } else if (layerType === 'circle') { 
+                payload.latlng = layer.getLatLng(); 
+                payload.radius = layer.getRadius(); 
+            } else { 
+                const latlngs = layer.getLatLngs();
+                payload.latlngs = Array.isArray(latlngs[0]) ? latlngs[0].map(p => [p.lat, p.lng]) : latlngs.map(p => [p.lat, p.lng]);
+            }
+            socket.emit('place_marker', payload);
+        }
+
+        function renderIncomingLayer(data) {
+            let layer;
+            if (data.type.startsWith('mil-')) {
+                let affiliation = 'U';
+                if (data.type === 'mil-friend') affiliation = 'F';
+                if (data.type === 'mil-hostile') affiliation = 'H';
+                if (data.type === 'mil-neutral') affiliation = 'N';
+
+                let branchCode = data.sidc ? data.sidc.substring(4, 10) : document.getElementById('mil-branch-select').value;
+                let sizeCode = data.sidc ? data.sidc.substring(10, 12) : document.getElementById('mil-size-select').value;
+                let sidc = `S${affiliation}GP${branchCode}${sizeCode}--`;
+
+                layer = L.marker(data.latlng, { 
+                    icon: L.icon({ iconUrl: getFallbackSvgIcon(sidc), iconSize: [50, 50], iconAnchor: [25, 25], popupAnchor: [0, -20] }), 
+                    draggable: true 
+                });
+                
+                layer.on('dragend', function() { 
+                    sendLayerUpdate(layer, data.type, data.id); 
+                });
+                layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type };
+                bindMarkerPopup(layer, data.name, data.id, data.type);
+            } else {
+                if (data.type === 'circle') {
+                    layer = L.circle(data.latlng, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.2 });
+                    enableGeometryInteraction(layer, 'circle', data.type, data.id);
+                } else if (data.type === 'rectangle') {
+                    layer = L.rectangle(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.15 });
+                    enableGeometryInteraction(layer, 'rectangle', data.type, data.id);
+                } else if (data.type === 'polygon') {
+                    layer = L.polygon(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.2 });
+                    enableGeometryInteraction(layer, 'polygon', data.type, data.id);
+                } else if (data.type === 'polyline') {
+                    layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
+                    enableGeometryInteraction(layer, 'polyline', data.type, data.id);
+                }
+                layer.customData = { name: data.name, color: data.color };
+                bindGeometryPopup(layer, data.name, data.color, data.id, data.type);
+            }
+
+            layer._leaflet_id = data.id; 
+            layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
+            drawnItems.addLayer(layer);
+        }
+
+        function setMode(mode) {
+            if (currentDrawHandler) currentDrawHandler.disable();
+            if (currentEditingLayer) { 
+                if (typeof currentEditingLayer.editing?.disable === 'function') currentEditingLayer.editing.disable(); 
+                currentEditingLayer = null; 
+            }
+            activeMode = mode;
+            document.getElementById('current-mode').innerText = mode.toUpperCase();
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            if(document.getElementById(`btn-${mode}`)) document.getElementById(`btn-${mode}`).classList.add('active');
+
+            if (mode === 'circle') currentDrawHandler = new L.Draw.Circle(map, { shapeOptions: { color: '#ffaa00', fillColor: '#ffaa00', fillOpacity: 0.2 } }).enable();
+            if (mode === 'rect') currentDrawHandler = new L.Draw.Rectangle(map, { shapeOptions: { color: '#00ffcc', fillColor: '#00ffcc', fillOpacity: 0.15 } }).enable();
+            if (mode === 'poly') currentDrawHandler = new L.Draw.Polygon(map, { shapeOptions: { color: '#ff33ff', fillColor: '#ff33ff', fillOpacity: 0.2 } }).enable();
+            if (mode === 'line') currentDrawHandler = new L.Draw.Polyline(map, { shapeOptions: { color: '#33ccff', weight: 4 } }).enable();
+        }
+
+        function enableGeometryInteraction(layer, geometryType, rawType, layerId) {
+            let isDragging = false; let prevLatLng = null; let hasMoved = false;
+            layer.on('mousedown', function(e) { if (activeMode) return; isDragging = true; hasMoved = false; prevLatLng = e.latlng; map.dragging.disable(); });
+            map.on('mousemove', function(e) {
+                if (!isDragging || !prevLatLng) return;
+                hasMoved = true;
+                const latOffset = e.latlng.lat - prevLatLng.lat; const lngOffset = e.latlng.lng - prevLatLng.lng;
+                if (geometryType === 'circle') { layer.setLatLng([layer.getLatLng().lat + latOffset, layer.getLatLng().lng + lngOffset]); } 
+                else { const updateLatLngs = (latlngs) => { if (Array.isArray(latlngs[0])) return latlngs.map(sub => updateLatLngs(sub)); return latlngs.map(pt => { pt.lat += latOffset; pt.lng += lngOffset; return pt; }); }; layer.setLatLngs(updateLatLngs(layer.getLatLngs())); }
+                prevLatLng = e.latlng;
+            });
+            window.addEventListener('mouseup', function() { if (isDragging) { isDragging = false; prevLatLng = null; map.dragging.enable(); if (hasMoved) sendLayerUpdate(layer, rawType, layerId); } });
+            layer.on('click', function(e) { 
+                L.DomEvent.stopPropagation(e); 
+                if (activeMode) return; 
+                if (!hasMoved) { 
+                    if (currentEditingLayer && currentEditingLayer !== layer) { 
+                        if(typeof currentEditingLayer.editing?.disable === 'function') currentEditingLayer.editing.disable(); 
+                    } 
+                    currentEditingLayer = layer; 
+                    if(typeof layer.editing?.enable === 'function') layer.editing.enable(); 
+                } 
+            });
+        }
+
+        map.on(L.Draw.Event.CREATED, function (event) {
+            const layer = event.layer;
+            let type = event.layerType === 'polyline' ? 'polyline' : event.layerType === 'rectangle' ? 'rectangle' : event.layerType;
+            let data = { id: Date.now(), type: type, name: "戰術管制區", color: "#00ffcc" };
+            if (type === 'circle') { data.latlng = layer.getLatLng(); data.radius = layer.getRadius(); data.color = '#ffaa00'; }
+            else { data.latlngs = layer.getLatLngs(); if(type==='polyline') data.color = '#33ccff'; if(type==='polygon') data.color = '#ff33ff'; }
+            
+            layer.customData = { name: data.name, color: data.color };
+            renderIncomingLayer(data);
+            sendLayerUpdate(layer, type, data.id);
+            resetMode();
+        });
+
+        map.on('click', function(e) {
+            if (activeMode && activeMode.startsWith('mil-')) {
+                let branchSelect = document.getElementById('mil-branch-select');
+                let sizeSelect = document.getElementById('mil-size-select');
+                let branchName = branchSelect.options[branchSelect.selectedIndex].text.split(' ')[0];
+                let sizeName = sizeSelect.value !== '00' ? sizeSelect.options[sizeSelect.selectedIndex].text.split(' ')[0] : "";
+                let factionName = activeMode.includes('friend')?"友軍":activeMode.includes('hostile')?"敵軍":"不明";
+                
+                let affiliation = 'U';
+                if (activeMode === 'mil-friend') affiliation = 'F';
+                if (activeMode === 'mil-hostile') affiliation = 'H';
+                if (activeMode === 'mil-neutral') affiliation = 'N';
+                let sidc = `S${affiliation}GP${branchSelect.value}${sizeSelect.value}--`;
+
+                let data = { id: Date.now(), type: activeMode, latlng: e.latlng, name: `${factionName}${sizeName}${branchName}`, color: activeMode.includes('friend')?"#00a2ff":activeMode.includes('hostile')?"#ff3333":"#ffff00", sidc: sidc };
+                renderIncomingLayer(data);
+                
+                let dummyMarker = L.marker(e.latlng);
+                dummyMarker.customData = { name: data.name, color: data.color, sidc: sidc };
+                sendLayerUpdate(dummyMarker, activeMode, data.id);
+                resetMode();
+            } else {
+                if (currentEditingLayer) {
+                    if (typeof currentEditingLayer.editing?.disable === 'function') {
+                        currentEditingLayer.editing.disable();
+                    }
+                    let rawType = 'polygon';
+                    if (currentEditingLayer instanceof L.Circle) rawType = 'circle';
+                    else if (currentEditingLayer instanceof L.Rectangle) rawType = 'rectangle';
+                    else if (currentEditingLayer instanceof L.Polyline && !(currentEditingLayer instanceof L.Polygon)) rawType = 'polyline';
+                    sendLayerUpdate(currentEditingLayer, rawType, currentEditingLayer._leaflet_id);
+                    currentEditingLayer = null;
+                }
+            }
+        });
+
+        function bindMarkerPopup(marker, name, layerId, type) {
+            marker.bindPopup(`
+                <div class="props-form">
+                    <label>呼號 / 名稱</label>
+                    <input type="text" id="name-${layerId}" value="${name}" onchange="commitMarkerChange(${layerId}, '${type}')">
+                    <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此單位</button>
+                </div>
+            `);
+        }
+
+        window.commitMarkerChange = function(layerId, type) {
+            const name = document.getElementById(`name-${layerId}`).value;
+            const layer = drawnItems.getLayer(layerId);
+            if(layer) { layer.customData.name = name; layer.setTooltipContent(name); sendLayerUpdate(layer, type, layerId); }
+        };
+
+        function bindGeometryPopup(layer, name, color, layerId, type) {
+            layer.bindPopup(`
+                <div class="props-form">
+                    <label>管制區名稱</label>
+                    <input type="text" id="name-${layerId}" value="${name}" onchange="commitGeometryChange(${layerId}, '${type}')">
+                    <label>調整戰術顏色</label>
+                    <input type="color" id="color-${layerId}" value="${color}" onchange="commitGeometryChange(${layerId}, '${type}')">
+                    <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此範圍</button>
+                </div>
+            `);
+        }
+
+        window.commitGeometryChange = function(layerId, type) {
+            const name = document.getElementById(`name-${layerId}`).value;
+            const color = document.getElementById('color-' + layerId).value;
+            const layer = drawnItems.getLayer(layerId);
+            if(layer) { layer.customData.name = name; layer.customData.color = color; layer.setTooltipContent(name); layer.setStyle({ color: color, fillColor: color }); sendLayerUpdate(layer, type, layerId); }
+        };
+
+        function getLiveWeather() {
+            const weatherBox = document.getElementById('weather-box');
+            fetch('https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization=CWA-B536D0D3-FCE1-4EE7-8D05-EBFE6E8DEEE6&StationId=C0C700')
+                .then(res => res.json())
+                .then(json => {
+                    if(json.success === "true" && json.records && json.records.Station && json.records.Station.length > 0) {
+                        const station = json.records.Station[0];
+                        const temp = station.WeatherElement.AirTemperature;
+                        const w = station.WeatherElement.Weather || "清晴";
+                        const wind = station.WeatherElement.WindSpeed ? (station.WeatherElement.WindSpeed.Velocity || station.WeatherElement.WindSpeed) : "0";
+                        weatherBox.innerHTML = `🌤️ <b>平鎮戰術天氣：</b>${w} / 🌡️ ${temp}°C / 🍃 風速 ${wind} m/s`;
+                    } else {
+                        weatherBox.innerHTML = `🌤️ <b>平鎮天氣：</b>22.4°C / 東北風 2 級 (標準測站模擬)`;
+                    }
+                })
+                .catch(() => {
+                    weatherBox.innerHTML = `🌤️ <b>平鎮天氣：</b>22.4°C / 東北風 2 級 (離線安全模式)`;
+                });
+        }
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+                    document.getElementById("gps-status").innerHTML = `座標: ${lat.toFixed(5)} , ${lng.toFixed(5)} (實時 GPS 定位)`;
+                    if (selfMarker) selfMarker.setLatLng([lat, lng]);
+                    else { selfMarker = L.marker([lat, lng], { icon: L.divIcon({ className:'gps-self-container', html:'<div class="gps-self-icon"></div>', iconSize:[14,14] }) }).addTo(map); map.setView([lat, lng], 15); }
+                }, null, { enableHighAccuracy: true });
+            }
+        }
+        function resetMode() { activeMode = null; currentDrawHandler = null; document.getElementById('current-mode').innerText = "CONNECTED"; document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active')); }
+        
+        function broadcastClear() { 
+            drawnItems.clearLayers(); 
+            socket.emit('clear_all', { room: myRoomID });
+        }
+
+        function getFallbackSvgIcon(sidc) {
+            let aff = sidc.charAt(1); let bch = sidc.substring(4, 6); let size = sidc.substring(10, 12);
+            let frameColor = "#000000"; let fillColor = "#ffff00"; let frameSvg = "";
+            
+            if (aff === 'F') { fillColor = "#00a2ff"; frameSvg = `<rect x="15" y="32" width="70" height="46" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
+            else if (aff === 'H') { fillColor = "#ff3333"; frameSvg = `<polygon points="50,22 83,55 50,88 17,55" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
+            else if (aff === 'N') { fillColor = "#00ff33"; frameSvg = `<rect x="22" y="27" width="56" height="56" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
+            else { frameSvg = `<path d="M 50,28 A 15,15 0 0,1 75,38 A 15,15 0 0,1 75,68 A 15,15 0 0,1 50,78 A 15,15 0 0,1 25,68 A 15,15 0 0,1 25,38 A 15,15 0 0,1 50,28 Z" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; }
+            
+            let interiorSvg = ""; let cx = 50, cy = 55; let iconLineColor = "#000000";
+            if (bch === "ST") interiorSvg = `<line x1="20" y1="36" x2="80" y2="74" stroke="${iconLineColor}" stroke-width="3.5" /><line x1="20" y1="74" x2="80" y2="36" stroke="${iconLineColor}" stroke-width="3.5" />`;
+            else if (bch === "UC") interiorSvg = `<ellipse cx="${cx}" cy="${cy}" rx="18" ry="9" stroke="${iconLineColor}" stroke-width="3.5" fill="none" />`;
+            else if (bch === "SF") interiorSvg = `<circle cx="${cx}" cy="${cy}" r="6" fill="${iconLineColor}" />`;
+            
+            let sizeSvg = ""; 
+            let sy = 16; 
+            if (size === "11") { sizeSvg = `<circle cx="50" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" />`; } 
+            else if (size === "22") { sizeSvg = `<circle cx="43" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" /><circle cx="57" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" />`; } 
+            else if (size === "33") { sizeSvg = `<circle cx="36" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" /><circle cx="50" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" /><circle cx="64" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" />`; } 
+            else if (size === "44") { sizeSvg = `<line x1="50" y1="${sy-7}" x2="50" y2="${sy+5}" stroke="#fff" stroke-width="3.5" /><line x1="50" y1="${sy-7}" x2="50" y2="${sy+5}" stroke="#000" stroke-width="1.5" />`; } 
+            else if (size === "55") { sizeSvg = `<line x1="44" y1="${sy-7}" x2="44" y2="${sy+5}" stroke="#fff" stroke-width="3.5" /><line x1="44" y1="${sy-7}" x2="44" y2="${sy+5}" stroke="#000" stroke-width="1.5" /><line x1="56" y1="${sy-7}" x2="56" y2="${sy+5}" stroke="#fff" stroke-width="3.5" /><line x1="56" y1="${sy-7}" x2="56" y2="${sy+5}" stroke="#000" stroke-width="1.5" />`; } 
+            else if (size === "66") { sizeSvg = `<line x1="42" y1="${sy-5}" x2="58" y2="${sy+5}" stroke="#fff" stroke-width="4" /><line x1="42" y1="${sy+5}" x2="58" y2="${sy-5}" stroke="#fff" stroke-width="4" /><line x1="42" y1="${sy-5}" x2="58" y2="${sy+5}" stroke="#000" stroke-width="2" /><line x1="42" y1="${sy+5}" x2="58" y2="${sy-5}" stroke="#000" stroke-width="2" />`; }
+            
+            let rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">${frameSvg}${interiorSvg}${sizeSvg}</svg>`;
+            return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
+        }
+    </script>
+</body>
+</html>
