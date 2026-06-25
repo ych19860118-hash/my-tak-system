@@ -30,18 +30,52 @@
     .user-list-box { display: none; } /* 手機版隱藏人員清單以節省空間 */
 
     /* 調整：控制面板移至正下方，水平排列 */
-    .action-panel { 
-        position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-        z-index: 10; display: flex; flex-direction: row; gap: 5px; 
-        width: 95vw; overflow-x: auto; padding: 5px;
-        background: rgba(10, 15, 25, 0.7); border-radius: 8px;
-    }
-    
-    /* 按鈕樣式微調以適應單行排列 */
-    .panel-section { display: flex; gap: 5px; background: none; border: none; padding: 0; }
-    .panel-title { display: none; } /* 隱藏標題節省空間 */
-    .btn { width: 60px; height: 50px; font-size: 9px; flex-shrink: 0; }
-    .btn-toggle-map, .btn-gps, .btn-clear { height: 50px; width: 60px; font-size: 9px; flex-shrink: 0; }
+ /* 移除原本的水平捲軸限制 */
+/* 修正後的控制面板 */
+.action-panel { 
+    position: absolute; 
+    bottom: 20px; 
+    left: 10px; 
+    right: 10px; 
+    z-index: 10; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+    padding: 12px;
+    background: rgba(10, 15, 25, 0.95); /* 稍微增加不透明度 */
+    border: 1px solid #00ffcc;
+    border-radius: 12px;
+    max-height: 50vh; /* 防止面板過高導致內容被切掉 */
+    overflow-y: auto; /* 超出時可捲動 */
+}
+
+/* 確保下拉選單在手機上好點擊 */
+.select-input { 
+    width: 100%; 
+    padding: 8px; 
+    background: #141e28; 
+    color: #00ffcc; 
+    border: 1px solid #00ffcc; 
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+/* 按鈕容器微調 */
+.panel-section { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 6px; 
+    justify-content: flex-start;
+}
+
+/* 按鈕加大以利點擊 */
+.btn { 
+    width: 70px; height: 45px; font-size: 11px; 
+    flex-shrink: 0; padding: 2px;
+}
+
+/* 隱藏過長的文字或簡化顯示 */
+.btn-toggle-map, .btn-gps, .btn-clear { height: 45px; width: 45px; }
     .grid-2 { display: flex; gap: 5px; }
     
     /* 修正手機端的選單樣式 */
@@ -54,44 +88,6 @@
     <div id="gps-status">GPS: 24.94, 121.21</div>
     <div class="weather-box" id="weather-box">讀取中...</div>
 </div>
-
-<div class="action-panel">
-    <button class="btn-toggle-map" onclick="toggleMapStyle()">風格</button>
-    <button class="btn-gps" onclick="getLocation()">定位</button>
-    
-    <select id="mil-branch-select" style="width: 80px; font-size: 10px;">
-        <option value="ST----">步兵</option>
-        <option value="UC----">裝甲</option>
-        <option value="SF----">砲兵</option>
-    </select>
-    
-    <div class="grid-2">
-        <button class="btn" onclick="setMode('mil-friend')">友軍</button>
-        <button class="btn" onclick="setMode('mil-hostile')">敵軍</button>
-    </div>
-    
-    <button class="btn" onclick="setMode('circle')">⭕圓</button>
-    <button class="btn" onclick="setMode('line')">📈線</button>
-    <button class="btn btn-clear" onclick="broadcastClear()">🗑️刪</button>
-</div>
-
-    <div id="map"></div>
-    
-    <div class="status-panel">
-        <div><strong>WEB-TAK COP PLATFORM</strong></div>
-        <div>房間: <span id="current-room" style="color: #fff;">未連線</span></div>
-        <div>模式: <span id="current-mode" style="color: #fff;">STANDBY</span></div>
-        <div id="gps-status">座標: 24.94430 , 121.21540 (模擬定位)</div>
-        
-        <div class="weather-box" id="weather-box">
-            戰術氣象加載中...
-        </div>
-        
-        <div class="user-list-box">
-            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
-            <div id="user-list"></div>
-        </div>
-    </div>
 
     <div class="action-panel">
         <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
