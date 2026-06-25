@@ -49,29 +49,41 @@
         .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
         .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
     /* 手機版優化 (螢幕寬度小於 600px) */
+/* 手機版優化 (針對小螢幕手機) */
 @media screen and (max-width: 600px) {
+    /* 調整右側面板：減小寬度，讓更多地圖空間露出 */
     .action-panel {
-        right: 10px;
-        left: 10px; /* 讓面板左右留白 */
+        right: 5px;
+        left: 5px;
         width: auto;
-        max-height: 40vh; /* 限制高度，確保地圖可見 */
-        bottom: 20px;
+        max-height: 35vh; /* 進一步限制高度 */
+        bottom: 10px;
         top: auto;
-        padding: 10px;
+        padding: 5px;
+        gap: 5px;
     }
     
+    /* 縮小左側狀態面板，避免遮擋資訊 */
     .status-panel {
-        width: 180px; /* 縮小狀態面板寬度 */
-        font-size: 11px;
+        width: 140px; 
+        font-size: 10px; /* 文字更小一點 */
+        padding: 8px;
     }
 
+    /* 按鈕更小一點，並調整字體 */
     .btn, .btn-toggle-map, .btn-gps, .btn-clear {
-        height: 50px; /* 加大按鈕高度，方便觸控 */
-        font-size: 12px;
+        height: 35px; /* 高度縮小 */
+        font-size: 10px; /* 字體縮小以容納更多內容 */
     }
-    
+
+    /* 隱藏較不重要的標題或縮小間距 */
+    .panel-title {
+        margin-bottom: 2px;
+        font-size: 9px;
+    }
+
     .grid-2 {
-        grid-template-columns: 1fr 1fr;
+        gap: 3px;
     }
 }
     </style>
