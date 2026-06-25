@@ -48,6 +48,32 @@
         .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
         .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
         .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
+    /* 手機版優化 (螢幕寬度小於 600px) */
+@media screen and (max-width: 600px) {
+    .action-panel {
+        right: 10px;
+        left: 10px; /* 讓面板左右留白 */
+        width: auto;
+        max-height: 40vh; /* 限制高度，確保地圖可見 */
+        bottom: 20px;
+        top: auto;
+        padding: 10px;
+    }
+    
+    .status-panel {
+        width: 180px; /* 縮小狀態面板寬度 */
+        font-size: 11px;
+    }
+
+    .btn, .btn-toggle-map, .btn-gps, .btn-clear {
+        height: 50px; /* 加大按鈕高度，方便觸控 */
+        font-size: 12px;
+    }
+    
+    .grid-2 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
     </style>
 </head>
 <body>
