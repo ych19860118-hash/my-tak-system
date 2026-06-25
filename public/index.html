@@ -7,40 +7,6 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <style>
-        /* 修改原有的 action-panel */
-.action-panel {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    gap: 8px; /* 稍微縮小間距 */
-    width: 190px;
-    transition: transform 0.3s ease;
-}
-
-/* 隱藏內容的容器 */
-.collapsible-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out;
-}
-
-/* 控制顯示隱藏 */
-.collapsed {
-    max-height: 0;
-    padding: 0;
-    opacity: 0;
-}
-
-/* 針對內容面板進行縮小 */
-.panel-section {
-    padding: 6px; /* 縮小內距 */
-    font-size: 10px; /* 縮小字體 */
-}
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -59,51 +25,58 @@
         .user-list-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; max-height: 120px; overflow-y: auto; font-size: 11px; }
         .user-item { display: flex; align-items: center; gap: 5px; color: #00ffcc; margin-bottom: 2px; }
 
-        /* 右側戰術控制台 */
-        .action-panel { position: absolute; top: 20px; right: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; width: 195px; }
-        .panel-section { background: rgba(10, 15, 25, 0.9); border: 1px solid #445566; padding: 8px; border-radius: 8px; color: #fff; font-size: 11px; }
-        .panel-title { text-align: center; font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+<div class="action-panel">
+    <button class="btn-toggle-menu" onclick="togglePanel()">≡ 隱藏/展開選單</button>
+    
+    <div id="tactical-controls" class="collapsible-content">
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
+        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
         
-        /* 選單與按鈕樣式 */
-        .select-label { display: block; font-size: 10px; color: #00ffcc; margin: 4px 0 2px 0; font-weight: bold; }
-        .select-input { width: 100%; height: 28px; background: #141e28; border: 1px solid #556677; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
-        .select-input:focus { border-color: #00ffcc; outline: none; }
-        .btn { width: 100%; height: 45px; background: rgba(20, 30, 40, 0.8); border: 1px solid #556677; border-radius: 6px; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 11px; font-weight: bold; }
-        .btn:hover, .btn.active { border-color: #00ffcc; box-shadow: 0 0 8px rgba(0, 255, 204, 0.5); color: #00ffcc; }
-        .btn-toggle-map { background: #34495e; color: #fff; border: 1px solid #7f8c8d; height: 35px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 5px; }
-        .btn-toggle-map:hover { background: #2c3e50; border-color: #00ffcc; }
-        .btn-gps { border-color: #00ffcc; color: #00ffcc; width: 100%; height: 40px; margin-bottom: 5px; font-weight: bold; background: rgba(0,40,40,0.5); cursor: pointer; border-radius: 6px; }
-        .btn-clear { border-color: #e74c3c; color: #e74c3c; width: 100%; height: 40px; margin-top: 5px; background: rgba(40,0,0,0.5); cursor: pointer; border-radius: 6px; font-weight: bold; }
-        
-        /* 表單快顯視窗 */
-        .props-form { font-family: monospace; padding: 5px; min-width: 180px; }
-        .props-form label { display: block; font-size: 11px; color: #333; margin-top: 4px; margin-bottom: 2px; font-weight: bold; }
-        .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
-        .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
-        .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
-    </style>
-</head>
-<body>
-
-    <div id="login-overlay">
-        <div class="login-box">
-            <h2>WEB-TAK 戰術登入</h2>
-            <label class="select-label" style="text-align:left;">👤 輸入作戰呼號 (Callsign)</label>
-            <input type="text" id="user-callsign" class="login-input" value="ALPHA-01">
-            
-            <label class="select-label" style="text-align:left;">⛺ 選擇/建立戰術房間</label>
-            <select id="room-type-select" class="select-input" onchange="toggleCustomRoomInput()">
-                <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
-                <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
-                <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
+        <div class="panel-section">
+            <div class="panel-title">1. 兵棋自選選單</div>
+            <label class="select-label">🔹 選擇兵科/主要兵種</label>
+            <select id="mil-branch-select" class="select-input">
+                <option value="ST----">步兵兵科 (Infantry ☒)</option>
+                <option value="UC----">裝甲兵科 (Armor ⎔)</option>
+                <option value="SF----">砲兵兵科 (Artillery 🎯)</option>
+                <option value="AV----">陸航航空 (Aviation)</option>
+                <option value="E-----">工兵兵科 (Engineer)</option>
+                <option value="MD----">醫療部隊 (Medical ✚)</option>
+                <option value="SU----">飛彈部隊 (Missile)</option>
+                <option value="C4----">通信信號 (Signal)</option>
             </select>
-            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
-            
-            <button class="login-btn" onclick="joinTacticalNetwork()">連線進入 COP 系統</button>
+            <label class="select-label">🔹 選擇層級/編裝階級</label>
+            <select id="mil-size-select" class="select-input">
+                <option value="00">未指定階級</option>
+                <option value="11">組 (Team / ●)</option>
+                <option value="22">班 (Squad / ●●)</option>
+                <option value="33">排 (Platoon / ●●●)</option>
+                <option value="44">連 (Company / ｜)</option>
+                <option value="55">營 (Battalion / ｜｜)</option>
+                <option value="66">旅 (Brigade / ❌)</option>
+            </select>
+            <label class="select-label">▼ 選擇陣營並放置</label>
+            <div class="grid-2">
+                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')"><span style="color:#00a2ff;">█</span>友軍</button>
+                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')"><span style="color:#ff3333;">◆</span>敵軍</button>
+                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')"><span style="color:#00ff33;">■</span>中立</button>
+                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')"><span style="color:#ffff00;">●</span>不明</button>
+            </div>
         </div>
+        
+        <div class="panel-section">
+            <div class="panel-title">2. 範圍工具 (戰術圖形)</div>
+            <div class="grid-2">
+                <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
+                <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
+                <button class="btn" id="btn-poly" onclick="setMode('poly')">⬡ 多邊形</button>
+                <button class="btn" id="btn-line" onclick="setMode('line')">📈 線條</button>
+            </div>
+        </div>
+        
+        <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 刪除所有人標繪</button>
     </div>
-
+</div>
     <div id="map"></div>
     
     <div class="status-panel">
@@ -122,13 +95,10 @@
         </div>
     </div>
 
-<div class="action-panel">
-    <button onclick="togglePanel()" style="background:#00ffcc; border:none; padding:5px; cursor:pointer;">≡ 選單</button>
-    
-    <div id="tactical-controls" class="collapsible-content">
-        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖</button>
-        </div>
-</div>
+    <div class="action-panel">
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
+        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
+        
         <div class="panel-section">
             <div class="panel-title">1. 兵棋自選選單</div>
             <label class="select-label">🔹 選擇兵科/主要兵種</label>
@@ -182,9 +152,9 @@
     
     <script>
         function togglePanel() {
-        const content = document.getElementById('tactical-controls');
-        content.classList.toggle('collapsed');
-    }
+    const content = document.getElementById('tactical-controls');
+    content.classList.toggle('collapsed');
+}
         let myCallsign = "ALPHA-01";
         let myRoomID = "PUBLIC_01";
         let localUserList = [];
