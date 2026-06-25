@@ -7,6 +7,40 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <style>
+        /* 觸發按鈕樣式 */
+.menu-trigger {
+    position: absolute;
+    top: 10px;
+    z-index: 100;
+    width: 40px;
+    height: 40px;
+    background: #00ffcc;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+}
+#btn-left { left: 10px; }
+#btn-right { right: 10px; }
+
+/* 面板隱藏邏輯 */
+.panel-wrapper.hidden { display: none; }
+.panel-wrapper { 
+    position: absolute; 
+    z-index: 99; 
+    /* 這裡延用你原本的 action-panel 寬高設定 */
+}
+
+/* 確保手機版時面板滿版顯示 */
+@media screen and (max-width: 600px) {
+    .panel-wrapper {
+        top: 60px;
+        left: 5px;
+        right: 5px;
+        background: rgba(0,0,0,0.8);
+        padding: 10px;
+    }
+}
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -110,59 +144,15 @@
 
     <div id="map"></div>
     
-    <div class="status-panel">
-        <div><strong>WEB-TAK COP PLATFORM</strong></div>
-        <div>房間: <span id="current-room" style="color: #fff;">未連線</span></div>
-        <div>模式: <span id="current-mode" style="color: #fff;">STANDBY</span></div>
-        <div id="gps-status">座標: 24.94430 , 121.21540 (模擬定位)</div>
-        
-        <div class="weather-box" id="weather-box">
-            戰術氣象加載中...
-        </div>
-        
-        <div class="user-list-box">
-            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
-            <div id="user-list"></div>
-        </div>
-    </div>
+  <button class="menu-trigger" id="btn-left" onclick="togglePanel('status-panel')">⚙️</button>
+<button class="menu-trigger" id="btn-right" onclick="togglePanel('action-panel')">🎯</button>
 
-    <div class="action-panel">
-        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
-        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
-        
-        <div class="panel-section">
-            <div class="panel-title">1. 兵棋自選選單</div>
-            <label class="select-label">🔹 選擇兵科/主要兵種</label>
-            <select id="mil-branch-select" class="select-input">
-                <option value="ST----">步兵兵科 (Infantry ☒)</option>
-                <option value="UC----">裝甲兵科 (Armor ⎔)</option>
-                <option value="SF----">砲兵兵科 (Artillery 🎯)</option>
-                <option value="AV----">陸航航空 (Aviation)</option>
-                <option value="E-----">工兵兵科 (Engineer)</option>
-                <option value="MD----">醫療部隊 (Medical ✚)</option>
-                <option value="SU----">飛彈部隊 (Missile)</option>
-                <option value="C4----">通信信號 (Signal)</option>
-            </select>
-
-            <label class="select-label">🔹 選擇層級/編裝階級</label>
-            <select id="mil-size-select" class="select-input">
-                <option value="00">未指定階級</option>
-                <option value="11">組 (Team / ●)</option>
-                <option value="22">班 (Squad / ●●)</option>
-                <option value="33">排 (Platoon / ●●●)</option>
-                <option value="44">連 (Company / ｜)</option>
-                <option value="55">營 (Battalion / ｜｜)</option>
-                <option value="66">旅 (Brigade / ❌)</option>
-            </select>
-
-            <label class="select-label">▼ 選擇陣營並放置</label>
-            <div class="grid-2">
-                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')"><span style="color:#00a2ff;">█</span>友軍</button>
-                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')"><span style="color:#ff3333;">◆</span>敵軍</button>
-                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')"><span style="color:#00ff33;">■</span>中立</button>
-                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')"><span style="color:#ffff00;">●</span>不明</button>
-            </div>
-        </div>
+<div id="status-panel-wrapper" class="panel-wrapper hidden">
+    <div class="status-panel">...內容保持不變...</div>
+</div>
+<div id="action-panel-wrapper" class="panel-wrapper hidden">
+    <div class="action-panel">...內容保持不變...</div>
+</div>
         
         <div class="panel-section">
             <div class="panel-title">2. 範圍工具 (戰術圖形)</div>
@@ -546,6 +536,14 @@
             let rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">${frameSvg}${interiorSvg}${sizeSvg}</svg>`;
             return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
         }
+        function togglePanel(panelClass) {
+    const wrapper = document.getElementById(panelClass + '-wrapper');
+    if (wrapper.classList.contains('hidden')) {
+        wrapper.classList.remove('hidden');
+    } else {
+        wrapper.classList.add('hidden');
+    }
+}
     </script>
 </body>
 </html>
