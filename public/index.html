@@ -11,35 +11,35 @@
     body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
     #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 
-    /* --- 左上資訊面板 (精簡版) --- */
-    .status-panel { position: absolute; top: 10px; left: 10px; z-index: 10; background: rgba(0, 20, 20, 0.8); border: 1px solid #00ffcc; padding: 8px; border-radius: 4px; color: #00ffcc; font-size: 10px; width: 180px; }
-    .user-list-box { margin-top: 5px; max-height: 80px; overflow-y: auto; }
-    .weather-box { display: none; } /* 手機版隱藏天氣以節省空間 */
+    /* --- 左上狀態面板 --- */
+    .status-panel { position: absolute; top: 70px; left: 10px; z-index: 10; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; padding: 10px; border-radius: 6px; color: #00ffcc; font-size: 11px; width: 180px; }
 
-/* --- 上方橫向工具列 (修正跑版問題) --- */
+    /* --- 上方經典功能列 --- */
     .action-panel { 
-        position: fixed; /* 改用 fixed 確保固定在螢幕頂部 */
-        top: 0; left: 0; width: 100%; 
-        z-index: 1000; /* 確保它永遠浮在地圖上方 */
-        display: flex; flex-wrap: wrap; gap: 3px; 
-        background: rgba(10, 15, 25, 0.95); 
-        padding: 5px; 
-        border-bottom: 1px solid #445566; 
-        justify-content: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; 
+        background: rgba(10, 15, 25, 0.95); padding: 8px; 
+        display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+        border-bottom: 2px solid #00ffcc; box-shadow: 0 2px 10px rgba(0,255,204,0.3);
     }
+    .panel-section { display: flex; gap: 5px; align-items: center; border-right: 1px solid #445566; padding-right: 8px; }
     
-    /* 確保面板不會遮住地圖操作，給地圖留點空間 */
-    #map { top: 60px; height: calc(100% - 60px); } 
-    
-    /* 調整按鈕與選單大小以適應手機 */
-    .btn { height: 30px; padding: 0 5px; font-size: 9px; line-height: 1; }
-    .select-input { height: 30px; width: 65px; font-size: 9px; }
+    /* 恢復你喜歡的按鈕樣式 */
+    .btn { 
+        height: 40px; padding: 5px 12px; background: rgba(20, 30, 40, 0.8); 
+        border: 1px solid #556677; border-radius: 6px; color: #fff; 
+        cursor: pointer; font-weight: bold; font-size: 11px; 
+    }
+    .btn:hover, .btn.active { border-color: #00ffcc; color: #00ffcc; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); }
+    .btn-clear { border-color: #e74c3c; color: #e74c3c; }
+    .select-input { height: 35px; width: 90px; background: #141e28; border: 1px solid #556677; color: #fff; font-size: 11px; }
 
-    /* 登入視窗 */
+    /* 其他輔助隱藏 */
+    .panel-title, .select-label { display: none; }
+
+    /* 登入視窗保持不變 */
     #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; color: #00ffcc; }
-    .login-box { background: rgba(15, 25, 35, 0.9); border: 2px solid #00ffcc; padding: 20px; width: 90%; max-width: 320px; }
-    .login-input { width: 100%; height: 35px; background: #141e28; border: 1px solid #00ffcc; color: #fff; margin-bottom: 10px; }
+    .login-box { background: rgba(15, 25, 35, 0.9); border: 2px solid #00ffcc; padding: 30px; width: 320px; text-align: center; }
+    .login-input { width: 100%; height: 35px; background: #141e28; border: 1px solid #00ffcc; color: #fff; margin-bottom: 15px; }
     .login-btn { width: 100%; height: 40px; background: #00ffcc; color: #000; font-weight: bold; cursor: pointer; }
 </style>
 </head>
