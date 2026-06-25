@@ -16,18 +16,25 @@
     .user-list-box { margin-top: 5px; max-height: 80px; overflow-y: auto; }
     .weather-box { display: none; } /* 手機版隱藏天氣以節省空間 */
 
-/* --- 上方橫向工具列 (精緻化) --- */
+/* --- 上方橫向工具列 (修正跑版問題) --- */
     .action-panel { 
-        position: absolute; top: 10px; right: 10px; left: 10px; z-index: 10; 
-        display: flex; flex-wrap: wrap; gap: 4px; 
-        background: rgba(10, 15, 25, 0.9); padding: 5px; 
-        border-radius: 6px; border: 1px solid #445566; 
+        position: fixed; /* 改用 fixed 確保固定在螢幕頂部 */
+        top: 0; left: 0; width: 100%; 
+        z-index: 1000; /* 確保它永遠浮在地圖上方 */
+        display: flex; flex-wrap: wrap; gap: 3px; 
+        background: rgba(10, 15, 25, 0.95); 
+        padding: 5px; 
+        border-bottom: 1px solid #445566; 
         justify-content: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
     }
-    /* 讓兵種選擇與陣營按鈕稍微分開，操作更直覺 */
-    .panel-section { display: flex; gap: 4px; align-items: center; }
-    .btn { height: 32px; padding: 0 6px; font-size: 9px; }
-    .select-input { height: 32px; width: 70px; font-size: 9px; margin-bottom: 0; }
+    
+    /* 確保面板不會遮住地圖操作，給地圖留點空間 */
+    #map { top: 60px; height: calc(100% - 60px); } 
+    
+    /* 調整按鈕與選單大小以適應手機 */
+    .btn { height: 30px; padding: 0 5px; font-size: 9px; line-height: 1; }
+    .select-input { height: 30px; width: 65px; font-size: 9px; }
 
     /* 登入視窗 */
     #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; color: #00ffcc; }
