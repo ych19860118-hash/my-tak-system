@@ -20,55 +20,60 @@
         .login-btn:hover { background: #00ccaa; box-shadow: 0 0 10px rgba(0, 255, 204, 0.8); }
 
         /* 左側戰術狀態與天氣面板 */
-        .status-panel { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.3); padding: 15px; border-radius: 6px; color: #00ffcc; font-size: 13px; line-height: 1.6; pointer-events: auto; width: 250px; }
-        .weather-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; font-size: 12px; color: #fff; }
-        .user-list-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; max-height: 120px; overflow-y: auto; font-size: 11px; }
-        .user-item { display: flex; align-items: center; gap: 5px; color: #00ffcc; margin-bottom: 2px; }
+        .status-panel { 
+        position: absolute; bottom: 20px; left: 10px; z-index: 10; 
+        background: rgba(0, 20, 20, 0.8); border: 1px solid #00ffcc; 
+        padding: 8px; border-radius: 6px; color: #00ffcc; font-size: 10px; 
+        width: 180px; pointer-events: auto; 
+    }
+    .weather-box { margin-top: 5px; padding-top: 5px; border-top: 1px dashed #00ffcc; font-size: 9px; color: #fff; }
+    .user-list-box { display: none; } /* 手機版隱藏人員清單以節省空間 */
 
-        /* 右側戰術控制台 */
-        .action-panel { position: absolute; top: 20px; right: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; width: 195px; }
-        .panel-section { background: rgba(10, 15, 25, 0.9); border: 1px solid #445566; padding: 8px; border-radius: 8px; color: #fff; font-size: 11px; }
-        .panel-title { text-align: center; font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        
-        /* 選單與按鈕樣式 */
-        .select-label { display: block; font-size: 10px; color: #00ffcc; margin: 4px 0 2px 0; font-weight: bold; }
-        .select-input { width: 100%; height: 28px; background: #141e28; border: 1px solid #556677; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 11px; margin-bottom: 6px; cursor: pointer; }
-        .select-input:focus { border-color: #00ffcc; outline: none; }
-        .btn { width: 100%; height: 45px; background: rgba(20, 30, 40, 0.8); border: 1px solid #556677; border-radius: 6px; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 11px; font-weight: bold; }
-        .btn:hover, .btn.active { border-color: #00ffcc; box-shadow: 0 0 8px rgba(0, 255, 204, 0.5); color: #00ffcc; }
-        .btn-toggle-map { background: #34495e; color: #fff; border: 1px solid #7f8c8d; height: 35px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 5px; }
-        .btn-toggle-map:hover { background: #2c3e50; border-color: #00ffcc; }
-        .btn-gps { border-color: #00ffcc; color: #00ffcc; width: 100%; height: 40px; margin-bottom: 5px; font-weight: bold; background: rgba(0,40,40,0.5); cursor: pointer; border-radius: 6px; }
-        .btn-clear { border-color: #e74c3c; color: #e74c3c; width: 100%; height: 40px; margin-top: 5px; background: rgba(40,0,0,0.5); cursor: pointer; border-radius: 6px; font-weight: bold; }
-        
-        /* 表單快顯視窗 */
-        .props-form { font-family: monospace; padding: 5px; min-width: 180px; }
-        .props-form label { display: block; font-size: 11px; color: #333; margin-top: 4px; margin-bottom: 2px; font-weight: bold; }
-        .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
-        .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
-        .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
-    </style>
-</head>
-<body>
+    /* 調整：控制面板移至正下方，水平排列 */
+    .action-panel { 
+        position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+        z-index: 10; display: flex; flex-direction: row; gap: 5px; 
+        width: 95vw; overflow-x: auto; padding: 5px;
+        background: rgba(10, 15, 25, 0.7); border-radius: 8px;
+    }
+    
+    /* 按鈕樣式微調以適應單行排列 */
+    .panel-section { display: flex; gap: 5px; background: none; border: none; padding: 0; }
+    .panel-title { display: none; } /* 隱藏標題節省空間 */
+    .btn { width: 60px; height: 50px; font-size: 9px; flex-shrink: 0; }
+    .btn-toggle-map, .btn-gps, .btn-clear { height: 50px; width: 60px; font-size: 9px; flex-shrink: 0; }
+    .grid-2 { display: flex; gap: 5px; }
+    
+    /* 修正手機端的選單樣式 */
+    .select-input { margin-bottom: 2px; }
+</style>
 
-    <div id="login-overlay">
-        <div class="login-box">
-            <h2>WEB-TAK 戰術登入</h2>
-            <label class="select-label" style="text-align:left;">👤 輸入作戰呼號 (Callsign)</label>
-            <input type="text" id="user-callsign" class="login-input" value="ALPHA-01">
-            
-            <label class="select-label" style="text-align:left;">⛺ 選擇/建立戰術房間</label>
-            <select id="room-type-select" class="select-input" onchange="toggleCustomRoomInput()">
-                <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
-                <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
-                <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
-            </select>
-            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
-            
-            <button class="login-btn" onclick="joinTacticalNetwork()">連線進入 COP 系統</button>
-        </div>
+<div class="status-panel">
+    <div style="font-weight:bold;">WEB-TAK COP</div>
+    <div>房間: <span id="current-room" style="color: #fff;">PUBLIC_01</span></div>
+    <div id="gps-status">GPS: 24.94, 121.21</div>
+    <div class="weather-box" id="weather-box">讀取中...</div>
+</div>
+
+<div class="action-panel">
+    <button class="btn-toggle-map" onclick="toggleMapStyle()">風格</button>
+    <button class="btn-gps" onclick="getLocation()">定位</button>
+    
+    <select id="mil-branch-select" style="width: 80px; font-size: 10px;">
+        <option value="ST----">步兵</option>
+        <option value="UC----">裝甲</option>
+        <option value="SF----">砲兵</option>
+    </select>
+    
+    <div class="grid-2">
+        <button class="btn" onclick="setMode('mil-friend')">友軍</button>
+        <button class="btn" onclick="setMode('mil-hostile')">敵軍</button>
     </div>
+    
+    <button class="btn" onclick="setMode('circle')">⭕圓</button>
+    <button class="btn" onclick="setMode('line')">📈線</button>
+    <button class="btn btn-clear" onclick="broadcastClear()">🗑️刪</button>
+</div>
 
     <div id="map"></div>
     
