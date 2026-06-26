@@ -129,6 +129,10 @@
     <!-- 左側狀態面板 (修正結構) -->
     <div class="status-panel">
         <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
+        <div id="current-mode" style="display:none;"></div>
+    <div id="current-room" style="display:none;"></div>
+    <!-- 若不要天氣資訊，也請加上隱藏容器 -->
+    <div id="weather-box" style="display:none;"></div>
         <div class="user-list-box">
             <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
             <div id="user-list"></div>
