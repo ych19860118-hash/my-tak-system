@@ -49,15 +49,55 @@
         .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
         .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
 /* 將原本的 .panel-hidden 刪除，改用以下這段 */
+/* 移除原本的 .panel-hidden，改用此段 */
 .panel-collapsed {
-    height: 35px !important; /* 只保留標題列高度 */
+    height: 30px !important; /* 收合後只剩標題高度 */
     overflow: hidden;
 }
 
-/* 讓面板內部的其他內容在收合時自動隱藏 */
+/* 確保收合時，除了標題以外的內容都被隱藏 */
 .panel-collapsed > *:not(:first-child) {
     display: none !important;
 }
+/* --- 面板與字體縮小 --- */
+.status-panel, .action-panel {
+    font-size: 10px !important; /* 全體縮小 */
+    padding: 8px !important;
+}
+
+.btn, .btn-toggle-map, .btn-gps, .btn-clear {
+    height: 28px !important;    /* 按鈕高度縮減，更適合手機 */
+    font-size: 10px !important;
+    padding: 0 4px !important;
+}
+
+.panel-section {
+    padding: 5px !important;
+}
+
+/* --- 手機版特別優化 (螢幕寬度小於 600px 時) --- */
+@media (max-width: 600px) {
+    .status-panel {
+        width: 180px !important;
+        top: 10px !important;
+        left: 10px !important;
+    }
+    
+    .action-panel {
+        width: 150px !important;
+        top: 10px !important;
+        right: 10px !important;
+    }
+
+    .select-input {
+        height: 24px !important;
+        font-size: 9px !important;
+    }
+
+    /* 隱藏部分不必要的細節以節省空間 */
+    .weather-box { display: none; } 
+    .user-list-box { max-height: 80px !important; }
+}        
     </style>
 </head>
 <body>
@@ -531,13 +571,11 @@
             return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
         }
 function togglePanel(btn) {
-    // 尋找最近的面板容器
     const panel = btn.parentElement;
-    
-    // 切換 class
+    // 切換是否加上收合的 class
     panel.classList.toggle('panel-collapsed');
     
-    // 更新按鈕符號：收合時變為「+」(顯示展開)，展開時變為「✖」(顯示關閉)
+    // 如果已有 panel-collapsed，代表現在是收合狀態，顯示「+」；否則顯示「✖」
     btn.innerText = panel.classList.contains('panel-collapsed') ? '⚙' : '✖';
 }
     </script>
