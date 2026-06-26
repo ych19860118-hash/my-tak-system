@@ -525,6 +525,10 @@
     panel.classList.toggle('panel-hidden');
     btn.innerText = panel.classList.contains('panel-hidden') ? '⚙' : '✖';
 }
+        /* 新增此段以修復面板切換邏輯 */
+.panel-hidden {
+    display: none !important;
+}
     </script>
 </body>
 </html>
