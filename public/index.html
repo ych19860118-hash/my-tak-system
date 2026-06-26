@@ -30,11 +30,34 @@
         .user-list-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #00ffcc; max-height: 120px; overflow-y: auto; font-size: 11px; }
         .user-item { display: flex; align-items: center; gap: 5px; color: #00ffcc; margin-bottom: 2px; }
 
-        /* 右側戰術控制台 */
-        .action-panel { position: absolute; top: 20px; right: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; width: 195px; }
-        .panel-section { background: rgba(10, 15, 25, 0.9); border: 1px solid #445566; padding: 8px; border-radius: 8px; color: #fff; font-size: 11px; }
-        .panel-title { text-align: center; font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        /* 修改右側控制面板的定位 */
+.action-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px; /* 這裡確保它靠右 */
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 90vh;
+    overflow-y: auto;
+    width: 200px; /* 稍微固定寬度 */
+}
+
+/* 在手機版媒體查詢中，確保兩者不重疊 */
+@media (max-width: 600px) {
+    .status-panel {
+        width: 140px !important; /* 縮小一點 */
+        top: 10px !important;
+        left: 5px !important;
+    }
+    
+    .action-panel {
+        width: 140px !important; /* 縮小一點 */
+        top: 10px !important;
+        right: 5px !important; /* 確保右邊有空間 */
+    }
+}
         
         /* 選單與按鈕樣式 */
         .select-label { display: block; font-size: 10px; color: #00ffcc; margin: 4px 0 2px 0; font-weight: bold; }
