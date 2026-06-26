@@ -48,6 +48,9 @@
         .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
         .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
         .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
+    .panel-hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -520,15 +523,12 @@
             let rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">${frameSvg}${interiorSvg}${sizeSvg}</svg>`;
             return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
         }
-        function togglePanel(btn) {
-    const panel = btn.parentElement;
-    panel.classList.toggle('panel-hidden');
-    btn.innerText = panel.classList.contains('panel-hidden') ? '⚙' : '✖';
-}
-        /* 新增此段以修復面板切換邏輯 */
-.panel-hidden {
-    display: none !important;
-}
+function togglePanel(btn) {
+            const panel = btn.parentElement;
+            panel.classList.toggle('panel-hidden');
+            btn.innerText = panel.classList.contains('panel-hidden') ? '⚙' : '✖';
+        }
+    </script>
     </script>
 </body>
 </html>
