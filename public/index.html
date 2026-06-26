@@ -101,7 +101,6 @@
     </style>
 </head>
 <body>
-
     <div id="login-overlay">
         <div class="login-box">
             <h2>WEB-TAK 戰術登入</h2>
@@ -122,65 +121,57 @@
 
     <div id="map"></div>
     
+    <!-- 左側狀態面板 (修正結構) -->
     <div class="status-panel">
         <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-        
-        <!-- 已移除 WEB-TAK 標題、模式與天氣顯示 -->
-        
-        <div class="user-list-box">
-            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
-            <div id="user-list"></div>
-        </div>
-    </div>
-        
         <div class="user-list-box">
             <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
             <div id="user-list"></div>
         </div>
     </div>
 
+    <!-- 右側控制面板 (修正結構) -->
     <div class="action-panel">
         <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-    <div><strong>WEB-TAK COP PLATFORM</strong></div>
-        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格 (黑/白)</button>
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>
         <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
         
         <div class="panel-section">
             <div class="panel-title">1. 兵棋自選選單</div>
-            <label class="select-label">🔹 選擇兵科/主要兵種</label>
+            <label class="select-label">🔹 選擇兵科</label>
             <select id="mil-branch-select" class="select-input">
-                <option value="ST----">步兵兵科 (Infantry ☒)</option>
-                <option value="UC----">裝甲兵科 (Armor ⎔)</option>
-                <option value="SF----">砲兵兵科 (Artillery 🎯)</option>
-                <option value="AV----">陸航航空 (Aviation)</option>
-                <option value="E-----">工兵兵科 (Engineer)</option>
-                <option value="MD----">醫療部隊 (Medical ✚)</option>
-                <option value="SU----">飛彈部隊 (Missile)</option>
-                <option value="C4----">通信信號 (Signal)</option>
+                <option value="ST----">步兵 (Infantry)</option>
+                <option value="UC----">裝甲 (Armor)</option>
+                <option value="SF----">砲兵 (Artillery)</option>
+                <option value="AV----">陸航 (Aviation)</option>
+                <option value="E-----">工兵 (Engineer)</option>
+                <option value="MD----">醫療 (Medical)</option>
+                <option value="SU----">飛彈 (Missile)</option>
+                <option value="C4----">通信 (Signal)</option>
             </select>
 
-            <label class="select-label">🔹 選擇層級/編裝階級</label>
+            <label class="select-label">🔹 選擇階級</label>
             <select id="mil-size-select" class="select-input">
-                <option value="00">未指定階級</option>
-                <option value="11">組 (Team / ●)</option>
-                <option value="22">班 (Squad / ●●)</option>
-                <option value="33">排 (Platoon / ●●●)</option>
-                <option value="44">連 (Company / ｜)</option>
-                <option value="55">營 (Battalion / ｜｜)</option>
-                <option value="66">旅 (Brigade / ❌)</option>
+                <option value="00">無指定</option>
+                <option value="11">組 (Team)</option>
+                <option value="22">班 (Squad)</option>
+                <option value="33">排 (Platoon)</option>
+                <option value="44">連 (Company)</option>
+                <option value="55">營 (Battalion)</option>
+                <option value="66">旅 (Brigade)</option>
             </select>
 
-            <label class="select-label">▼ 選擇陣營並放置</label>
+            <label class="select-label">▼ 選擇陣營放置</label>
             <div class="grid-2">
-                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')"><span style="color:#00a2ff;">█</span>友軍</button>
-                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')"><span style="color:#ff3333;">◆</span>敵軍</button>
-                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')"><span style="color:#00ff33;">■</span>中立</button>
-                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')"><span style="color:#ffff00;">●</span>不明</button>
+                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')">友軍</button>
+                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')">敵軍</button>
+                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')">中立</button>
+                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')">不明</button>
             </div>
         </div>
         
         <div class="panel-section">
-            <div class="panel-title">2. 範圍工具 (戰術圖形)</div>
+            <div class="panel-title">2. 範圍工具</div>
             <div class="grid-2">
                 <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
                 <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
@@ -189,13 +180,8 @@
             </div>
         </div>
         
-        <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 刪除所有人標繪</button>
+        <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 清除圖層</button>
     </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="/socket.io/socket.io.js" onerror="console.warn('未偵測到後端伺服器，切換至單機模擬模式')"></script>
-    
     <script>
         let myCallsign = "ALPHA-01";
         let myRoomID = "PUBLIC_01";
