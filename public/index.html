@@ -48,9 +48,16 @@
         .props-form input[type="text"], .props-form input[type="number"], .props-form select { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
         .btn-delete-item { width: 100%; padding: 6px; background: #fff1f0; border: 1px solid #ffa39e; color: #f5222d; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-top: 5px; }
         .leaflet-tooltip.tactical-label { background: rgba(0, 15, 15, 0.85); border: 1px solid #00ffcc; color: #00ffcc; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0, 255, 204, 0.4); border-radius: 4px; padding: 2px 6px; }
-    .panel-hidden {
-            display: none !important;
-        }
+/* 將原本的 .panel-hidden 刪除，改用以下這段 */
+.panel-collapsed {
+    height: 35px !important; /* 只保留標題列高度 */
+    overflow: hidden;
+}
+
+/* 讓面板內部的其他內容在收合時自動隱藏 */
+.panel-collapsed > *:not(:first-child) {
+    display: none !important;
+}
     </style>
 </head>
 <body>
@@ -524,10 +531,15 @@
             return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
         }
 function togglePanel(btn) {
-            const panel = btn.parentElement;
-            panel.classList.toggle('panel-hidden');
-            btn.innerText = panel.classList.contains('panel-hidden') ? '⚙' : '✖';
-        }
+    // 尋找最近的面板容器
+    const panel = btn.parentElement;
+    
+    // 切換 class
+    panel.classList.toggle('panel-collapsed');
+    
+    // 更新按鈕符號：收合時變為「+」(顯示展開)，展開時變為「✖」(顯示關閉)
+    btn.innerText = panel.classList.contains('panel-collapsed') ? '⚙' : '✖';
+}
     </script>
     </script>
 </body>
