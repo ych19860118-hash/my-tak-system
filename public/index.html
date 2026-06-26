@@ -129,10 +129,16 @@
     <!-- 左側狀態面板 (修正結構) -->
     <div class="status-panel">
         <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
+        <div style="margin-bottom:5px;">狀態: <span id="current-mode">OFFLINE</span></div>
+    <div style="margin-bottom:5px;">頻道: <span id="current-room">NONE</span></div>
         <div class="user-list-box">
             <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
             <div id="user-list"></div>
         </div>
+        <!-- 記得補上 weather-box -->
+    <div id="weather-box" class="weather-box">正在讀取天氣...</div>
+    <!-- 以及 GPS 狀態 -->
+    <div id="gps-status" style="font-size:10px; margin-top:5px; color:#aaa;"></div>
     </div>
 
     <!-- 右側控制面板 (修正結構) -->
