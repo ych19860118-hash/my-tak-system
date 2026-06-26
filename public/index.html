@@ -124,15 +124,14 @@
     
     <div class="status-panel">
         <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-    <div><strong>WEB-TAK COP PLATFORM</strong></div>
-        <div><strong>WEB-TAK COP PLATFORM</strong></div>
-        <div>房間: <span id="current-room" style="color: #fff;">未連線</span></div>
-        <div>模式: <span id="current-mode" style="color: #fff;">STANDBY</span></div>
-        <div id="gps-status">座標: 24.94430 , 121.21540 (模擬定位)</div>
         
-        <div class="weather-box" id="weather-box">
-            戰術氣象加載中...
+        <!-- 已移除 WEB-TAK 標題、模式與天氣顯示 -->
+        
+        <div class="user-list-box">
+            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
+            <div id="user-list"></div>
         </div>
+    </div>
         
         <div class="user-list-box">
             <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">🟢 線上隊員 (<span id="user-count">1</span>)</div>
