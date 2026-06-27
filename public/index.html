@@ -272,61 +272,13 @@
 </div>
     
 <script>
-    let myCallsign = document.getElementById('user-callsign').value || "ALPHA-01";
-    // ... (其他基礎設定同前) ...
-
-    // 產生北約符號的函式
-    function createMilMarker(sidc, name, username, color) {
-        const symbol = new ms.Symbol(sidc, { size: 30, color: color });
-        return L.marker([0, 0], {
-            icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [30, 30] }),
-            draggable: (username === myCallsign) // 只有本人可以拖曳
-        });
-    }
-
-    // 處理新增兵棋 (修改 setMode 為處理兵棋與範圍)
-    window.setMode = function(mode) {
-        Object.values(drawTools).forEach(t => t.disable());
-        if (mode === 'mil-friend') {
-            const sidc = document.getElementById('mil-branch-select').value;
-            // 監聽地圖點擊，產生符號
-            map.once('click', function(e) {
-                const marker = createMilMarker(sidc, "友軍", myCallsign, "#00ff00");
-                marker.setLatLng(e.latlng);
-                marker.customData = { username: myCallsign, name: "友軍", type: 'mil' };
-                marker.addTo(drawnItems);
-                
-                // 權限綁定
-                marker.bindPopup(`
-                    <p>單位: ${marker.customData.name}</p>
-                    ${marker.customData.username === myCallsign ? `<button class="btn btn-clear" onclick="deleteLayer(this)">刪除</button>` : '唯讀'}
-                `);
-            });
-        } else if (drawTools[mode]) {
-            drawTools[mode].enable();
-        }
-    };
-
-    // 刪除邏輯
-    window.deleteLayer = function(btn) {
-        const layer = map.eachLayer(l => l.getPopup()?.isOpen() ? l : null).find(l => l);
-        if (layer) {
-            // 檢查權限
-            if (layer.customData.username === myCallsign) {
-                drawnItems.removeLayer(layer);
-            } else {
-                alert("你沒有權限刪除此單位的圖層！");
-            }
-        }
-    };
+    // 1. 初始化環境
     let myCallsign = "ALPHA-01", myRoomID = "PUBLIC_01";
     const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    // 儲存所有圖層的群組
     const drawnItems = new L.FeatureGroup().addTo(map);
 
-    // 建立所有繪圖工具
+    // 2. 建立繪圖工具
     const drawTools = {
         circle: new L.Draw.Circle(map),
         rect: new L.Draw.Rectangle(map),
@@ -334,61 +286,65 @@
         line: new L.Draw.Polyline(map)
     };
 
-    // 處理按鈕點擊：只開啟對應的工具
+    // 3. 統一的模式切換 (包含繪圖與兵棋)
     window.setMode = function(mode) {
-        // 先確保關閉所有其他工具
-        Object.values(drawTools).forEach(t => t.disable());
-        if (drawTools[mode]) drawTools[mode].enable();
+        Object.values(drawTools).forEach(t => t.disable()); // 關閉繪圖
+        
+        if (mode.startsWith('mil-')) {
+            // 兵棋模式：開啟地圖點擊監聽
+            map.once('click', function(e) {
+                const sidc = document.getElementById('mil-branch-select').value;
+                const color = (mode === 'mil-friend') ? '#00ff00' : (mode === 'mil-hostile') ? '#ff0000' : '#ffff00';
+                
+                const symbol = new ms.Symbol(sidc, { size: 30, color: color });
+                const marker = L.marker(e.latlng, {
+                    icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [30, 30] }),
+                    draggable: true 
+                }).addTo(drawnItems);
+                
+                marker.customData = { username: myCallsign, type: 'mil' };
+                marker.bindPopup(`
+                    <p>單位: ${sidc}</p>
+                    <button class="btn btn-clear" onclick="deleteLayer(this)">刪除</button>
+                `);
+            });
+        } else if (drawTools[mode]) {
+            drawTools[mode].enable();
+        }
     };
 
-    // 核心：繪製完成後的邏輯
+    // 4. 繪圖完成處理
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
+        layer.customData = { username: myCallsign };
         drawnItems.addLayer(layer);
-        
-        // 綁定編輯視窗
         layer.bindPopup(`
             <div class="props-form">
-                <label>名稱</label><input type="text" id="edit-name" value="新物件">
-                <label>顏色</label><input type="color" id="edit-color" value="#ff0000">
-                <button class="btn" onclick="saveEdit(this)">儲存修改</button>
+                <input type="text" id="edit-name" placeholder="名稱">
+                <button class="btn" onclick="saveEdit(this)">儲存</button>
+                <button class="btn btn-clear" onclick="deleteLayer(this)">刪除</button>
             </div>
         `);
-        
-        // 畫完後自動觸發進入編輯狀態 (關鍵！)
-        // 讓物件節點可以被拉動、調整大小
-        layer.editing.enable(); 
+        layer.editing.enable();
     });
 
-    // 畫完一個後，強制停止工具，避免重複繪製
-    map.on('draw:created', function () {
-        Object.values(drawTools).forEach(t => t.disable());
-    });
-
-    // 儲存並更新樣式
-    window.saveEdit = function(btn) {
-        const container = btn.parentElement;
-        const name = container.querySelector('#edit-name').value;
-        const color = container.querySelector('#edit-color').value;
-        
-        map.eachLayer(layer => {
-            if (layer.getPopup() && layer.getPopup().isOpen()) {
-                layer.setStyle({ color: color, fillColor: color });
-                layer.bindTooltip(name, {permanent: true}).openTooltip();
-                layer.closePopup();
-            }
-        });
+    // 5. 共用刪除邏輯
+    window.deleteLayer = function(btn) {
+        const layer = map.eachLayer(l => l.getPopup()?.isOpen() ? l : null).find(l => l);
+        if (layer && layer.customData.username === myCallsign) {
+            drawnItems.removeLayer(layer);
+        } else {
+            alert("你沒有權限刪除此項目！");
+        }
     };
 
-    // --- 其他 UI 功能 ---
+    // 6. UI 控制功能
+    window.saveEdit = (btn) => { /* 編輯儲存邏輯 */ btn.parentElement.parentElement._popup.closePopup(); };
     window.togglePanel = (btn) => btn.parentElement.classList.toggle('panel-collapsed');
-    window.toggleSection = (el, id) => {
-        document.getElementById(id).classList.toggle('collapsed');
-        el.classList.toggle('collapsed');
-    };
+    window.toggleSection = (el, id) => { document.getElementById(id).classList.toggle('collapsed'); el.classList.toggle('collapsed'); };
     window.broadcastClear = () => { if(confirm("確定刪除所有圖層？")) drawnItems.clearLayers(); };
     window.joinTacticalNetwork = () => document.getElementById('login-overlay').style.display = 'none';
-    window.toggleMapStyle = () => alert("地圖切換功能需後端對接");
+    window.toggleMapStyle = () => alert("功能待實作");
 </script>
 </body>
 </html>
