@@ -388,19 +388,20 @@ function joinTacticalNetwork() {
             drawnItems.clearLayers(); 
         });
 
-        function sendLayerUpdate(layer, layerType, customId = null) {
-            const id = customId || L.stamp(layer);
-            const name = layer.customData ? layer.customData.name : "未命名戰術物件";
-            const color = layer.customData ? layer.customData.color : "#ffffff";
-            
-            let payload = { 
-                room: myRoomID,
-                id: id, 
-                type: layerType, 
-                name: name, 
-                color: color, 
-                username: myCallsign 
-            };
+function sendLayerUpdate(layer, layerType, customId = null) {
+    const id = customId || L.stamp(layer);
+    const name = layer.customData ? layer.customData.name : "未命名戰術物件";
+    const color = layer.customData ? layer.customData.color : "#ffffff";
+    
+    // 這裡補上 username 欄位
+    let payload = { 
+        room: myRoomID,
+        id: id, 
+        type: layerType, 
+        name: name, 
+        color: color, 
+        username: myCallsign // 👈 關鍵：伺服器才知道是誰在動
+    };
             
             if (layerType.startsWith('mil-')) {
                 payload.latlng = layer.getLatLng();
@@ -416,22 +417,29 @@ function joinTacticalNetwork() {
         }
 
         function renderIncomingLayer(data) {
+            const isMine = (data.username === myCallsign);
             let layer;
             if (data.type.startsWith('mil-')) {
                 let affiliation = 'U';
                 if (data.type === 'mil-friend') affiliation = 'F';
                 if (data.type === 'mil-hostile') affiliation = 'H';
                 if (data.type === 'mil-neutral') affiliation = 'N';
-
+               
                 let branchCode = data.sidc ? data.sidc.substring(4, 10) : document.getElementById('mil-branch-select').value;
                 let sizeCode = data.sidc ? data.sidc.substring(10, 12) : document.getElementById('mil-size-select').value;
                 let sidc = `S${affiliation}GP${branchCode}${sizeCode}--`;
 
                 layer = L.marker(data.latlng, { 
                     icon: L.icon({ iconUrl: getFallbackSvgIcon(sidc), iconSize: [50, 50], iconAnchor: [25, 25], popupAnchor: [0, -20] }), 
-                    draggable: true 
+                    draggable: isMine 
                 });
-                
+                if (isMine) {
+            layer.on('dragend', function() { 
+                sendLayerUpdate(layer, data.type, data.id); 
+            });
+        }
+                bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
+    }
                 layer.on('dragend', function() { 
                     sendLayerUpdate(layer, data.type, data.id); 
                 });
@@ -551,15 +559,18 @@ function joinTacticalNetwork() {
             }
         });
 
-        function bindMarkerPopup(marker, name, layerId, type) {
-            marker.bindPopup(`
-                <div class="props-form">
-                    <label>呼號 / 名稱</label>
-                    <input type="text" id="name-${layerId}" value="${name}" onchange="commitMarkerChange(${layerId}, '${type}')">
-                    <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此單位</button>
-                </div>
-            `);
-        }
+function bindMarkerPopup(marker, name, layerId, type, isMine) {
+    let popupHTML = `<div class="props-form"><label>呼號 / 名稱</label>`;
+    
+    if (isMine) {
+        popupHTML += `<input type="text" id="name-${layerId}" value="${name}" onchange="commitMarkerChange(${layerId}, '${type}')">
+                      <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此單位</button>`;
+    } else {
+        popupHTML += `<p><strong>${name}</strong> (唯讀)</p>`;
+    }
+    popupHTML += `</div>`;
+    marker.bindPopup(popupHTML);
+}
 
         window.commitMarkerChange = function(layerId, type) {
             const name = document.getElementById(`name-${layerId}`).value;
