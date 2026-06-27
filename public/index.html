@@ -515,7 +515,7 @@ function sendLayerUpdate(layer, layerType, customId = null) {
         map.on(L.Draw.Event.CREATED, function (event) {
             const layer = event.layer;
             let type = event.layerType === 'polyline' ? 'polyline' : event.layerType === 'rectangle' ? 'rectangle' : event.layerType;
-            let data = { id: Date.now(), type: type, name: "戰術管制區", color: "#00ffcc" };
+            let data = { id: Date.now(), type: type, name: "戰術管制區", color: "#00ffcc",username: myCallsign };
             if (type === 'circle') { data.latlng = layer.getLatLng(); data.radius = layer.getRadius(); data.color = '#ffaa00'; }
             else { data.latlngs = layer.getLatLngs(); if(type==='polyline') data.color = '#33ccff'; if(type==='polygon') data.color = '#ff33ff'; }
             
@@ -580,17 +580,22 @@ function bindMarkerPopup(marker, name, layerId, type, isMine) {
             if(layer) { layer.customData.name = name; layer.setTooltipContent(name); sendLayerUpdate(layer, type, layerId); }
         };
 
-        function bindGeometryPopup(layer, name, color, layerId, type) {
-            layer.bindPopup(`
-                <div class="props-form">
-                    <label>管制區名稱</label>
-                    <input type="text" id="name-${layerId}" value="${name}" onchange="commitGeometryChange(${layerId}, '${type}')">
-                    <label>調整戰術顏色</label>
-                    <input type="color" id="color-${layerId}" value="${color}" onchange="commitGeometryChange(${layerId}, '${type}')">
-                    <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此範圍</button>
-                </div>
-            `);
-        }
+// 修正定義，加入 isMine 參數
+function bindGeometryPopup(layer, name, color, layerId, type, isMine) {
+    let popupHTML = `<div class="props-form"><label>管制區名稱</label>`;
+    
+    // 使用傳入的 isMine 判斷是否顯示編輯控制項
+    if (isMine) {
+        popupHTML += `<input type="text" id="name-${layerId}" value="${name}" onchange="commitGeometryChange(${layerId}, '${type}')">
+                      <label>調整戰術顏色</label>
+                      <input type="color" id="color-${layerId}" value="${color}" onchange="commitGeometryChange(${layerId}, '${type}')">
+                      <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此範圍</button>`;
+    } else {
+        popupHTML += `<p><strong>${name}</strong> (唯讀)</p>`;
+    }
+    popupHTML += `</div>`;
+    layer.bindPopup(popupHTML);
+}
 
         window.commitGeometryChange = function(layerId, type) {
             const name = document.getElementById(`name-${layerId}`).value;
