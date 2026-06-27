@@ -316,19 +316,30 @@
             listContainer.innerHTML = html;
         }
 
-        function joinTacticalNetwork() {
-            myCallsign = document.getElementById('user-callsign').value.trim() || "無名隊員";
-            const selectValue = document.getElementById('room-type-select').value;
-            myRoomID = (selectValue === 'CUSTOM') ? (document.getElementById('custom-room-id').value.trim() || "PRIVATE_ROOM") : selectValue;
+function joinTacticalNetwork() {
+    const inputCallsign = document.getElementById('user-callsign').value.trim();
+    
+    // 1. 呼號檢查邏輯 (這是關鍵！)
+    if (localUserList.includes(inputCallsign)) {
+        alert("⚠️ 錯誤：此呼號 [" + inputCallsign + "] 已被佔用，請更換後重新連線。");
+        return; // 直接中斷，不執行後續連線動作
+    }
 
-            document.getElementById('current-room').innerText = myRoomID;
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('current-mode').innerText = "CONNECTED";
+    // 2. 如果沒重複，才執行原本的登入流程
+    myCallsign = inputCallsign || "無名隊員";
+    const selectValue = document.getElementById('room-type-select').value;
+    myRoomID = (selectValue === 'CUSTOM') ? (document.getElementById('custom-room-id').value.trim() || "PRIVATE_ROOM") : selectValue;
 
-            updateUserListUI();
-            socket.emit('join_room', { room: myRoomID, username: myCallsign });
-            getLiveWeather();
-        }
+    document.getElementById('current-room').innerText = myRoomID;
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('current-mode').innerText = "CONNECTED";
+
+    updateUserListUI();
+    
+    // 3. 只有通過檢查才送出 Socket 事件
+    socket.emit('join_room', { room: myRoomID, username: myCallsign });
+    getLiveWeather();
+}
 
         // 🎯 修正：綁定最新的後端列表傳輸事件
         socket.on('init_user_list', (users) => {
