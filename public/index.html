@@ -372,21 +372,54 @@ function joinTacticalNetwork() {
             Object.values(layers).forEach(data => renderIncomingLayer(data)); 
         });
 
-        socket.on('receive_marker', (data) => { 
-            console.log("收到其他隊員的即時標繪:", data);
-            const existingLayer = drawnItems.getLayer(data.id); 
-            if (existingLayer) drawnItems.removeLayer(existingLayer); 
-            renderIncomingLayer(data); 
-        });
+socket.on('receive_marker', (data) => { 
+    console.log("收到即時更新:", data);
+    const existingLayer = drawnItems.getLayer(data.id); 
+    const isMine = (data.username === myCallsign);
 
-        socket.on('layer_removed', (layerId) => { 
-            const existingLayer = drawnItems.getLayer(layerId); 
-            if (existingLayer) drawnItems.removeLayer(existingLayer); 
-        });
+    if (existingLayer) {
+        // 1. 更新位置或形狀 (根據圖層類型選用對應方法)
+        if (data.type.startsWith('mil-')) {
+            existingLayer.setLatLng(data.latlng);
+        } else if (data.type === 'circle') {
+            existingLayer.setLatLng(data.latlng);
+            existingLayer.setRadius(data.radius);
+        } else {
+            // 多邊形、矩形、線條使用 setLatLngs
+            existingLayer.setLatLngs(data.latlngs);
+        }
+        
+        // 2. 更新基礎資料與提示框
+        existingLayer.customData = { ...existingLayer.customData, name: data.name, color: data.color };
+        existingLayer.setTooltipContent(data.name);
+        
+        // 3. 針對幾何圖形更新視覺樣式
+        if (!data.type.startsWith('mil-')) {
+            existingLayer.setStyle({ color: data.color, fillColor: data.color });
+        }
+        
+        // 4. 重要：更新 Popup 內容 (確保唯讀/編輯權限正確)
+        if (data.type.startsWith('mil-')) {
+            bindMarkerPopup(existingLayer, data.name, data.id, data.type, isMine);
+        } else {
+            bindGeometryPopup(existingLayer, data.name, data.color, data.id, data.type, isMine);
+        }
+        
+        return; // 更新現有圖層即可，不需要重新繪製
+    }
+    
+    // 如果圖層不存在，才進行全新繪製
+    renderIncomingLayer(data); 
+});
 
-        socket.on('all_cleared', () => { 
-            drawnItems.clearLayers(); 
-        });
+socket.on('layer_removed', (layerId) => { 
+    const existingLayer = drawnItems.getLayer(layerId); 
+    if (existingLayer) drawnItems.removeLayer(existingLayer); 
+});
+
+socket.on('all_cleared', () => { 
+    drawnItems.clearLayers(); 
+});
 
 function sendLayerUpdate(layer, layerType, customId = null) {
     const id = customId || L.stamp(layer);
@@ -431,16 +464,17 @@ function sendLayerUpdate(layer, layerType, customId = null) {
         let sizeCode = data.sidc ? data.sidc.substring(10, 12) : document.getElementById('mil-size-select').value;
         let sidc = `S${affiliation}GP${branchCode}${sizeCode}--`;
 
-        layer = L.marker(data.latlng, { 
-            icon: L.icon({ iconUrl: getFallbackSvgIcon(sidc), iconSize: [50, 50], iconAnchor: [25, 25], popupAnchor: [0, -20] }), 
-            draggable: isMine 
-        });
+layer = L.marker(data.latlng, { 
+        icon: L.icon({ iconUrl: getFallbackSvgIcon(sidc), iconSize: [50, 50], iconAnchor: [25, 25], popupAnchor: [0, -20] }), 
+        draggable: isMine // 這裡會根據是否為本人標記決定
+    });
         
-        if (isMine) {
-            layer.on('dragend', function() { 
-                sendLayerUpdate(layer, data.type, data.id); 
-            });
-        }
+if (isMine) {
+        layer.on('dragend', function() { 
+            // 更新本地資料中的經緯度，再發送同步
+            sendLayerUpdate(layer, data.type, data.id); 
+        });
+    }
         
         layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type, username: data.username };
         bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
