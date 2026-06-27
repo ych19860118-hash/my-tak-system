@@ -223,26 +223,22 @@
         <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
         <div id="section1" class="panel-section-content">
             <label class="select-label">🔹 選擇兵科</label>
-    <select id="mil-branch-select" class="select-input">
-    <!-- 這裡的值對應 SIDC 第 5-6 位 -->
-    <option value="PCA">步兵 (Infantry - ✖)</option>
-    <option value="PKA">裝甲 (Armor - 橢圓)</option>
-    <option value="PFA">砲兵 (Artillery - 圓點)</option>
-    <option value="PAA">陸航 (Aviation)</option>
-    <option value="PRA">工兵 (Engineer)</option>
-    <option value="PCC">通信 (Signal - ⚡)</option>
+   <select id="mil-branch-select" class="select-input">
+    <!-- 請確認這裡的 value 是這幾個 -->
+    <option value="CA">步兵 (Infantry)</option>
+    <option value="KA">裝甲 (Armor)</option>
+    <option value="FA">砲兵 (Artillery)</option>
+    <option value="CC">通信 (Signal)</option>
 </select>
 
-    <label class="select-label">🔹 選擇階級</label>
-    <select id="mil-size-select" class="select-input">
-        <option value="00">無指定</option>
-        <option value="11">組 (Team)</option>
-                <option value="22">班 (Squad)</option>
-                <option value="33">排 (Platoon)</option>
-                <option value="44">連 (Company)</option>
-                <option value="55">營 (Battalion)</option>
-                <option value="66">旅 (Brigade)</option>
-            </select>
+<select id="mil-size-select" class="select-input">
+    <!-- 對應階級標記 -->
+    <option value="1">班</option>
+    <option value="2">排</option>
+    <option value="3">連</option>
+    <option value="4">營</option>
+    <option value="5">團</option>
+</select>
 
             <label class="select-label">▼ 選擇陣營放置</label>
             <div class="grid-2">
@@ -291,29 +287,25 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            // 抓取右側面板的選單值
-            const branch = document.querySelector('#mil-branch-select').value;
+            // 取得選單的值 (直接取得我們定義好的簡碼)
+            const branch = document.querySelector('#mil-branch-select').value; 
             const size = document.querySelector('#mil-size-select').value;
             
-            // 對應按鈕：F=友軍, H=敵軍, N=中立, U=不明
-            const affiliationMap = { 'mil-friend': 'F', 'mil-hostile': 'H', 'mil-neutral': 'N', 'mil-unknown': 'U' };
-            const affiliation = affiliationMap[mode] || 'U';
+            // 根據按鈕決定陣營 (Affiliation)
+            const affiliation = (mode === 'mil-friend') ? 'F' : (mode === 'mil-hostile') ? 'H' : (mode === 'mil-neutral') ? 'N' : 'U';
             
-            // 建立標準 15 碼 SIDC
-            // 結構：S(標準) + 陣營 + P(地面) + 兵科 + 00 + 階級 + 00000
-            // 範例：S F P G P C A 0 0 2 2 0 0 0 0 (這是一組正確的步兵班編碼)
-            let sidc = `S${affiliation}PG${branch}00${size}00000`.substring(0, 15);
-            
-            // 如果是不明單位 (U)，milsymbol 建議格式為 "SUZP----------"
-            if (affiliation === 'U') sidc = "SUZP----------";
+            // 核心修正：使用 milsymbol 的直接符號代碼組合
+            // 格式：S(Standard) + 陣營 + 兵種碼 + 階級碼
+            // 例如：SFG-PCA-- (這會直接叫出步兵圖示)
+            const sidc = `S${affiliation}G-P${branch}-${size}-----`;
             
             const symbol = new ms.Symbol(sidc, { size: 35 });
+            
             const marker = L.marker(e.latlng, {
                 icon: L.divIcon({ 
                     html: symbol.asSVG(), 
                     className: 'mil-icon', 
-                    iconSize: [35, 35],
-                    iconAnchor: [17, 17] 
+                    iconSize: [35, 35] 
                 }),
                 draggable: true
             }).addTo(drawnItems);
