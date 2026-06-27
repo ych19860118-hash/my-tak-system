@@ -435,38 +435,61 @@ function sendLayerUpdate(layer, layerType, customId = null) {
             socket.emit('place_marker', payload);
         }
 
-       function renderIncomingLayer(data) {
+function renderIncomingLayer(data) {
     const isMine = (data.username === myCallsign);
     let layer;
 
     if (data.type.startsWith('mil-')) {
-        let affiliation = 'U';
-        if (data.type === 'mil-friend') affiliation = 'F';
-        if (data.type === 'mil-hostile') affiliation = 'H';
-        if (data.type === 'mil-neutral') affiliation = 'N';
-
-        let branchCode = data.sidc ? data.sidc.substring(4, 10) : document.getElementById('mil-branch-select').value;
-        let sizeCode = data.sidc ? data.sidc.substring(10, 12) : document.getElementById('mil-size-select').value;
-        let sidc = `S${affiliation}GP${branchCode}${sizeCode}--`;
-
-layer = L.marker(data.latlng, { icon: ..., draggable: isMine });
-        // 綁定 Popup
-        bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
-    } else {
-        // 幾何圖形
-        if (data.type === 'circle') {
-            layer = L.circle(data.latlng, { radius: data.radius, color: data.color });
-        } else {
-            layer = L.polygon(data.latlngs, { color: data.color });
+        let sidc = data.sidc;
+        if (!sidc) {
+            let affiliation = 'U';
+            if (data.type === 'mil-friend') affiliation = 'F';
+            else if (data.type === 'mil-hostile') affiliation = 'H';
+            else if (data.type === 'mil-neutral') affiliation = 'N';
+            sidc = `S${affiliation}GP${document.getElementById('mil-branch-select').value}${document.getElementById('mil-size-select').value}--`;
         }
-        // 綁定 Popup
+
+        layer = L.marker(data.latlng, { 
+            icon: L.icon({ 
+                iconUrl: getFallbackSvgIcon(sidc), 
+                iconSize: [50, 50], 
+                iconAnchor: [25, 25] 
+            }), 
+            draggable: isMine 
+        });
+        
+        layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type, username: data.username };
+        bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
+        
+        if (isMine) {
+            layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
+        }
+
+    } else {
+        // 幾何圖形區塊
+        const options = { color: data.color, fillColor: data.color, fillOpacity: 0.2 };
+        if (data.type === 'circle') {
+            layer = L.circle(data.latlng, { ...options, radius: data.radius });
+        } else if (data.type === 'rectangle') {
+            layer = L.rectangle(data.latlngs, options);
+        } else if (data.type === 'polygon') {
+            layer = L.polygon(data.latlngs, options);
+        } else {
+            layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
+        }
+        
+        layer.customData = { name: data.name, color: data.color, username: data.username };
         bindGeometryPopup(layer, data.name, data.color, data.id, data.type, isMine);
+        
+        if (isMine) {
+            enableGeometryInteraction(layer, data.type, data.type, data.id);
+        }
     }
 
-    layer._leaflet_id = data.id;
-    layer.customData = { ...data };
-    drawnItems.addLayer(layer
-        
+    layer._leaflet_id = data.id; 
+    layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
+    drawnItems.addLayer(layer);
+}
 if (isMine) {
         if (data.type.startsWith('mil-')) {
             layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
