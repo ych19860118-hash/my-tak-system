@@ -290,31 +290,25 @@ window.setMode = function(mode) {
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
             const panel = document.querySelector('.action-panel');
-            const branch = panel.querySelector('#mil-branch-select').value; // 請確保這裡是 2 碼代碼，例如 'CA'
-            const size = panel.querySelector('#mil-size-select').value;
+            const branch = panel.querySelector('#mil-branch-select').value; // 如 'CA'
+            const size = panel.querySelector('#mil-size-select').value;     // 如 '22'
             
-            const affiliationMap = {
-                'mil-friend': 'F',
-                'mil-hostile': 'H',
-                'mil-neutral': 'N',
-                'mil-unknown': 'U'
-            };
-            const aff = affiliationMap[mode] || 'U';
+            // 陣營對應
+            const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
+            const aff = affMap[mode] || 'U';
             
-            // 標準 15 碼格式：S + 陣營 + 單位類別(P) + 兵種(2碼) + 00 + 階級(2碼) + 000
-            // 範例：SFGPCA--2200000 (步兵、友軍、班)
-            let sidc = `S${aff}P${branch}00${size}00000`.substring(0, 15);
+            // 【核心修正】嚴格組裝 15 碼
+            // S (標準) + 陣營 + P (地面) + 兵科(2碼) + 00 (佔位) + 階級(2碼) + 00000 (補齊)
+            const sidc = `S${aff}P${branch}00${size}00000`.substring(0, 15);
             
-            // 特殊處理：不明單位 (U) 通常不需要兵種符號
-            if (aff === 'U') sidc = "SUZP----------";
-            
+            // 建立符號
             const symbol = new ms.Symbol(sidc, { size: 35 });
+            
             const marker = L.marker(e.latlng, {
                 icon: L.divIcon({ 
                     html: symbol.asSVG(), 
                     className: 'mil-icon', 
-                    iconSize: [35, 35],
-                    iconAnchor: [17, 17]
+                    iconSize: [35, 35] 
                 }),
                 draggable: true
             }).addTo(drawnItems);
