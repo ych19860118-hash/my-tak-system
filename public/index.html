@@ -412,28 +412,31 @@ function sendLayerUpdate(layer, layerType, customId = null) {
     const name = layer.customData ? layer.customData.name : "未命名戰術物件";
     const color = layer.customData ? layer.customData.color : "#ffffff";
     
-    // 這裡補上 username 欄位
     let payload = { 
         room: myRoomID,
         id: id, 
         type: layerType, 
         name: name, 
         color: color, 
-        username: myCallsign // 👈 關鍵：伺服器才知道是誰在動
+        username: myCallsign 
     };
-            
-            if (layerType.startsWith('mil-')) {
-                payload.latlng = layer.getLatLng();
-                payload.sidc = layer.customData ? layer.customData.sidc : null; 
-            } else if (layerType === 'circle') { 
-                payload.latlng = layer.getLatLng(); 
-                payload.radius = layer.getRadius(); 
-            } else { 
-                const latlngs = layer.getLatLngs();
-                payload.latlngs = Array.isArray(latlngs[0]) ? latlngs[0].map(p => [p.lat, p.lng]) : latlngs.map(p => [p.lat, p.lng]);
-            }
-            socket.emit('place_marker', payload);
-        }
+
+    // 🚩 關鍵修改：依照類型寫入座標資料，避免 getLatLngs 錯誤
+    if (layerType.startsWith('mil-')) {
+        // 兵棋是 Marker，使用 getLatLng()
+        payload.latlng = layer.getLatLng();
+    } else if (layerType === 'circle') {
+        // 圓形
+        payload.latlng = layer.getLatLng();
+        payload.radius = layer.getRadius();
+    } else {
+        // 多邊形/線條，使用 getLatLngs()
+        payload.latlngs = layer.getLatLngs();
+    }
+    
+    // 發送給伺服器
+    socket.emit('layer-update', payload);
+}
 
 function renderIncomingLayer(data) {
     const isMine = (data.username === myCallsign);
