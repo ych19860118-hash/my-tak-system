@@ -40,47 +40,53 @@
     width: 250px;
 }
 
+/* --- 修正後的收合功能樣式 --- */
+.panel-collapsed {
+    height: 35px !important; 
+    overflow: hidden;
+    padding: 5px !important;
+}
+
+/* 修改這裡：確保收合時，除「收合按鈕(button)」外，其餘內容全部隱藏 */
+.panel-collapsed > *:not(button) {
+    display: none !important;
+}
+
+/* --- 修正：左側控制面板 (Action Panel) 樣式統一 --- */
 .action-panel {
     position: absolute;
     top: 20px;
-    left: 20px; /* 改至左側 */
+    left: 20px;
     z-index: 10;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     max-height: 90vh;
     overflow-y: auto;
     width: 200px;
+    background: rgba(0, 20, 20, 0.9);
+    border: 1px solid #00ffcc;
+    padding: 10px;
+    border-radius: 6px;
 }
 
-/* --- 按鈕底色與樣式優化 --- */
-.btn {
+/* 統一調整左側所有按鈕樣式 */
+.btn, .btn-toggle-map, .btn-gps {
     width: 100%;
-    height: 35px;
-    background: rgba(40, 60, 80, 0.6); /* 增加預設底色 */
+    height: 32px; 
+    background: rgba(40, 60, 80, 0.7); 
     border: 1px solid #00ffcc;
-    border-radius: 4px;
     color: #fff;
     cursor: pointer;
     font-size: 11px;
-    margin-bottom: 5px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.btn:hover {
-    background: rgba(0, 255, 204, 0.2);
-}
-
-.btn.active {
-    background: #00ffcc !important;
-    color: #000;
-    font-weight: bold;
-}
-
-.btn-toggle-map, .btn-gps {
-    background: rgba(0, 80, 80, 0.8);
-    border: 1px solid #00ffcc;
-    color: #fff;
-}
+.btn:hover { background: rgba(0, 255, 204, 0.2); }
+.btn.active { background: #00ffcc !important; color: #000; font-weight: bold; }
 
 .btn-clear {
     background: rgba(100, 20, 20, 0.8);
@@ -88,17 +94,16 @@
     color: #ffcccc;
 }
 
-/* --- 手機版位置對應調整 --- */
-@media (max-width: 600px) {
-    .status-panel {
-        width: 150px !important;
-        right: 5px !important;
-    }
-    
-    .action-panel {
-        width: 150px !important;
-        left: 5px !important;
-    }
+.panel-section {
+    padding: 5px 0;
+    border-bottom: 1px solid #114444;
+}
+
+.panel-title {
+    font-size: 11px;
+    color: #00ffcc;
+    margin-bottom: 5px;
+    font-weight: bold;
 }
     </style>
 </head>
@@ -145,11 +150,12 @@
 </div>
 
     <!-- 右側控制面板 (修正結構) -->
-    <div class="action-panel">
-        <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>
-        <button class="btn-gps" onclick="getLocation()">📡 共享我的 GPS 定位</button>
-        
+   <div class="action-panel">
+    <!-- 這顆按鈕必須保持獨立，不要被包在其他 class 裡面 -->
+    <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
+    
+    <!-- 以下內容在收合時才會隱藏 -->
+    <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>        
         <div class="panel-section">
             <div class="panel-title">1. 兵棋自選選單</div>
             <label class="select-label">🔹 選擇兵科</label>
