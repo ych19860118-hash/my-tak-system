@@ -185,20 +185,21 @@
                 <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
                 <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
 <select id="mil-branch-select" class="select-input">
-    <!-- 格式：SF + 兵種碼 + 階級位(留空) + 00000 -->
-    <option value="SFGPCA------">步兵 (Infantry - ✖)</option>
-    <option value="SFGPKA------">裝甲 (Armor - 橢圓)</option>
-    <option value="SFGPFA------">砲兵 (Artillery - 圓點)</option>
-    <option value="SFGPC-------">通信 (Signal - ⚡)</option>
+    <!-- 格式：SF + 兵種碼 + 000000 -->
+    <option value="SFGPCA----------">步兵 (Infantry - ✖)</option>
+    <option value="SFGPKA----------">裝甲 (Armor - 橢圓)</option>
+    <option value="SFGPFA----------">砲兵 (Artillery - 圓點)</option>
+    <option value="SFGPC-----------">通信 (Signal - ⚡)</option>
 </select>
-                <select id="mil-size-select" class="select-input">
-    <!-- 階級代碼對應：0=未定義, 1=班, 2=排, 3=連, 4=營, 5=團, 6=旅 -->
-    <option value="1">班 (●)</option>
-    <option value="2">排 (●●)</option>
-    <option value="3">連 (●●●)</option>
-    <option value="4">營 (❘)</option>
-    <option value="5">團 (❘❘)</option>
-    <option value="6">旅 (✖)</option>
+
+<select id="mil-size-select" class="select-input">
+    <!-- 階級代碼：11=組, 22=班, 33=排, 44=連, 55=營, 66=旅 -->
+    <option value="11">組 (Team)</option>
+    <option value="22">班 (Squad)</option>
+    <option value="33">排 (Platoon)</option>
+    <option value="44">連 (Company)</option>
+    <option value="55">營 (Battalion)</option>
+    <option value="66">旅 (Brigade)</option>
 </select>
             <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
             
@@ -308,28 +309,24 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            const branch = document.getElementById('mil-branch-select').value; // 如 SFGPCA------
-            const size = document.getElementById('mil-size-select').value;     // 如 4
+            // 使用 querySelector 確保抓到正確的面板選單
+            const branch = document.querySelector('.action-panel #mil-branch-select').value;
+            const size = document.querySelector('.action-panel #mil-size-select').value;
             const affiliation = (mode === 'mil-friend') ? 'F' : (mode === 'mil-hostile') ? 'H' : 'N';
             
-            // 組合 15 碼 SIDC
-            // S (Standard) + 陣營 + 內部代碼 [0-9] + 階級位 [10] + 其餘為 0
-            // 結構：S F G P C A - - - - [size] 0 0 0
-            let sidc = branch.replace('F', affiliation); // 替換掉陣營位 (第二碼)
-            let finalSidc = sidc.substring(0, 10) + size + sidc.substring(11);
+            // 組合 SIDC: S + 陣營 + 兵科(8碼) + 階級(2碼) + 000
+            // 將兵科碼中的 F 替換為陣營代碼
+            let sidc = branch.substring(0, 1) + affiliation + branch.substring(2);
+            // 確保階級插入在正確位置 (SIDC 第 11-12 位)
+            let finalSidc = sidc.substring(0, 10) + size + sidc.substring(12);
             
             const symbol = new ms.Symbol(finalSidc, { size: 35 });
             const marker = L.marker(e.latlng, {
-                icon: L.divIcon({ 
-                    html: symbol.asSVG(), 
-                    className: 'mil-icon', 
-                    iconSize: [35, 35] 
-                }),
+                icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [35, 35] }),
                 draggable: true
             }).addTo(drawnItems);
             
             marker.customData = { username: myCallsign, type: 'mil' };
-            marker.bindPopup(`單位部署成功`);
         });
     } else if (drawTools[mode]) {
         drawTools[mode].enable();
