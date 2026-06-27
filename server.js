@@ -70,17 +70,24 @@ socket.on('join_room', (data) => {
     socket.to(room).emit('user_joined', { username: username });
 });
 
-    // 2. 隊員放置、更新兵棋或管制區
-    socket.on('place_marker', (data) => {
-        const room = data.room;
-        if (room) {
-            if (!roomLayers[room]) roomLayers[room] = {};
-            // 快取這筆資料
-            roomLayers[room][data.id] = data;
-            // 廣播給房間內其他人
-            socket.to(room).emit('receive_marker', data);
-        }
-    });
+// 在 socket.on('place_marker', ...) 中加入檢查
+socket.on('place_marker', (data) => {
+    const room = data.room;
+    const existing = roomLayers[room] ? roomLayers[room][data.id] : null;
+
+    // 如果已經存在，檢查權限
+    if (existing && existing.owner !== socket.username && socket.username !== "COMMANDER") {
+        console.log(`🚫 非法修改嘗試: [${socket.username}] 想修改 [${existing.owner}] 的圖層`);
+        return; 
+    }
+    
+    // 若通過檢查，或是新建的，則儲存 (確保寫入 owner 資訊)
+    if (!roomLayers[room]) roomLayers[room] = {};
+    data.owner = data.owner || socket.username; // 確保有 owner 資訊
+    roomLayers[room][data.id] = data;
+    
+    socket.to(room).emit('receive_marker', data);
+});
 
     // 3. 刪除單一物件
     socket.on('delete_layer', (data) => {
