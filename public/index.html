@@ -184,23 +184,6 @@
                 <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
                 <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
                 <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
-<select id="login-branch-select" class="select-input">
-    <!-- 格式：SF + 兵種碼 + 000000 -->
-    <option value="SFGPCA----------">步兵 (Infantry - ✖)</option>
-    <option value="SFGPKA----------">裝甲 (Armor - 橢圓)</option>
-    <option value="SFGPFA----------">砲兵 (Artillery - 圓點)</option>
-    <option value="SFGPC-----------">通信 (Signal - ⚡)</option>
-</select>
-
-<select id="login-size-select" class="select-input">
-    <!-- 階級代碼：11=組, 22=班, 33=排, 44=連, 55=營, 66=旅 -->
-    <option value="11">組 (Team)</option>
-    <option value="22">班 (Squad)</option>
-    <option value="33">排 (Platoon)</option>
-    <option value="44">連 (Company)</option>
-    <option value="55">營 (Battalion)</option>
-    <option value="66">旅 (Brigade)</option>
-</select>
             <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
             
             <button class="login-btn" onclick="joinTacticalNetwork()">連線進入 COP 系統</button>
@@ -309,23 +292,32 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            // 強制選取右側面板的 ID，即使頁面有其他相同 ID 也不會抓錯
-            const panel = document.querySelector('.action-panel');
-            const branch = panel.querySelector('#mil-branch-select').value;
-            const size = panel.querySelector('#mil-size-select').value;
-            const affiliation = (mode === 'mil-friend') ? 'F' : (mode === 'mil-hostile') ? 'H' : 'N';
+            // 抓取右側面板的選單值
+            const branch = document.querySelector('.action-panel #mil-branch-select').value; 
+            const size = document.querySelector('.action-panel #mil-size-select').value;
+            const affiliation = (mode === 'mil-friend') ? 'F' : (mode === 'mil-hostile') ? 'H' : (mode === 'mil-neutral') ? 'N' : 'U';
             
-            // 組合 15 碼 SIDC (修正格式以符合 milsymbol 規範)
-            let sidc = branch.replace('F', affiliation); 
-            let finalSidc = sidc.substring(0, 10) + size + sidc.substring(12);
+            // 組合 15 碼 SIDC 邏輯：
+            // 原始值範例 (ST----) -> 轉為正確的北約 SIDC 格式
+            // 這裡我們將選單代碼對應到 milsymbol 的格式
+            const branchMap = {
+                'ST----': 'PCA', // 步兵
+                'UC----': 'PKA', // 裝甲
+                'SF----': 'PFA', // 砲兵
+                'AV----': 'PAA', // 陸航
+                'E-----': 'PRA', // 工兵
+                'MD----': 'PMA', // 醫療
+                'SU----': 'PMA', // 飛彈
+                'C4----': 'PCC'  // 通信
+            };
             
-            const symbol = new ms.Symbol(finalSidc, { size: 35 });
+            const bCode = branchMap[branch] || 'PCA';
+            // S (標準) + 陣營 + P (地面) + 兵科 + 00 + 階級 + 000
+            const sidc = `S${affiliation}P${bCode}00${size}000`;
+            
+            const symbol = new ms.Symbol(sidc, { size: 35 });
             const marker = L.marker(e.latlng, {
-                icon: L.divIcon({ 
-                    html: symbol.asSVG(), 
-                    className: 'mil-icon', 
-                    iconSize: [35, 35] 
-                }),
+                icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [35, 35] }),
                 draggable: true
             }).addTo(drawnItems);
             
