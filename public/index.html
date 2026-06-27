@@ -223,12 +223,14 @@
         <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
         <div id="section1" class="panel-section-content">
             <label class="select-label">🔹 選擇兵科</label>
-   <select id="mil-branch-select" class="select-input">
-    <!-- 請確認這裡的 value 是這幾個 -->
+  <select id="mil-branch-select" class="select-input">
+    <!-- value 必須是符合北約標準的 2 碼代碼 -->
     <option value="CA">步兵 (Infantry)</option>
     <option value="KA">裝甲 (Armor)</option>
     <option value="FA">砲兵 (Artillery)</option>
     <option value="CC">通信 (Signal)</option>
+    <option value="MA">醫療 (Medical)</option>
+    <option value="EA">工兵 (Engineer)</option>
 </select>
 
 <select id="mil-size-select" class="select-input">
@@ -287,25 +289,32 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            // 取得選單的值 (直接取得我們定義好的簡碼)
-            const branch = document.querySelector('#mil-branch-select').value; 
-            const size = document.querySelector('#mil-size-select').value;
+            const panel = document.querySelector('.action-panel');
+            const branch = panel.querySelector('#mil-branch-select').value; // 請確保這裡是 2 碼代碼，例如 'CA'
+            const size = panel.querySelector('#mil-size-select').value;
             
-            // 根據按鈕決定陣營 (Affiliation)
-            const affiliation = (mode === 'mil-friend') ? 'F' : (mode === 'mil-hostile') ? 'H' : (mode === 'mil-neutral') ? 'N' : 'U';
+            const affiliationMap = {
+                'mil-friend': 'F',
+                'mil-hostile': 'H',
+                'mil-neutral': 'N',
+                'mil-unknown': 'U'
+            };
+            const aff = affiliationMap[mode] || 'U';
             
-            // 核心修正：使用 milsymbol 的直接符號代碼組合
-            // 格式：S(Standard) + 陣營 + 兵種碼 + 階級碼
-            // 例如：SFG-PCA-- (這會直接叫出步兵圖示)
-            const sidc = `S${affiliation}G-P${branch}-${size}-----`;
+            // 標準 15 碼格式：S + 陣營 + 單位類別(P) + 兵種(2碼) + 00 + 階級(2碼) + 000
+            // 範例：SFGPCA--2200000 (步兵、友軍、班)
+            let sidc = `S${aff}P${branch}00${size}00000`.substring(0, 15);
+            
+            // 特殊處理：不明單位 (U) 通常不需要兵種符號
+            if (aff === 'U') sidc = "SUZP----------";
             
             const symbol = new ms.Symbol(sidc, { size: 35 });
-            
             const marker = L.marker(e.latlng, {
                 icon: L.divIcon({ 
                     html: symbol.asSVG(), 
                     className: 'mil-icon', 
-                    iconSize: [35, 35] 
+                    iconSize: [35, 35],
+                    iconAnchor: [17, 17]
                 }),
                 draggable: true
             }).addTo(drawnItems);
