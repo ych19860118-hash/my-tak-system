@@ -272,38 +272,37 @@
     <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 清除圖層</button>
 </div>
     
- <script>
+<script>
     let myCallsign = "ALPHA-01", myRoomID = "PUBLIC_01";
-    const socket = (typeof io !== 'undefined') ? io() : { emit: () => {}, on: () => {} };
     const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 核心：使用 FeatureGroup 來管理所有可編輯圖層
     const drawnItems = new L.FeatureGroup().addTo(map);
+    map.addLayer(drawnItems);
 
-    // 繪圖與編輯工具實例
-    const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { polygon: false, circle: false, rectangle: false, marker: false, polyline: false }
-    }).addTo(map);
-
-    // 實作自訂按鈕呼叫繪圖
-    window.setMode = function(mode) {
-        if (mode === 'circle') new L.Draw.Circle(map).enable();
-        if (mode === 'rect') new L.Draw.Rectangle(map).enable();
-        if (mode === 'poly') new L.Draw.Polygon(map).enable();
-        if (mode === 'line') new L.Draw.Polyline(map).enable();
+    // 實作繪圖工具
+    const drawOptions = {
+        circle: new L.Draw.Circle(map),
+        rect: new L.Draw.Rectangle(map),
+        poly: new L.Draw.Polygon(map),
+        line: new L.Draw.Polyline(map)
     };
 
-    // 關鍵：繪圖完成後，立即將圖層加入編輯群組，並開啟編輯狀態
+    window.setMode = function(mode) {
+        // 先關閉當前任何啟用的繪圖模式，再開啟新的
+        if (drawOptions[mode]) {
+            drawOptions[mode].enable();
+        }
+    };
+
+    // 關鍵：繪圖完成後，自動關閉繪圖模式並啟用編輯
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         drawnItems.addLayer(layer);
         
-        // 給予初始屬性
         layer.customData = { name: "新物件", color: "#ff0000" };
         
-        // 彈出編輯視窗
+        // 綁定編輯彈出視窗
         layer.bindPopup(`
             <div class="props-form" style="width:150px;">
                 <label>名稱</label><input type="text" id="edit-name" value="${layer.customData.name}">
@@ -312,8 +311,14 @@
             </div>
         `);
         
-        // 讓圖層可以被直接拖曳或編輯節點
-        layer.enableEdit(); 
+        // 啟用編輯控制項 (讓圓形出現調整點、多邊形出現節點)
+        layer.enableEdit();
+    });
+
+    // 確保按下 ESC 或畫完圖後，工具會停止連續動作
+    map.on('draw:created', function () {
+        // 透過強制關閉所有繪圖物件來停止連續畫圖
+        Object.values(drawOptions).forEach(tool => tool.disable());
     });
 
     window.saveEdit = function(btn) {
@@ -321,7 +326,6 @@
         const name = container.querySelector('#edit-name').value;
         const color = container.querySelector('#edit-color').value;
         
-        // 找到當前開啟 Popup 的圖層
         map.eachLayer((layer) => {
             if (layer.getPopup() && layer.getPopup().isOpen()) {
                 layer.customData.name = name;
@@ -333,7 +337,7 @@
         });
     };
 
-    // 系統基礎功能
+    // 其他基礎 UI 功能
     window.togglePanel = (btn) => btn.parentElement.classList.toggle('panel-collapsed');
     window.toggleSection = (el, id) => {
         document.getElementById(id).classList.toggle('collapsed');
