@@ -597,10 +597,26 @@
             else if (aff === 'N') { fillColor = "#00ff33"; frameSvg = `<rect x="22" y="27" width="56" height="56" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
             else { frameSvg = `<path d="M 50,28 A 15,15 0 0,1 75,38 A 15,15 0 0,1 75,68 A 15,15 0 0,1 50,78 A 15,15 0 0,1 25,68 A 15,15 0 0,1 25,38 A 15,15 0 0,1 50,28 Z" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; }
             
+            // 替換原本的兵科判斷區塊
             let interiorSvg = ""; let cx = 50, cy = 55; let iconLineColor = "#000000";
-            if (bch === "ST") interiorSvg = `<line x1="20" y1="36" x2="80" y2="74" stroke="${iconLineColor}" stroke-width="3.5" /><line x1="20" y1="74" x2="80" y2="36" stroke="${iconLineColor}" stroke-width="3.5" />`;
-            else if (bch === "UC") interiorSvg = `<ellipse cx="${cx}" cy="${cy}" rx="18" ry="9" stroke="${iconLineColor}" stroke-width="3.5" fill="none" />`;
-            else if (bch === "SF") interiorSvg = `<circle cx="${cx}" cy="${cy}" r="6" fill="${iconLineColor}" />`;
+            
+            if (bch === "ST") { // 步兵
+                interiorSvg = `<line x1="20" y1="36" x2="80" y2="74" stroke="${iconLineColor}" stroke-width="3.5" /><line x1="20" y1="74" x2="80" y2="36" stroke="${iconLineColor}" stroke-width="3.5" />`;
+            } else if (bch === "UC") { // 裝甲
+                interiorSvg = `<ellipse cx="${cx}" cy="${cy}" rx="18" ry="9" stroke="${iconLineColor}" stroke-width="3.5" fill="none" />`;
+            } else if (bch === "SF") { // 砲兵
+                interiorSvg = `<circle cx="${cx}" cy="${cy}" r="6" fill="${iconLineColor}" />`;
+            } else if (bch === "AV") { // 陸航
+                interiorSvg = `<path d="M50,40 L65,55 L50,70 L35,55 Z" stroke="${iconLineColor}" stroke-width="3" fill="none" />`;
+            } else if (bch === "E-") { // 工兵
+                interiorSvg = `<text x="42" y="65" font-family="Arial" font-size="25" fill="${iconLineColor}">E</text>`;
+            } else if (bch === "MD") { // 醫療
+                interiorSvg = `<path d="M42,55 L58,55 M50,47 L50,63" stroke="${iconLineColor}" stroke-width="4" />`;
+            } else if (bch === "SU") { // 飛彈 (修改為對應 HTML 的 SU)
+                interiorSvg = `<path d="M50,30 L50,70 M45,35 L50,30 L55,35" stroke="${iconLineColor}" stroke-width="3" fill="none" />`;
+            } else if (bch === "C4") { // 通信 (修改為對應 HTML 的 C4)
+                interiorSvg = `<path d="M40,40 L60,40 L40,70 L60,70" stroke="${iconLineColor}" stroke-width="3" fill="none" />`;
+            }
             
             let sizeSvg = ""; 
             let sy = 16; 
