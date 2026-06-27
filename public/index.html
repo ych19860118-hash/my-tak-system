@@ -439,6 +439,7 @@ function renderIncomingLayer(data) {
     const isMine = (data.username === myCallsign);
     let layer;
 
+    // 1. 處理兵棋符號
     if (data.type.startsWith('mil-')) {
         let sidc = data.sidc;
         if (!sidc) {
@@ -464,15 +465,18 @@ function renderIncomingLayer(data) {
         if (isMine) {
             layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
         }
-    } else {
-        // 幾何圖形區塊
+    } 
+    // 2. 處理幾何圖形
+    else {
         const options = { color: data.color, fillColor: data.color, fillOpacity: 0.2 };
         if (data.type === 'circle') {
             layer = L.circle(data.latlng, { ...options, radius: data.radius });
+        } else if (data.type === 'rectangle') {
+            layer = L.rectangle(data.latlngs, options);
+        } else if (data.type === 'polygon') {
+            layer = L.polygon(data.latlngs, options);
         } else {
-            layer = (data.type === 'rectangle') ? L.rectangle(data.latlngs, options) : 
-                    (data.type === 'polygon') ? L.polygon(data.latlngs, options) : 
-                    L.polyline(data.latlngs, { color: data.color, weight: 4 });
+            layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
         }
         
         layer.customData = { name: data.name, color: data.color, username: data.username };
@@ -483,40 +487,7 @@ function renderIncomingLayer(data) {
         }
     }
 
-    layer._leaflet_id = data.id; 
-    layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
-    drawnItems.addLayer(layer);
-if (isMine) {
-        if (data.type.startsWith('mil-')) {
-            layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
-        } else {
-            enableGeometryInteraction(layer, data.type, data.type, data.id);
-        }
-    }
-}
-        layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type, username: data.username };
-        bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
-
-    } else {
-        // 幾何圖形區塊
-        if (data.type === 'circle') {
-            layer = L.circle(data.latlng, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.2 });
-            enableGeometryInteraction(layer, 'circle', data.type, data.id);
-        } else if (data.type === 'rectangle') {
-            layer = L.rectangle(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.15 });
-            enableGeometryInteraction(layer, 'rectangle', data.type, data.id);
-        } else if (data.type === 'polygon') {
-            layer = L.polygon(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.2 });
-            enableGeometryInteraction(layer, 'polygon', data.type, data.id);
-        } else if (data.type === 'polyline') {
-            layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
-            enableGeometryInteraction(layer, 'polyline', data.type, data.id);
-        }
-        
-        layer.customData = { name: data.name, color: data.color, username: data.username };
-        bindGeometryPopup(layer, data.name, data.color, data.id, data.type, isMine);
-    }
-
+    // 3. 通用屬性設定
     layer._leaflet_id = data.id; 
     layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
     drawnItems.addLayer(layer);
