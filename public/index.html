@@ -486,7 +486,6 @@ function renderIncomingLayer(data) {
     layer._leaflet_id = data.id; 
     layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
     drawnItems.addLayer(layer);
-}
 if (isMine) {
         if (data.type.startsWith('mil-')) {
             layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
@@ -494,7 +493,7 @@ if (isMine) {
             enableGeometryInteraction(layer, data.type, data.type, data.id);
         }
     }
-        
+}
         layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type, username: data.username };
         bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
 
