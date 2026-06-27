@@ -30,35 +30,45 @@ const roomUsers = {};
 io.on('connection', (socket) => {
     console.log('🟢 有新終端連線:', socket.id);
     
-    // 1. 隊員加入戰術頻道
-    socket.on('join_room', (data) => {
-        const room = data.room;
-        const username = data.username || "未知隊員";
-        socket.join(room);
-        console.log(`⛺ [${username}] 進入了戰術房間: ${room}`);
-        
-        // 建立該房間的歷史快取
-        if (!roomLayers[room]) roomLayers[room] = {};
-        if (!roomUsers[room]) roomUsers[room] = [];
-        
-        // 將自己加入房間名單（避免重複紀錄）
-        if (!roomUsers[room].includes(username)) {
-            roomUsers[room].push(username);
-        }
-        
-        // 🎯 紀錄當前連線綁定的用戶名與房間，方便斷線時清除
-        socket.username = username;
-        socket.room = room;
+   // 1. 隊員加入戰術頻道
+socket.on('join_room', (data) => {
+    const room = data.room;
+    const username = data.username || "未知隊員";
 
-        // 🎯 關鍵：把目前房間內「所有人的名單」直接丟給剛進房的新人
-        socket.emit('init_user_list', roomUsers[room]);
-        
-        // 將歷史兵棋回傳給新加入的人
-        socket.emit('init_layers', roomLayers[room]);
-        
-        // 廣播給同房間的其他人：有新人來了
-        socket.to(room).emit('user_joined', { username: username });
-    });
+    // --- 🚀 關鍵修改開始 ---
+    if (!roomUsers[room]) roomUsers[room] = [];
+
+    // 檢查該房間內是否已經存在此呼號
+    if (roomUsers[room].includes(username)) {
+        console.log(`⚠️ 拒絕重複登入: [${username}]`);
+        // 發送錯誤訊息給客戶端，讓前端跳出警告並切回登入畫面
+        socket.emit('login_error', { message: `⚠️ 錯誤：呼號 [${username}] 已在該房間內。` });
+        return; // ⚠️ 直接中斷，不讓該 socket 進入房間
+    }
+    // --- 🚀 關鍵修改結束 ---
+
+    socket.join(room);
+    console.log(`⛺ [${username}] 進入了戰術房間: ${room}`);
+    
+    // 建立該房間的歷史快取
+    if (!roomLayers[room]) roomLayers[room] = {};
+    
+    // 將自己加入房間名單
+    roomUsers[room].push(username);
+    
+    // 紀錄當前連線綁定的用戶名與房間，方便斷線時清除
+    socket.username = username;
+    socket.room = room;
+
+    // 將目前房間內所有人名單同步給該使用者
+    socket.emit('init_user_list', roomUsers[room]);
+    
+    // 將歷史兵棋回傳給新加入的人
+    socket.emit('init_layers', roomLayers[room]);
+    
+    // 廣播給同房間的其他人：有新人來了
+    socket.to(room).emit('user_joined', { username: username });
+});
 
     // 2. 隊員放置、更新兵棋或管制區
     socket.on('place_marker', (data) => {
