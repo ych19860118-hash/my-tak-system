@@ -141,6 +141,36 @@
     gap: 6px;
     margin-top: 5px;
 }
+    /* 隱藏/顯示的開合動畫 */
+.panel-section-content {
+    transition: max-height 0.3s ease-out, opacity 0.3s;
+    overflow: hidden;
+    max-height: 500px; /* 展開時的高度 */
+    opacity: 1;
+}
+
+.panel-section-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 標題變成可點擊的按鈕樣式 */
+.panel-title {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-title::after {
+    content: '▼';
+    font-size: 10px;
+}
+
+.panel-title.collapsed::after {
+    content: '▶';
+}
     </style>
 </head>
 <body>
@@ -187,15 +217,14 @@
 
     <!-- 右側控制面板 (修正結構) -->
    <div class="action-panel">
-    <!-- 這顆按鈕必須保持獨立，不要被包在其他 class 裡面 -->
     <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-    
-    <!-- 以下內容在收合時才會隱藏 -->
     <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>        
-<div class="panel-section">
-    <div class="panel-title">1. 兵棋自選選單</div>
-    
-<label class="select-label">🔹 選擇兵科</label>
+
+    <!-- 區塊 1 -->
+    <div class="panel-section">
+        <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
+        <div id="section1" class="panel-section-content">
+            <label class="select-label">🔹 選擇兵科</label>
     <select id="mil-branch-select" class="select-input">
         <option value="ST----">步兵 (Infantry)</option>
         <option value="UC----">裝甲 (Armor)</option>
@@ -227,8 +256,10 @@
             </div>
         </div>
         
-        <div class="panel-section">
-            <div class="panel-title">2. 範圍工具</div>
+<!-- 區塊 2 -->
+    <div class="panel-section">
+        <div class="panel-title" onclick="toggleSection(this, 'section2')">2. 範圍工具</div>
+        <div id="section2" class="panel-section-content">
             <div class="grid-2">
                 <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
                 <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
@@ -236,9 +267,10 @@
                 <button class="btn" id="btn-line" onclick="setMode('line')">📈 線條</button>
             </div>
         </div>
-        
-        <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 清除圖層</button>
     </div>
+    
+    <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 清除圖層</button>
+</div>
     
     <!-- 這裡接上您原有的 <script> 內容 -->
     <script>
@@ -637,6 +669,11 @@ function togglePanel(btn) {
     
     // 如果已有 panel-collapsed，代表現在是收合狀態，顯示「+」；否則顯示「✖」
     btn.innerText = panel.classList.contains('panel-collapsed') ? '⚙' : '✖';
+}
+        function toggleSection(headerElement, contentId) {
+    const content = document.getElementById(contentId);
+    content.classList.toggle('collapsed');
+    headerElement.classList.toggle('collapsed');
 }
     </script>
 </body>
