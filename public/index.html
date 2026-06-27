@@ -416,57 +416,58 @@ function sendLayerUpdate(layer, layerType, customId = null) {
             socket.emit('place_marker', payload);
         }
 
-        function renderIncomingLayer(data) {
-            const isMine = (data.username === myCallsign);
-            let layer;
-            if (data.type.startsWith('mil-')) {
-                let affiliation = 'U';
-                if (data.type === 'mil-friend') affiliation = 'F';
-                if (data.type === 'mil-hostile') affiliation = 'H';
-                if (data.type === 'mil-neutral') affiliation = 'N';
-               
-                let branchCode = data.sidc ? data.sidc.substring(4, 10) : document.getElementById('mil-branch-select').value;
-                let sizeCode = data.sidc ? data.sidc.substring(10, 12) : document.getElementById('mil-size-select').value;
-                let sidc = `S${affiliation}GP${branchCode}${sizeCode}--`;
+       function renderIncomingLayer(data) {
+    const isMine = (data.username === myCallsign);
+    let layer;
 
-                layer = L.marker(data.latlng, { 
-                    icon: L.icon({ iconUrl: getFallbackSvgIcon(sidc), iconSize: [50, 50], iconAnchor: [25, 25], popupAnchor: [0, -20] }), 
-                    draggable: isMine 
-                });
-                if (isMine) {
+    if (data.type.startsWith('mil-')) {
+        let affiliation = 'U';
+        if (data.type === 'mil-friend') affiliation = 'F';
+        if (data.type === 'mil-hostile') affiliation = 'H';
+        if (data.type === 'mil-neutral') affiliation = 'N';
+
+        let branchCode = data.sidc ? data.sidc.substring(4, 10) : document.getElementById('mil-branch-select').value;
+        let sizeCode = data.sidc ? data.sidc.substring(10, 12) : document.getElementById('mil-size-select').value;
+        let sidc = `S${affiliation}GP${branchCode}${sizeCode}--`;
+
+        layer = L.marker(data.latlng, { 
+            icon: L.icon({ iconUrl: getFallbackSvgIcon(sidc), iconSize: [50, 50], iconAnchor: [25, 25], popupAnchor: [0, -20] }), 
+            draggable: isMine 
+        });
+        
+        if (isMine) {
             layer.on('dragend', function() { 
                 sendLayerUpdate(layer, data.type, data.id); 
             });
         }
-                bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
-    }
-                layer.on('dragend', function() { 
-                    sendLayerUpdate(layer, data.type, data.id); 
-                });
-                layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type };
-                bindMarkerPopup(layer, data.name, data.id, data.type);
-            } else {
-                if (data.type === 'circle') {
-                    layer = L.circle(data.latlng, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.2 });
-                    enableGeometryInteraction(layer, 'circle', data.type, data.id);
-                } else if (data.type === 'rectangle') {
-                    layer = L.rectangle(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.15 });
-                    enableGeometryInteraction(layer, 'rectangle', data.type, data.id);
-                } else if (data.type === 'polygon') {
-                    layer = L.polygon(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.2 });
-                    enableGeometryInteraction(layer, 'polygon', data.type, data.id);
-                } else if (data.type === 'polyline') {
-                    layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
-                    enableGeometryInteraction(layer, 'polyline', data.type, data.id);
-                }
-                layer.customData = { name: data.name, color: data.color };
-                bindGeometryPopup(layer, data.name, data.color, data.id, data.type);
-            }
+        
+        layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type, username: data.username };
+        bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
 
-            layer._leaflet_id = data.id; 
-            layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
-            drawnItems.addLayer(layer);
+    } else {
+        // 幾何圖形區塊
+        if (data.type === 'circle') {
+            layer = L.circle(data.latlng, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.2 });
+            enableGeometryInteraction(layer, 'circle', data.type, data.id);
+        } else if (data.type === 'rectangle') {
+            layer = L.rectangle(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.15 });
+            enableGeometryInteraction(layer, 'rectangle', data.type, data.id);
+        } else if (data.type === 'polygon') {
+            layer = L.polygon(data.latlngs, { color: data.color, fillColor: data.color, fillOpacity: 0.2 });
+            enableGeometryInteraction(layer, 'polygon', data.type, data.id);
+        } else if (data.type === 'polyline') {
+            layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
+            enableGeometryInteraction(layer, 'polyline', data.type, data.id);
         }
+        
+        layer.customData = { name: data.name, color: data.color, username: data.username };
+        bindGeometryPopup(layer, data.name, data.color, data.id, data.type, isMine);
+    }
+
+    layer._leaflet_id = data.id; 
+    layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
+    drawnItems.addLayer(layer);
+}
 
         function setMode(mode) {
             if (currentDrawHandler) currentDrawHandler.disable();
