@@ -417,6 +417,7 @@ function sendLayerUpdate(layer, layerType, customId = null) {
         }
 
        function renderIncomingLayer(data) {
+           console.log("正在渲染，資料來源:", data.username, "目前使用者:", myCallsign); // 👈 加上這行
     const isMine = (data.username === myCallsign);
     let layer;
 
