@@ -464,18 +464,15 @@ function renderIncomingLayer(data) {
         if (isMine) {
             layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
         }
-
     } else {
         // 幾何圖形區塊
         const options = { color: data.color, fillColor: data.color, fillOpacity: 0.2 };
         if (data.type === 'circle') {
             layer = L.circle(data.latlng, { ...options, radius: data.radius });
-        } else if (data.type === 'rectangle') {
-            layer = L.rectangle(data.latlngs, options);
-        } else if (data.type === 'polygon') {
-            layer = L.polygon(data.latlngs, options);
         } else {
-            layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
+            layer = (data.type === 'rectangle') ? L.rectangle(data.latlngs, options) : 
+                    (data.type === 'polygon') ? L.polygon(data.latlngs, options) : 
+                    L.polyline(data.latlngs, { color: data.color, weight: 4 });
         }
         
         layer.customData = { name: data.name, color: data.color, username: data.username };
