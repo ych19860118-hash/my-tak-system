@@ -537,33 +537,45 @@ function renderIncomingLayer(data) {
 
 map.on(L.Draw.Event.CREATED, function (event) {
     const layer = event.layer;
-    const type = event.layerType === 'polyline' ? 'polyline' : event.layerType === 'rectangle' ? 'rectangle' : event.layerType;
-    const layerId = Date.now(); // 產生一個 ID
+    const type = event.layerType;
+    const layerId = Date.now();
     
-    // 準備資料
-    let data = { 
-        id: layerId, 
-        type: type, 
+    // 1. 設定層級屬性，標記為自己的
+    layer._leaflet_id = layerId;
+    layer.customData = { 
         name: "戰術管制區", 
-        color: type === 'circle' ? '#ffaa00' : (type === 'polyline' ? '#33ccff' : '#ff33ff'),
+        color: '#ff33ff', 
         username: myCallsign 
     };
 
-    if (type === 'circle') { data.latlng = layer.getLatLng(); data.radius = layer.getRadius(); }
-    else if (type.startsWith('mil-')) { /* 兵棋邏輯 */ }
-    else { data.latlngs = layer.getLatLngs(); }
-
-    // 【重點】：直接呼叫渲染函式，讓它幫你處理 isMine 判斷
-    renderIncomingLayer(data);
+    // 2. 綁定互動 (修改、刪除)
+    // 這裡直接對剛剛畫好的 layer 操作，不需要 remove 再 add
+    if (type === 'marker') {
+        // 若是兵棋
+        bindMarkerPopup(layer, "戰術管制區", layerId, type, true);
+    } else {
+        // 若是幾何圖形
+        enableGeometryInteraction(layer, type, type, layerId);
+    }
     
-    // 從地圖上移除暫時的繪圖層，因為 renderIncomingLayer 會重新畫一個
-    map.removeLayer(layer); 
+    // 3. 加入地圖並顯示資訊
+    layer.bindTooltip("戰術管制區", { permanent: true, direction: 'bottom' });
+    drawnItems.addLayer(layer); 
     
-    // 發送給別人
-    sendLayerUpdate(data, type, layerId);
-    resetMode();
+    // 4. 準備資料發送給伺服器
+    const data = { 
+        id: layerId, 
+        type: type, 
+        name: "戰術管制區",
+        color: '#ff33ff',
+        username: myCallsign,
+        latlng: layer.getLatLng ? layer.getLatLng() : null,
+        latlngs: layer.getLatLngs ? layer.getLatLngs() : null,
+        radius: layer.getRadius ? layer.getRadius() : null
+    };
+    
+    socket.emit('layer-created', data); // 確保發送正確的事件名稱
 });
-
         map.on('click', function(e) {
             if (activeMode && activeMode.startsWith('mil-')) {
                 let branchSelect = document.getElementById('mil-branch-select');
