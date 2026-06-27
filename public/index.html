@@ -292,32 +292,34 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            // 抓取右側面板的選單值
-            const branch = document.querySelector('.action-panel #mil-branch-select').value; 
-            const size = document.querySelector('.action-panel #mil-size-select').value;
-            const affiliation = (mode === 'mil-friend') ? 'F' : (mode === 'mil-hostile') ? 'H' : (mode === 'mil-neutral') ? 'N' : 'U';
+            const panel = document.querySelector('.action-panel');
+            const branch = panel.querySelector('#mil-branch-select').value;
+            const size = panel.querySelector('#mil-size-select').value;
             
-            // 組合 15 碼 SIDC 邏輯：
-            // 原始值範例 (ST----) -> 轉為正確的北約 SIDC 格式
-            // 這裡我們將選單代碼對應到 milsymbol 的格式
-            const branchMap = {
-                'ST----': 'PCA', // 步兵
-                'UC----': 'PKA', // 裝甲
-                'SF----': 'PFA', // 砲兵
-                'AV----': 'PAA', // 陸航
-                'E-----': 'PRA', // 工兵
-                'MD----': 'PMA', // 醫療
-                'SU----': 'PMA', // 飛彈
-                'C4----': 'PCC'  // 通信
+            // 根據點選的按鈕，決定陣營代碼 (SIDC 第二碼)
+            // F=友軍(藍), H=敵軍(紅), N=中立(綠), U=不明(黃)
+            const affiliationMap = {
+                'mil-friend': 'F',
+                'mil-hostile': 'H',
+                'mil-neutral': 'N',
+                'mil-unknown': 'U'
             };
+            const affiliation = affiliationMap[mode];
             
-            const bCode = branchMap[branch] || 'PCA';
-            // S (標準) + 陣營 + P (地面) + 兵科 + 00 + 階級 + 000
-            const sidc = `S${affiliation}P${bCode}00${size}000`;
+            // 組合 15 碼 SIDC
+            // 將 branch 原本的陣營位替換掉
+            let sidc = branch.substring(0, 1) + affiliation + branch.substring(2);
+            // 插入階級代碼 (第 11-12 位)
+            let finalSidc = sidc.substring(0, 10) + size + sidc.substring(12);
             
-            const symbol = new ms.Symbol(sidc, { size: 35 });
+            const symbol = new ms.Symbol(finalSidc, { size: 35 });
             const marker = L.marker(e.latlng, {
-                icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [35, 35] }),
+                icon: L.divIcon({ 
+                    html: symbol.asSVG(), 
+                    className: 'mil-icon', 
+                    iconSize: [35, 35],
+                    iconAnchor: [17, 17] // 確保符號中心點對齊
+                }),
                 draggable: true
             }).addTo(drawnItems);
             
