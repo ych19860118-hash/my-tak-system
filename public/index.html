@@ -272,502 +272,94 @@
     <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 清除圖層</button>
 </div>
     
-    <!-- 這裡接上您原有的 <script> 內容 -->
-    <script>
-        let myCallsign = "ALPHA-01";
-        let myRoomID = "PUBLIC_01";
-        let localUserList = [];
-
-        // 確保建立 Socket 連線
-        const socket = (typeof io !== 'undefined') ? io() : { 
-            emit: (event, data) => { console.log(`[WebSocket 模擬發送 -> ${event}]:`, data); }, 
-            on: (event, callback) => {} 
-        };
-
-        const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14); 
-        
-        const lightLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' });
-        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' });
-        lightLayer.addTo(map);
-        let isDarkStyle = false;
-
-        function toggleMapStyle() {
-            if (isDarkStyle) { map.removeLayer(darkLayer); lightLayer.addTo(map); isDarkStyle = false; } 
-            else { map.removeLayer(lightLayer); darkLayer.addTo(map); isDarkStyle = true; }
-        }
-
-        function toggleCustomRoomInput() {
-            const select = document.getElementById('room-type-select');
-            document.getElementById('custom-room-id').style.display = (select.value === 'CUSTOM') ? 'block' : 'none';
-        }
-
-        // 🎯 修正：全新渲染邏輯，防止人數不對與不顯示別人
-        function updateUserListUI() {
-            const listContainer = document.getElementById('user-list');
-            
-            // 確保名單中過濾掉自己，由 UI 頂部獨立渲染
-            const filteredList = localUserList.filter(u => u !== myCallsign);
-            document.getElementById('user-count').innerText = filteredList.length + 1;
-            
-            let html = `<div class="user-item"><span style="color:#00ffcc;">●</span> [${myCallsign}] (你)</div>`;
-            filteredList.forEach(u => {
-                html += `<div class="user-item"><span style="color:#00a2ff;">●</span> [${u}]</div>`;
-            });
-            listContainer.innerHTML = html;
-        }
-
-function joinTacticalNetwork() {
-    const inputCallsign = document.getElementById('user-callsign').value.trim();
-    
-    // 1. 呼號檢查邏輯 (這是關鍵！)
-    if (localUserList.includes(inputCallsign)) {
-        alert("⚠️ 錯誤：此呼號 [" + inputCallsign + "] 已被佔用，請更換後重新連線。");
-        return; // 直接中斷，不執行後續連線動作
-    }
-
-    // 2. 如果沒重複，才執行原本的登入流程
-    myCallsign = inputCallsign || "無名隊員";
-    const selectValue = document.getElementById('room-type-select').value;
-    myRoomID = (selectValue === 'CUSTOM') ? (document.getElementById('custom-room-id').value.trim() || "PRIVATE_ROOM") : selectValue;
-
-    document.getElementById('current-room').innerText = myRoomID;
-    document.getElementById('login-overlay').style.display = 'none';
-    document.getElementById('current-mode').innerText = "CONNECTED";
-
-    updateUserListUI();
-    
-    // 3. 只有通過檢查才送出 Socket 事件
-    socket.emit('join_room', { room: myRoomID, username: myCallsign });
-    getLiveWeather();
-}
-
-        // 🎯 修正：綁定最新的後端列表傳輸事件
-        socket.on('init_user_list', (users) => {
-            localUserList = users;
-            updateUserListUI();
-        });
-
-        socket.on('user_joined', (data) => {
-            console.log(`📡 隊友 [${data.username}] 已進入相同戰術頻道`);
-            if(!localUserList.includes(data.username)) {
-                localUserList.push(data.username);
-                updateUserListUI();
-            }
-        });
-
-        socket.on('user_left', (data) => {
-            console.log(`❌ 隊友 [${data.username}] 已離開頻道`);
-            localUserList = localUserList.filter(u => u !== data.username);
-            updateUserListUI();
-        });
-
+   <script>
+        let myCallsign = "ALPHA-01", myRoomID = "PUBLIC_01", localUserList = [];
+        const socket = (typeof io !== 'undefined') ? io() : { emit: () => {}, on: () => {} };
+        const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const drawnItems = new L.FeatureGroup().addTo(map);
-        let activeMode = null;
-        let currentDrawHandler = null;
-        let selfMarker = null;
-        let currentEditingLayer = null;
+        let activeMode = null, currentDrawHandler = null, currentEditingLayer = null;
 
-        socket.on('init_layers', (layers) => { 
-            console.log("正在載入歷史兵棋...", layers);
-            Object.values(layers).forEach(data => renderIncomingLayer(data)); 
-        });
-
-socket.on('receive_marker', (data) => { 
-    console.log("收到即時更新:", data);
-    const existingLayer = drawnItems.getLayer(data.id); 
-    const isMine = (data.username === myCallsign);
-
-    if (existingLayer) {
-        // 1. 更新位置或形狀 (根據圖層類型選用對應方法)
-        if (data.type.startsWith('mil-')) {
-            existingLayer.setLatLng(data.latlng);
-        } else if (data.type === 'circle') {
-            existingLayer.setLatLng(data.latlng);
-            existingLayer.setRadius(data.radius);
-        } else {
-            // 多邊形、矩形、線條使用 setLatLngs
-            existingLayer.setLatLngs(data.latlngs);
-        }
-        
-        // 更新樣式
-        existingLayer.setStyle({ color: data.color, fillColor: data.color });
-        return; 
-    }
-    
-    // 如果是全新的圖層才執行完整渲染
-    renderIncomingLayer(data); 
-});
-
-socket.on('layer_removed', (layerId) => { 
-    const existingLayer = drawnItems.getLayer(layerId); 
-    if (existingLayer) drawnItems.removeLayer(existingLayer); 
-});
-
-socket.on('all_cleared', () => { 
-    drawnItems.clearLayers(); 
-});
-
-function sendLayerUpdate(layer, layerType, customId = null) {
-    const id = customId || L.stamp(layer);
-    const name = layer.customData ? layer.customData.name : "未命名戰術物件";
-    const color = layer.customData ? layer.customData.color : "#ffffff";
-    
-    let payload = { 
-        room: myRoomID,
-        id: id, 
-        type: layerType, 
-        name: name, 
-        color: color, 
-        username: myCallsign 
-    };
-
-    // 🚩 關鍵修改：依照類型寫入座標資料，避免 getLatLngs 錯誤
-    if (layerType.startsWith('mil-')) {
-        // 兵棋是 Marker，使用 getLatLng()
-        payload.latlng = layer.getLatLng();
-    } else if (layerType === 'circle') {
-        // 圓形
-        payload.latlng = layer.getLatLng();
-        payload.radius = layer.getRadius();
-    } else {
-        // 多邊形/線條，使用 getLatLngs()
-        payload.latlngs = layer.getLatLngs();
-    }
-    
-    // 發送給伺服器
-    socket.emit('layer-update', payload);
-}
-
-function renderIncomingLayer(data) {
-    const isMine = (data.username === myCallsign);
-    let layer;
-
-    // 1. 處理兵棋符號
-    if (data.type.startsWith('mil-')) {
-        let sidc = data.sidc;
-        if (!sidc) {
-            let affiliation = 'U';
-            if (data.type === 'mil-friend') affiliation = 'F';
-            else if (data.type === 'mil-hostile') affiliation = 'H';
-            else if (data.type === 'mil-neutral') affiliation = 'N';
-            sidc = `S${affiliation}GP${document.getElementById('mil-branch-select').value}${document.getElementById('mil-size-select').value}--`;
-        }
-
-        layer = L.marker(data.latlng, { 
-            icon: L.icon({ 
-                iconUrl: getFallbackSvgIcon(sidc), 
-                iconSize: [50, 50], 
-                iconAnchor: [25, 25] 
-            }), 
-            draggable: isMine 
-        });
-        
-        layer.customData = { name: data.name, color: data.color, sidc: sidc, type: data.type, username: data.username };
-        bindMarkerPopup(layer, data.name, data.id, data.type, isMine);
-        
-        if (isMine) {
-            layer.on('dragend', () => sendLayerUpdate(layer, data.type, data.id));
-        }
-    } 
-    // 2. 處理幾何圖形
-    else {
-        const options = { color: data.color, fillColor: data.color, fillOpacity: 0.2 };
-        if (data.type === 'circle') {
-            layer = L.circle(data.latlng, { ...options, radius: data.radius });
-        } else if (data.type === 'rectangle') {
-            layer = L.rectangle(data.latlngs, options);
-        } else if (data.type === 'polygon') {
-            layer = L.polygon(data.latlngs, options);
-        } else {
-            layer = L.polyline(data.latlngs, { color: data.color, weight: 4 });
-        }
-        
-        layer.customData = { name: data.name, color: data.color, username: data.username };
-        bindGeometryPopup(layer, data.name, data.color, data.id, data.type, isMine);
-        
-        if (isMine) {
-            enableGeometryInteraction(layer, data.type, data.type, data.id);
-        }
-    }
-
-    // 3. 通用屬性設定
-    layer._leaflet_id = data.id; 
-    layer.bindTooltip(data.name, { permanent: true, direction: 'bottom', className: 'tactical-label', offset: [0, 20] });
-    drawnItems.addLayer(layer);
-}
-
-        function setMode(mode) {
-            if (currentDrawHandler) currentDrawHandler.disable();
-            if (currentEditingLayer) { 
-                if (typeof currentEditingLayer.editing?.disable === 'function') currentEditingLayer.editing.disable(); 
-                currentEditingLayer = null; 
+        // --- 通用編輯邏輯 ---
+        function bindLayerPopup(layer, layerId, type, isMine) {
+            if (!isMine) {
+                layer.bindPopup(`<p><strong>${layer.customData.name}</strong> (唯讀)</p>`);
+                return;
             }
-            activeMode = mode;
-            document.getElementById('current-mode').innerText = mode.toUpperCase();
-            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
-            if(document.getElementById(`btn-${mode}`)) document.getElementById(`btn-${mode}`).classList.add('active');
-
-            if (mode === 'circle') currentDrawHandler = new L.Draw.Circle(map, { shapeOptions: { color: '#ffaa00', fillColor: '#ffaa00', fillOpacity: 0.2 } }).enable();
-            if (mode === 'rect') currentDrawHandler = new L.Draw.Rectangle(map, { shapeOptions: { color: '#00ffcc', fillColor: '#00ffcc', fillOpacity: 0.15 } }).enable();
-            if (mode === 'poly') currentDrawHandler = new L.Draw.Polygon(map, { shapeOptions: { color: '#ff33ff', fillColor: '#ff33ff', fillOpacity: 0.2 } }).enable();
-            if (mode === 'line') currentDrawHandler = new L.Draw.Polyline(map, { shapeOptions: { color: '#33ccff', weight: 4 } }).enable();
+            const { name, color } = layer.customData;
+            const radius = (type === 'circle') ? layer.getRadius() : 0;
+            let html = `
+                <div class="props-form">
+                    <label>名稱</label><input type="text" id="edit-name-${layerId}" value="${name}">
+                    <label>顏色</label><input type="color" id="edit-color-${layerId}" value="${color}">
+                    ${type === 'circle' ? `<label>半徑(m)</label><input type="number" id="edit-radius-${layerId}" value="${Math.round(radius)}">` : ''}
+                    <button class="btn" onclick="commitChanges(${layerId}, '${type}')">確認修改</button>
+                    <button class="btn btn-clear" onclick="deleteLayerItem(${layerId})">刪除</button>
+                </div>`;
+            layer.bindPopup(html);
         }
 
-        function enableGeometryInteraction(layer, geometryType, rawType, layerId) {
-            let isDragging = false; let prevLatLng = null; let hasMoved = false;
-            layer.on('mousedown', function(e) { if (activeMode) return; isDragging = true; hasMoved = false; prevLatLng = e.latlng; map.dragging.disable(); });
-            map.on('mousemove', function(e) {
-                if (!isDragging || !prevLatLng) return;
-                hasMoved = true;
-                const latOffset = e.latlng.lat - prevLatLng.lat; const lngOffset = e.latlng.lng - prevLatLng.lng;
-                if (geometryType === 'circle') { layer.setLatLng([layer.getLatLng().lat + latOffset, layer.getLatLng().lng + lngOffset]); } 
-                else { const updateLatLngs = (latlngs) => { if (Array.isArray(latlngs[0])) return latlngs.map(sub => updateLatLngs(sub)); return latlngs.map(pt => { pt.lat += latOffset; pt.lng += lngOffset; return pt; }); }; layer.setLatLngs(updateLatLngs(layer.getLatLngs())); }
-                prevLatLng = e.latlng;
-            });
-            window.addEventListener('mouseup', function() { if (isDragging) { isDragging = false; prevLatLng = null; map.dragging.enable(); if (hasMoved) sendLayerUpdate(layer, rawType, layerId); } });
-            layer.on('click', function(e) { 
-                L.DomEvent.stopPropagation(e); 
-                if (activeMode) return; 
-                if (!hasMoved) { 
-                    if (currentEditingLayer && currentEditingLayer !== layer) { 
-                        if(typeof currentEditingLayer.editing?.disable === 'function') currentEditingLayer.editing.disable(); 
-                    } 
-                    currentEditingLayer = layer; 
-                    if(typeof layer.editing?.enable === 'function') layer.editing.enable(); 
-                } 
-            });
-        }
-
-map.on(L.Draw.Event.CREATED, function (event) {
-    const layer = event.layer;
-    const type = event.layerType;
-    const layerId = Date.now();
-    
-    // 1. 設定層級屬性，標記為自己的
-    layer._leaflet_id = layerId;
-    layer.customData = { 
-        name: "戰術管制區", 
-        color: '#ff33ff', 
-        username: myCallsign 
-    };
-
-    // 2. 綁定互動 (修改、刪除)
-    // 這裡直接對剛剛畫好的 layer 操作，不需要 remove 再 add
-    if (type === 'marker') {
-        // 若是兵棋
-        bindMarkerPopup(layer, "戰術管制區", layerId, type, true);
-    } else {
-        // 若是幾何圖形
-        enableGeometryInteraction(layer, type, type, layerId);
-    }
-    
-    // 3. 加入地圖並顯示資訊
-    layer.bindTooltip("戰術管制區", { permanent: true, direction: 'bottom' });
-    drawnItems.addLayer(layer); 
-    
-    // 4. 準備資料發送給伺服器
-    const data = { 
-        id: layerId, 
-        type: type, 
-        name: "戰術管制區",
-        color: '#ff33ff',
-        username: myCallsign,
-        latlng: layer.getLatLng ? layer.getLatLng() : null,
-        latlngs: layer.getLatLngs ? layer.getLatLngs() : null,
-        radius: layer.getRadius ? layer.getRadius() : null
-    };
-    
-    socket.emit('layer-created', data); // 確保發送正確的事件名稱
-});
-        map.on('click', function(e) {
-            if (activeMode && activeMode.startsWith('mil-')) {
-                let branchSelect = document.getElementById('mil-branch-select');
-                let sizeSelect = document.getElementById('mil-size-select');
-                let branchName = branchSelect.options[branchSelect.selectedIndex].text.split(' ')[0];
-                let sizeName = sizeSelect.value !== '00' ? sizeSelect.options[sizeSelect.selectedIndex].text.split(' ')[0] : "";
-                let factionName = activeMode.includes('friend')?"友軍":activeMode.includes('hostile')?"敵軍":"不明";
-                
-                let affiliation = 'U';
-                if (activeMode === 'mil-friend') affiliation = 'F';
-                if (activeMode === 'mil-hostile') affiliation = 'H';
-                if (activeMode === 'mil-neutral') affiliation = 'N';
-                let sidc = `S${affiliation}GP${branchSelect.value}${sizeSelect.value}--`;
-
-                let data = { id: Date.now(), type: activeMode, latlng: e.latlng, name: `${factionName}${sizeName}${branchName}`, color: activeMode.includes('friend')?"#00a2ff":activeMode.includes('hostile')?"#ff3333":"#ffff00", sidc: sidc };
-                renderIncomingLayer(data);
-                
-                let dummyMarker = L.marker(e.latlng);
-                dummyMarker.customData = { name: data.name, color: data.color, sidc: sidc };
-                sendLayerUpdate(dummyMarker, activeMode, data.id);
-                resetMode();
-            } else {
-                if (currentEditingLayer) {
-                    if (typeof currentEditingLayer.editing?.disable === 'function') {
-                        currentEditingLayer.editing.disable();
-                    }
-                    let rawType = 'polygon';
-                    if (currentEditingLayer instanceof L.Circle) rawType = 'circle';
-                    else if (currentEditingLayer instanceof L.Rectangle) rawType = 'rectangle';
-                    else if (currentEditingLayer instanceof L.Polyline && !(currentEditingLayer instanceof L.Polygon)) rawType = 'polyline';
-                    sendLayerUpdate(currentEditingLayer, rawType, currentEditingLayer._leaflet_id);
-                    currentEditingLayer = null;
-                }
-            }
-        });
-
-function bindMarkerPopup(marker, name, layerId, type, isMine) {
-    let popupHTML = `<div class="props-form"><label>呼號 / 名稱</label>`;
-    
-    if (isMine) {
-        popupHTML += `<input type="text" id="name-${layerId}" value="${name}" onchange="commitMarkerChange(${layerId}, '${type}')">
-                      <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此單位</button>`;
-    } else {
-        popupHTML += `<p><strong>${name}</strong> (唯讀)</p>`;
-    }
-    popupHTML += `</div>`;
-    marker.bindPopup(popupHTML);
-}
-
-        window.commitMarkerChange = function(layerId, type) {
-            const name = document.getElementById(`name-${layerId}`).value;
+        window.commitChanges = function(layerId, type) {
             const layer = drawnItems.getLayer(layerId);
-            if(layer) { layer.customData.name = name; layer.setTooltipContent(name); sendLayerUpdate(layer, type, layerId); }
+            if (!layer) return;
+            layer.customData.name = document.getElementById(`edit-name-${layerId}`).value;
+            layer.customData.color = document.getElementById(`edit-color-${layerId}`).value;
+            layer.setTooltipContent(layer.customData.name);
+            if (type === 'circle') layer.setRadius(parseInt(document.getElementById(`edit-radius-${layerId}`).value));
+            layer.setStyle({ color: layer.customData.color, fillColor: layer.customData.color });
+            sendLayerUpdate(layer, type, layerId);
+            layer.closePopup();
         };
 
-// 修正定義，加入 isMine 參數
-function bindGeometryPopup(layer, name, color, layerId, type, isMine) {
-    let popupHTML = `<div class="props-form"><label>管制區名稱</label>`;
-    
-    // 使用傳入的 isMine 判斷是否顯示編輯控制項
-    if (isMine) {
-        popupHTML += `<input type="text" id="name-${layerId}" value="${name}" onchange="commitGeometryChange(${layerId}, '${type}')">
-                      <label>調整戰術顏色</label>
-                      <input type="color" id="color-${layerId}" value="${color}" onchange="commitGeometryChange(${layerId}, '${type}')">
-                      <button class="btn-delete-item" onclick="deleteLayerItem(${layerId})">🗑️ 刪除此範圍</button>`;
-    } else {
-        popupHTML += `<p><strong>${name}</strong> (唯讀)</p>`;
-    }
-    popupHTML += `</div>`;
-    layer.bindPopup(popupHTML);
-}
-
-        window.commitGeometryChange = function(layerId, type) {
-            const name = document.getElementById(`name-${layerId}`).value;
-            const color = document.getElementById('color-' + layerId).value;
-            const layer = drawnItems.getLayer(layerId);
-            if(layer) { layer.customData.name = name; layer.customData.color = color; layer.setTooltipContent(name); layer.setStyle({ color: color, fillColor: color }); sendLayerUpdate(layer, type, layerId); }
-        };
-// 刪除圖層的統一處理函式
         window.deleteLayerItem = function(layerId) {
             const layer = drawnItems.getLayer(layerId);
-            if (layer) {
-                drawnItems.removeLayer(layer);
-                socket.emit('remove_marker', { room: myRoomID, id: layerId });
-                console.log(`已刪除物件: ${layerId}`);
-            }
+            if (layer) { drawnItems.removeLayer(layer); socket.emit('remove_marker', { room: myRoomID, id: layerId }); }
         };
-        function getLiveWeather() {
-            const weatherBox = document.getElementById('weather-box');
-            fetch('https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization=CWA-B536D0D3-FCE1-4EE7-8D05-EBFE6E8DEEE6&StationId=C0C700')
-                .then(res => res.json())
-                .then(json => {
-                    if(json.success === "true" && json.records && json.records.Station && json.records.Station.length > 0) {
-                        const station = json.records.Station[0];
-                        const temp = station.WeatherElement.AirTemperature;
-                        const w = station.WeatherElement.Weather || "清晴";
-                        const wind = station.WeatherElement.WindSpeed ? (station.WeatherElement.WindSpeed.Velocity || station.WeatherElement.WindSpeed) : "0";
-                        weatherBox.innerHTML = `🌤️ <b>平鎮戰術天氣：</b>${w} / 🌡️ ${temp}°C / 🍃 風速 ${wind} m/s`;
-                    } else {
-                        weatherBox.innerHTML = `🌤️ <b>平鎮天氣：</b>22.4°C / 東北風 2 級 (標準測站模擬)`;
-                    }
-                })
-                .catch(() => {
-                    weatherBox.innerHTML = `🌤️ <b>平鎮天氣：</b>22.4°C / 東北風 2 級 (離線安全模式)`;
-                });
+
+        // --- 地圖與繪圖核心 ---
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            const layerId = Date.now();
+            layer._leaflet_id = layerId;
+            layer.customData = { name: "新物件", color: '#ff33ff', username: myCallsign };
+            bindLayerPopup(layer, layerId, e.layerType, true);
+            if (e.layerType !== 'marker') enableGeometryInteraction(layer, e.layerType, e.layerType, layerId);
+            layer.bindTooltip("新物件", { permanent: true });
+            drawnItems.addLayer(layer);
+            sendLayerUpdate(layer, e.layerType, layerId);
+        });
+
+        function renderIncomingLayer(data) {
+            const isMine = (data.username === myCallsign);
+            let layer;
+            if (data.type.startsWith('mil-')) {
+                layer = L.marker(data.latlng, { draggable: isMine });
+            } else {
+                layer = (data.type === 'circle') ? L.circle(data.latlng, { radius: data.radius }) : L.polygon(data.latlngs);
+            }
+            layer._leaflet_id = data.id;
+            layer.customData = { name: data.name, color: data.color, username: data.username };
+            layer.setStyle({ color: data.color, fillColor: data.color });
+            bindLayerPopup(layer, data.id, data.type, isMine);
+            layer.bindTooltip(data.name, { permanent: true });
+            drawnItems.addLayer(layer);
         }
 
-        function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(pos => {
-                    const lat = pos.coords.latitude; const lng = pos.coords.longitude;
-                    document.getElementById("gps-status").innerHTML = `座標: ${lat.toFixed(5)} , ${lng.toFixed(5)} (實時 GPS 定位)`;
-                    if (selfMarker) selfMarker.setLatLng([lat, lng]);
-                    else { selfMarker = L.marker([lat, lng], { icon: L.divIcon({ className:'gps-self-container', html:'<div class="gps-self-icon"></div>', iconSize:[14,14] }) }).addTo(map); map.setView([lat, lng], 15); }
-                }, null, { enableHighAccuracy: true });
-            }
-        }
-        function resetMode() { activeMode = null; currentDrawHandler = null; document.getElementById('current-mode').innerText = "CONNECTED"; document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active')); }
-        
-        function broadcastClear() { 
-            drawnItems.clearLayers(); 
-            socket.emit('clear_all', { room: myRoomID });
+        function sendLayerUpdate(layer, type, id) {
+            const payload = { room: myRoomID, id, type, name: layer.customData.name, color: layer.customData.color, username: myCallsign };
+            if (type.startsWith('mil-')) payload.latlng = layer.getLatLng();
+            else if (type === 'circle') { payload.latlng = layer.getLatLng(); payload.radius = layer.getRadius(); }
+            else payload.latlngs = layer.getLatLngs();
+            socket.emit('layer-update', payload);
         }
 
-        function getFallbackSvgIcon(sidc) {
-            let aff = sidc.charAt(1); let bch = sidc.substring(4, 6); let size = sidc.substring(10, 12);
-            let frameColor = "#000000"; let fillColor = "#ffff00"; let frameSvg = "";
-            
-            if (aff === 'F') { fillColor = "#00a2ff"; frameSvg = `<rect x="15" y="32" width="70" height="46" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
-            else if (aff === 'H') { fillColor = "#ff3333"; frameSvg = `<polygon points="50,22 83,55 50,88 17,55" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
-            else if (aff === 'N') { fillColor = "#00ff33"; frameSvg = `<rect x="22" y="27" width="56" height="56" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; } 
-            else { frameSvg = `<path d="M 50,28 A 15,15 0 0,1 75,38 A 15,15 0 0,1 75,68 A 15,15 0 0,1 50,78 A 15,15 0 0,1 25,68 A 15,15 0 0,1 25,38 A 15,15 0 0,1 50,28 Z" stroke="${frameColor}" stroke-width="3.5" fill="${fillColor}" />`; }
-            
-            // 替換原本的兵科判斷區塊
-            let interiorSvg = ""; let cx = 50, cy = 55; let iconLineColor = "#000000";
-            
-            if (bch === "ST") { // 步兵
-                interiorSvg = `<line x1="20" y1="36" x2="80" y2="74" stroke="${iconLineColor}" stroke-width="3.5" /><line x1="20" y1="74" x2="80" y2="36" stroke="${iconLineColor}" stroke-width="3.5" />`;
-            } else if (bch === "UC") { // 裝甲
-                interiorSvg = `<ellipse cx="${cx}" cy="${cy}" rx="18" ry="9" stroke="${iconLineColor}" stroke-width="3.5" fill="none" />`;
-            } else if (bch === "SF") { // 砲兵
-                interiorSvg = `<circle cx="${cx}" cy="${cy}" r="6" fill="${iconLineColor}" />`;
-            } else if (bch === "AV") { // 陸航
-                interiorSvg = `<path d="M50,40 L65,55 L50,70 L35,55 Z" stroke="${iconLineColor}" stroke-width="3" fill="none" />`;
-            } else if (bch === "E-") { // 工兵
-                interiorSvg = `<text x="42" y="65" font-family="Arial" font-size="25" fill="${iconLineColor}">E</text>`;
-            } else if (bch === "MD") { // 醫療
-                interiorSvg = `<path d="M42,55 L58,55 M50,47 L50,63" stroke="${iconLineColor}" stroke-width="4" />`;
-            } else if (bch === "SU") { // 飛彈 (修改為對應 HTML 的 SU)
-                interiorSvg = `<path d="M50,30 L50,70 M45,35 L50,30 L55,35" stroke="${iconLineColor}" stroke-width="3" fill="none" />`;
-            } else if (bch === "C4") { // 通信 (修改為對應 HTML 的 C4)
-                interiorSvg = `<path d="M40,40 L60,40 L40,70 L60,70" stroke="${iconLineColor}" stroke-width="3" fill="none" />`;
-            }
-            
-            let sizeSvg = ""; 
-            let sy = 16; 
-            if (size === "11") { sizeSvg = `<circle cx="50" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" />`; } 
-            else if (size === "22") { sizeSvg = `<circle cx="43" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" /><circle cx="57" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" />`; } 
-            else if (size === "33") { sizeSvg = `<circle cx="36" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" /><circle cx="50" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" /><circle cx="64" cy="${sy}" r="4" fill="#fff" stroke="#000" stroke-width="1" />`; } 
-            else if (size === "44") { sizeSvg = `<line x1="50" y1="${sy-7}" x2="50" y2="${sy+5}" stroke="#fff" stroke-width="3.5" /><line x1="50" y1="${sy-7}" x2="50" y2="${sy+5}" stroke="#000" stroke-width="1.5" />`; } 
-            else if (size === "55") { sizeSvg = `<line x1="44" y1="${sy-7}" x2="44" y2="${sy+5}" stroke="#fff" stroke-width="3.5" /><line x1="44" y1="${sy-7}" x2="44" y2="${sy+5}" stroke="#000" stroke-width="1.5" /><line x1="56" y1="${sy-7}" x2="56" y2="${sy+5}" stroke="#fff" stroke-width="3.5" /><line x1="56" y1="${sy-7}" x2="56" y2="${sy+5}" stroke="#000" stroke-width="1.5" />`; } 
-            else if (size === "66") { sizeSvg = `<line x1="42" y1="${sy-5}" x2="58" y2="${sy+5}" stroke="#fff" stroke-width="4" /><line x1="42" y1="${sy+5}" x2="58" y2="${sy-5}" stroke="#fff" stroke-width="4" /><line x1="42" y1="${sy-5}" x2="58" y2="${sy+5}" stroke="#000" stroke-width="2" /><line x1="42" y1="${sy+5}" x2="58" y2="${sy-5}" stroke="#000" stroke-width="2" />`; }
-            
-            let rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">${frameSvg}${interiorSvg}${sizeSvg}</svg>`;
-            return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(rawSvg)));
+        function togglePanel(btn) { btn.parentElement.classList.toggle('panel-collapsed'); }
+        function setMode(mode) { 
+            activeMode = mode; 
+            if(mode === 'circle') new L.Draw.Circle(map).enable();
+            else if(mode === 'poly') new L.Draw.Polygon(map).enable();
         }
-function togglePanel(btn) {
-    const panel = btn.parentElement;
-    // 切換是否加上收合的 class
-    panel.classList.toggle('panel-collapsed');
-    
-    // 如果已有 panel-collapsed，代表現在是收合狀態，顯示「+」；否則顯示「✖」
-    btn.innerText = panel.classList.contains('panel-collapsed') ? '⚙' : '✖';
-}
-        function toggleSection(headerElement, contentId) {
-    const content = document.getElementById(contentId);
-    content.classList.toggle('collapsed');
-    headerElement.classList.toggle('collapsed');
-}
-        socket.on('login_error', (data) => {
-    alert(data.message); // 彈出警告視窗
-    
-    // 1. 強制顯示登入覆蓋層
-    document.getElementById('login-overlay').style.display = 'flex';
-    
-    // 2. 如果您希望更徹底，可以選擇中斷該 Socket 連線並重連
-    // socket.disconnect();
-    // socket.connect(); 
-});
+        function joinTacticalNetwork() { document.getElementById('login-overlay').style.display = 'none'; }
     </script>
 </body>
 </html>
