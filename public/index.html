@@ -277,59 +277,56 @@
     const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+    // 儲存所有圖層的群組
     const drawnItems = new L.FeatureGroup().addTo(map);
-    map.addLayer(drawnItems);
 
-    // 實作繪圖工具
-    const drawOptions = {
+    // 建立所有繪圖工具
+    const drawTools = {
         circle: new L.Draw.Circle(map),
         rect: new L.Draw.Rectangle(map),
         poly: new L.Draw.Polygon(map),
         line: new L.Draw.Polyline(map)
     };
 
+    // 處理按鈕點擊：只開啟對應的工具
     window.setMode = function(mode) {
-        // 先關閉當前任何啟用的繪圖模式，再開啟新的
-        if (drawOptions[mode]) {
-            drawOptions[mode].enable();
-        }
+        // 先確保關閉所有其他工具
+        Object.values(drawTools).forEach(t => t.disable());
+        if (drawTools[mode]) drawTools[mode].enable();
     };
 
-    // 關鍵：繪圖完成後，自動關閉繪圖模式並啟用編輯
+    // 核心：繪製完成後的邏輯
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         drawnItems.addLayer(layer);
         
-        layer.customData = { name: "新物件", color: "#ff0000" };
-        
-        // 綁定編輯彈出視窗
+        // 綁定編輯視窗
         layer.bindPopup(`
-            <div class="props-form" style="width:150px;">
-                <label>名稱</label><input type="text" id="edit-name" value="${layer.customData.name}">
-                <label>顏色</label><input type="color" id="edit-color" value="${layer.customData.color}">
+            <div class="props-form">
+                <label>名稱</label><input type="text" id="edit-name" value="新物件">
+                <label>顏色</label><input type="color" id="edit-color" value="#ff0000">
                 <button class="btn" onclick="saveEdit(this)">儲存修改</button>
             </div>
         `);
         
-        // 啟用編輯控制項 (讓圓形出現調整點、多邊形出現節點)
-        layer.enableEdit();
+        // 畫完後自動觸發進入編輯狀態 (關鍵！)
+        // 讓物件節點可以被拉動、調整大小
+        layer.editing.enable(); 
     });
 
-    // 確保按下 ESC 或畫完圖後，工具會停止連續動作
+    // 畫完一個後，強制停止工具，避免重複繪製
     map.on('draw:created', function () {
-        // 透過強制關閉所有繪圖物件來停止連續畫圖
-        Object.values(drawOptions).forEach(tool => tool.disable());
+        Object.values(drawTools).forEach(t => t.disable());
     });
 
+    // 儲存並更新樣式
     window.saveEdit = function(btn) {
         const container = btn.parentElement;
         const name = container.querySelector('#edit-name').value;
         const color = container.querySelector('#edit-color').value;
         
-        map.eachLayer((layer) => {
+        map.eachLayer(layer => {
             if (layer.getPopup() && layer.getPopup().isOpen()) {
-                layer.customData.name = name;
-                layer.customData.color = color;
                 layer.setStyle({ color: color, fillColor: color });
                 layer.bindTooltip(name, {permanent: true}).openTooltip();
                 layer.closePopup();
@@ -337,14 +334,15 @@
         });
     };
 
-    // 其他基礎 UI 功能
+    // --- 其他 UI 功能 ---
     window.togglePanel = (btn) => btn.parentElement.classList.toggle('panel-collapsed');
     window.toggleSection = (el, id) => {
         document.getElementById(id).classList.toggle('collapsed');
         el.classList.toggle('collapsed');
     };
     window.broadcastClear = () => { if(confirm("確定刪除所有圖層？")) drawnItems.clearLayers(); };
-    window.joinTacticalNetwork = () => { document.getElementById('login-overlay').style.display = 'none'; };
+    window.joinTacticalNetwork = () => document.getElementById('login-overlay').style.display = 'none';
+    window.toggleMapStyle = () => alert("地圖切換功能需後端對接");
 </script>
 </body>
 </html>
