@@ -291,17 +291,16 @@ window.setMode = function(mode) {
         map.once('click', function(e) {
             const panel = document.querySelector('.action-panel');
             const branch = panel.querySelector('#mil-branch-select').value; // 如 'CA'
-            const size = panel.querySelector('#mil-size-select').value;     // 如 '22'
+            const size = panel.querySelector('#mil-size-select').value;     // 如 '1'
             
-            // 陣營對應
             const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
             const aff = affMap[mode] || 'U';
             
-            // 【核心修正】嚴格組裝 15 碼
-            // S (標準) + 陣營 + P (地面) + 兵科(2碼) + 00 (佔位) + 階級(2碼) + 00000 (補齊)
-            const sidc = `S${aff}P${branch}00${size}00000`.substring(0, 15);
+            // 【關鍵修正】：直接使用 milsymbol 的簡碼組合格式
+            // 格式：S + 陣營 + G (大地) + P (單位) + 兵科代碼 + 階級碼
+            // 例如：SFG-PCA-1 (友軍、地面、步兵、班)
+            const sidc = `S${aff}G-P${branch}-${size}-----`;
             
-            // 建立符號
             const symbol = new ms.Symbol(sidc, { size: 35 });
             
             const marker = L.marker(e.latlng, {
