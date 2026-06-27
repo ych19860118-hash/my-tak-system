@@ -686,6 +686,16 @@ function togglePanel(btn) {
     content.classList.toggle('collapsed');
     headerElement.classList.toggle('collapsed');
 }
+        socket.on('login_error', (data) => {
+    alert(data.message); // 彈出警告視窗
+    
+    // 1. 強制顯示登入覆蓋層
+    document.getElementById('login-overlay').style.display = 'flex';
+    
+    // 2. 如果您希望更徹底，可以選擇中斷該 Socket 連線並重連
+    // socket.disconnect();
+    // socket.connect(); 
+});
     </script>
 </body>
 </html>
