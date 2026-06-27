@@ -6,7 +6,7 @@
     <title>WEB-TAK 共同作戰圖像平台 (終極標準兵棋版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-
+<script src="https://cdn.jsdelivr.net/npm/milsymbol@2.0.0/dist/milsymbol.js"></script>
     <!-- 2. 引入 JavaScript 函式庫 -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
@@ -273,6 +273,53 @@
 </div>
     
 <script>
+    let myCallsign = document.getElementById('user-callsign').value || "ALPHA-01";
+    // ... (其他基礎設定同前) ...
+
+    // 產生北約符號的函式
+    function createMilMarker(sidc, name, username, color) {
+        const symbol = new ms.Symbol(sidc, { size: 30, color: color });
+        return L.marker([0, 0], {
+            icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [30, 30] }),
+            draggable: (username === myCallsign) // 只有本人可以拖曳
+        });
+    }
+
+    // 處理新增兵棋 (修改 setMode 為處理兵棋與範圍)
+    window.setMode = function(mode) {
+        Object.values(drawTools).forEach(t => t.disable());
+        if (mode === 'mil-friend') {
+            const sidc = document.getElementById('mil-branch-select').value;
+            // 監聽地圖點擊，產生符號
+            map.once('click', function(e) {
+                const marker = createMilMarker(sidc, "友軍", myCallsign, "#00ff00");
+                marker.setLatLng(e.latlng);
+                marker.customData = { username: myCallsign, name: "友軍", type: 'mil' };
+                marker.addTo(drawnItems);
+                
+                // 權限綁定
+                marker.bindPopup(`
+                    <p>單位: ${marker.customData.name}</p>
+                    ${marker.customData.username === myCallsign ? `<button class="btn btn-clear" onclick="deleteLayer(this)">刪除</button>` : '唯讀'}
+                `);
+            });
+        } else if (drawTools[mode]) {
+            drawTools[mode].enable();
+        }
+    };
+
+    // 刪除邏輯
+    window.deleteLayer = function(btn) {
+        const layer = map.eachLayer(l => l.getPopup()?.isOpen() ? l : null).find(l => l);
+        if (layer) {
+            // 檢查權限
+            if (layer.customData.username === myCallsign) {
+                drawnItems.removeLayer(layer);
+            } else {
+                alert("你沒有權限刪除此單位的圖層！");
+            }
+        }
+    };
     let myCallsign = "ALPHA-01", myRoomID = "PUBLIC_01";
     const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
