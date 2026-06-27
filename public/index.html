@@ -546,18 +546,34 @@ if (isMine) {
             });
         }
 
-        map.on(L.Draw.Event.CREATED, function (event) {
-            const layer = event.layer;
-            let type = event.layerType === 'polyline' ? 'polyline' : event.layerType === 'rectangle' ? 'rectangle' : event.layerType;
-            let data = { id: Date.now(), type: type, name: "戰術管制區", color: "#00ffcc",username: myCallsign };
-            if (type === 'circle') { data.latlng = layer.getLatLng(); data.radius = layer.getRadius(); data.color = '#ffaa00'; }
-            else { data.latlngs = layer.getLatLngs(); if(type==='polyline') data.color = '#33ccff'; if(type==='polygon') data.color = '#ff33ff'; }
-            
-            layer.customData = { name: data.name, color: data.color };
-            renderIncomingLayer(data);
-            sendLayerUpdate(layer, type, data.id);
-            resetMode();
-        });
+map.on(L.Draw.Event.CREATED, function (event) {
+    const layer = event.layer;
+    const type = event.layerType === 'polyline' ? 'polyline' : event.layerType === 'rectangle' ? 'rectangle' : event.layerType;
+    const layerId = Date.now(); // 產生一個 ID
+    
+    // 準備資料
+    let data = { 
+        id: layerId, 
+        type: type, 
+        name: "戰術管制區", 
+        color: type === 'circle' ? '#ffaa00' : (type === 'polyline' ? '#33ccff' : '#ff33ff'),
+        username: myCallsign 
+    };
+
+    if (type === 'circle') { data.latlng = layer.getLatLng(); data.radius = layer.getRadius(); }
+    else if (type.startsWith('mil-')) { /* 兵棋邏輯 */ }
+    else { data.latlngs = layer.getLatLngs(); }
+
+    // 【重點】：直接呼叫渲染函式，讓它幫你處理 isMine 判斷
+    renderIncomingLayer(data);
+    
+    // 從地圖上移除暫時的繪圖層，因為 renderIncomingLayer 會重新畫一個
+    map.removeLayer(layer); 
+    
+    // 發送給別人
+    sendLayerUpdate(data, type, layerId);
+    resetMode();
+});
 
         map.on('click', function(e) {
             if (activeMode && activeMode.startsWith('mil-')) {
