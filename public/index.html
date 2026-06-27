@@ -94,16 +94,52 @@
     color: #ffcccc;
 }
 
+/* --- 優化：兵棋選單與標籤樣式 --- */
 .panel-section {
-    padding: 5px 0;
+    padding: 10px 0;
     border-bottom: 1px solid #114444;
 }
 
 .panel-title {
-    font-size: 11px;
+    font-size: 12px;
     color: #00ffcc;
-    margin-bottom: 5px;
+    margin-bottom: 10px;
     font-weight: bold;
+    text-transform: uppercase;
+}
+
+.select-label {
+    display: block;
+    font-size: 10px;
+    color: #88aaaa; /* 使用淺灰藍，讓標籤更清晰 */
+    margin: 8px 0 4px 0;
+}
+
+/* 統一調整所有下拉選單的樣式 */
+.select-input {
+    width: 100%;
+    height: 30px;
+    background: #0a1620; /* 深底色 */
+    border: 1px solid #00ffcc;
+    color: #ffffff;
+    padding: 0 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.select-input:focus {
+    outline: none;
+    background: #152535;
+    border-color: #00ffcc;
+}
+
+/* 確保格狀佈局對齊 */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 5px;
 }
     </style>
 </head>
@@ -156,24 +192,20 @@
     
     <!-- 以下內容在收合時才會隱藏 -->
     <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>        
-        <div class="panel-section">
-            <div class="panel-title">1. 兵棋自選選單</div>
-            <label class="select-label">🔹 選擇兵科</label>
-            <select id="mil-branch-select" class="select-input">
-                <option value="ST----">步兵 (Infantry)</option>
-                <option value="UC----">裝甲 (Armor)</option>
-                <option value="SF----">砲兵 (Artillery)</option>
-                <option value="AV----">陸航 (Aviation)</option>
-                <option value="E-----">工兵 (Engineer)</option>
-                <option value="MD----">醫療 (Medical)</option>
-                <option value="SU----">飛彈 (Missile)</option>
-                <option value="C4----">通信 (Signal)</option>
-            </select>
+<div class="panel-section">
+    <div class="panel-title">1. 兵棋自選選單</div>
+    
+    <label class="select-label">🔹 選擇兵科</label>
+    <select id="mil-branch-select" class="select-input">
+        <option value="ST----">步兵 (Infantry)</option>
+        <option value="UC----">裝甲 (Armor)</option>
+        ...
+    </select>
 
-            <label class="select-label">🔹 選擇階級</label>
-            <select id="mil-size-select" class="select-input">
-                <option value="00">無指定</option>
-                <option value="11">組 (Team)</option>
+    <label class="select-label">🔹 選擇階級</label>
+    <select id="mil-size-select" class="select-input">
+        <option value="00">無指定</option>
+        <option value="11">組 (Team)</option>
                 <option value="22">班 (Squad)</option>
                 <option value="33">排 (Platoon)</option>
                 <option value="44">連 (Company)</option>
