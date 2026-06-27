@@ -287,31 +287,33 @@
     };
 
     // 3. 統一的模式切換 (包含繪圖與兵棋)
-    window.setMode = function(mode) {
-        Object.values(drawTools).forEach(t => t.disable()); // 關閉繪圖
-        
-        if (mode.startsWith('mil-')) {
-            // 兵棋模式：開啟地圖點擊監聽
-            map.once('click', function(e) {
-                const sidc = document.getElementById('mil-branch-select').value;
-                const color = (mode === 'mil-friend') ? '#00ff00' : (mode === 'mil-hostile') ? '#ff0000' : '#ffff00';
-                
-                const symbol = new ms.Symbol(sidc, { size: 30, color: color });
-                const marker = L.marker(e.latlng, {
-                    icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [30, 30] }),
-                    draggable: true 
-                }).addTo(drawnItems);
-                
-                marker.customData = { username: myCallsign, type: 'mil' };
-                marker.bindPopup(`
-                    <p>單位: ${sidc}</p>
-                    <button class="btn btn-clear" onclick="deleteLayer(this)">刪除</button>
-                `);
-            });
-        } else if (drawTools[mode]) {
-            drawTools[mode].enable();
-        }
-    };
+   // 修改 setMode 內的 Sidc 生成邏輯
+window.setMode = function(mode) {
+    Object.values(drawTools).forEach(t => t.disable());
+    
+    if (mode.startsWith('mil-')) {
+        map.once('click', function(e) {
+            const branch = document.getElementById('mil-branch-select').value; // 例如 "SF"
+            const size = document.getElementById('mil-size-select').value;     // 例如 "22"
+            const affiliation = (mode === 'mil-friend') ? 'F' : 'H'; // F=友, H=敵
+            
+            // 組合出 15 碼 SIDC: S + 陣營 + 1 + 1 + 兵科 + 00 + 階級 + 00000
+            // 範例: S F G P A H 22 0 0 0 0 0
+            const sidc = `S${affiliation}P${branch}-----${size}0000`;
+            
+            const symbol = new ms.Symbol(sidc, { size: 30 });
+            const marker = L.marker(e.latlng, {
+                icon: L.divIcon({ html: symbol.asSVG(), className: 'mil-icon', iconSize: [30, 30] }),
+                draggable: true
+            }).addTo(drawnItems);
+            
+            marker.customData = { username: myCallsign, type: 'mil' };
+            marker.bindPopup(`單位: ${branch}`);
+        });
+    } else if (drawTools[mode]) {
+        drawTools[mode].enable();
+    }
+};
 
     // 4. 繪圖完成處理
     map.on(L.Draw.Event.CREATED, function (e) {
