@@ -277,57 +277,66 @@
         const socket = (typeof io !== 'undefined') ? io() : { emit: () => {}, on: () => {} };
         const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        const drawnItems = new L.FeatureGroup().addTo(map);
-        let activeMode = null, currentDrawHandler = null, currentEditingLayer = null;
+// 初始化 Draw 工具
+const drawnItems = new L.FeatureGroup().addTo(map);
+const drawControl = new L.Control.Draw({
+    edit: { featureGroup: drawnItems },
+    draw: {
+        polygon: true,
+        circle: true,
+        rectangle: false,
+        marker: false,
+        polyline: false
+    }
+}).addTo(map);
 
-        // --- 通用編輯邏輯 ---
-        function bindLayerPopup(layer, layerId, type, isMine) {
-            if (!isMine) {
-                layer.bindPopup(`<p><strong>${layer.customData.name}</strong> (唯讀)</p>`);
-                return;
-            }
-            const { name, color } = layer.customData;
-            const radius = (type === 'circle') ? layer.getRadius() : 0;
-            let html = `
-                <div class="props-form">
-                    <label>名稱</label><input type="text" id="edit-name-${layerId}" value="${name}">
-                    <label>顏色</label><input type="color" id="edit-color-${layerId}" value="${color}">
-                    ${type === 'circle' ? `<label>半徑(m)</label><input type="number" id="edit-radius-${layerId}" value="${Math.round(radius)}">` : ''}
-                    <button class="btn" onclick="commitChanges(${layerId}, '${type}')">確認修改</button>
-                    <button class="btn btn-clear" onclick="deleteLayerItem(${layerId})">刪除</button>
-                </div>`;
-            layer.bindPopup(html);
+// --- 處理您的自訂按鈕點擊 ---
+// 這裡假設您的「圓形」按鈕 ID 是 'btn-circle'，如果沒有，請在 HTML 中加上 ID
+document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const text = e.target.innerText;
+        if (text.includes('圓形')) new L.Draw.Circle(map).enable();
+        if (text.includes('多邊形')) new L.Draw.Polygon(map).enable();
+        if (text.includes('清除')) {
+            if(confirm("確定要清除所有圖層？")) drawnItems.clearLayers();
         }
+    });
+});
 
-        window.commitChanges = function(layerId, type) {
-            const layer = drawnItems.getLayer(layerId);
-            if (!layer) return;
-            layer.customData.name = document.getElementById(`edit-name-${layerId}`).value;
-            layer.customData.color = document.getElementById(`edit-color-${layerId}`).value;
-            layer.setTooltipContent(layer.customData.name);
-            if (type === 'circle') layer.setRadius(parseInt(document.getElementById(`edit-radius-${layerId}`).value));
-            layer.setStyle({ color: layer.customData.color, fillColor: layer.customData.color });
-            sendLayerUpdate(layer, type, layerId);
-            layer.closePopup();
-        };
+// --- 處理繪圖完成後的彈出視窗 ---
+map.on(L.Draw.Event.CREATED, function (e) {
+    const layer = e.layer;
+    const layerType = e.layerType;
+    
+    // 取得當前兵科與陣營設定
+    const branch = document.getElementById('mil-branch-select')?.value || '預設';
+    
+    // 綁定編輯視窗
+    layer.bindPopup(`
+        <div class="props-form">
+            <label>名稱</label><input type="text" id="p-name" value="物件">
+            <label>顏色</label><input type="color" id="p-color" value="#ff0000">
+            <button onclick="updateLayer(this)">儲存</button>
+        </div>
+    `);
+    
+    drawnItems.addLayer(layer);
+});
 
-        window.deleteLayerItem = function(layerId) {
-            const layer = drawnItems.getLayer(layerId);
-            if (layer) { drawnItems.removeLayer(layer); socket.emit('remove_marker', { room: myRoomID, id: layerId }); }
-        };
-
-        // --- 地圖與繪圖核心 ---
-        map.on(L.Draw.Event.CREATED, function (e) {
-            const layer = e.layer;
-            const layerId = Date.now();
-            layer._leaflet_id = layerId;
-            layer.customData = { name: "新物件", color: '#ff33ff', username: myCallsign };
-            bindLayerPopup(layer, layerId, e.layerType, true);
-            if (e.layerType !== 'marker') enableGeometryInteraction(layer, e.layerType, e.layerType, layerId);
-            layer.bindTooltip("新物件", { permanent: true });
-            drawnItems.addLayer(layer);
-            sendLayerUpdate(layer, e.layerType, layerId);
-        });
+// 儲存邏輯
+window.updateLayer = function(btn) {
+    const container = btn.parentElement;
+    const name = container.querySelector('#p-name').value;
+    const color = container.querySelector('#p-color').value;
+    
+    // 這裡處理樣式更新
+    const layer = map.getLayers().find(l => l.getPopup()?.isOpen());
+    if (layer) {
+        layer.setStyle({ color: color, fillColor: color });
+        layer.bindTooltip(name, {permanent: true}).openTooltip();
+        layer.closePopup();
+    }
+};
 
         function renderIncomingLayer(data) {
             const isMine = (data.username === myCallsign);
