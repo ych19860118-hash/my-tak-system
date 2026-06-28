@@ -335,10 +335,11 @@
     });
 
     // ★ 接收伺服器廣播的別人繪圖動作 ★
-socket.on('server_action', (payload) => {
+// ★ 接收伺服器廣播的動作 (修正後的正確結構) ★
+    socket.on('server_action', (payload) => {
         const { action, username, id, type, data } = payload;
         
-        // 忽略自己發送的廣播 (因為本地已經畫過了)
+        // 忽略自己發送的廣播
         if (username === myCallsign) return;
 
         if (action === 'draw') {
@@ -354,7 +355,6 @@ socket.on('server_action', (payload) => {
                 }
             });
         } 
-        // ★ 新增這段：處理顏色變更 ★
         else if (action === 'color') {
             drawnItems.eachLayer(layer => {
                 if (layer.customData && layer.customData.id === id) {
@@ -368,28 +368,21 @@ socket.on('server_action', (payload) => {
             });
         }
     });
-        else if (action === 'delete') {
-            drawnItems.eachLayer(layer => {
-                if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
-            });
-        }
-    });
+
+    // 處理本地顏色變更
     window.updateLayerColor = function(layerId, color) {
-    drawnItems.eachLayer(layer => {
-        if (layer.customData && layer.customData.id === layerId) {
-            // 1. 本地端更新顯示
-            layer.setStyle({ color: color, fillColor: color }); // 對方塊/圓形有效
-            
-            // 2. 廣播給遠端
-            socket.emit('client_action', { 
-                room: myRoomID, 
-                action: 'color', 
-                id: layerId, 
-                data: { color: color } 
-            });
-        }
-    });
-};
+        drawnItems.eachLayer(layer => {
+            if (layer.customData && layer.customData.id === layerId) {
+                layer.setStyle({ color: color, fillColor: color });
+                socket.emit('client_action', { 
+                    room: myRoomID, 
+                    action: 'color', 
+                    id: layerId, 
+                    data: { color: color } 
+                });
+            }
+        });
+    };
 </script>
 </body>
 </html>
