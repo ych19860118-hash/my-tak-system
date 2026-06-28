@@ -323,9 +323,15 @@
         });
     });
 
-    // 監聽本地圖形編輯完成 (廣播新頂點或半徑)
+// 監聽本地圖形編輯完成 (廣播新頂點或半徑)
     map.on('draw:edited', function (e) {
         e.layers.eachLayer(function (layer) {
+            // ★ 修正：編輯完成後，強制刷新標籤位置 (關閉再重開)
+            if (layer.options.layerName) {
+                layer.closeTooltip();
+                layer.openTooltip();
+            }
+
             if (layer.customData && layer.customData.username === myCallsign) {
                 let updatedData = {};
                 if (layer.customData.type === 'circle') updatedData = { latlng: layer.getLatLng(), radius: layer.getRadius() };
@@ -416,18 +422,29 @@
                 renderShape(type, data, username, id, false);
             }
         } 
-        else if (action === 'move') {
+else if (action === 'move') {
             drawnItems.eachLayer(layer => {
                 if (layer.customData && layer.customData.id === id) {
-                    if (layer.setLatLng) layer.setLatLng(data.latlng); // 對於 Marker
-                    else if (layer.setLatLngs) layer.setLatLngs(data.latlngs); // 對於圖形
-                    else if (layer.setRadius) { // 對於圓形
+                    
+                    // 依照圖形種類更新座標
+                    if (layer.customData.type === 'mil') {
+                        layer.setLatLng(data.latlng);
+                    } else if (layer.customData.type === 'circle') {
                         layer.setLatLng(data.latlng);
                         layer.setRadius(data.radius);
+                    } else {
+                        // 針對方形、多邊形、線條
+                        layer.setLatLngs(data.latlngs);
+                    }
+
+                    // ★ 修正：收到遠端移動指令後，同步刷新標籤位置
+                    if (layer.options.layerName) {
+                        layer.closeTooltip();
+                        layer.openTooltip();
                     }
                 }
             });
-        } 
+        }
         else if (action === 'color') {
             drawnItems.eachLayer(layer => {
                 if (layer.customData && layer.customData.id === id) {
