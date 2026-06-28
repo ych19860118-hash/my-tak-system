@@ -228,9 +228,8 @@
     <option value="UCI---">步兵 (Infantry)</option>
     <option value="UCA---">裝甲 (Armor)</option>
     <option value="UCF---">砲兵 (Artillery)</option>
-    <!-- USC--- 才會正確呼叫出「閃電」符號 -->
-    <option value="USC---">通信 (Signal)</option>
-    <!-- 順便幫您修正醫療，醫療屬於勤務支援(A)，代碼是 UAM--- -->
+    <!-- 只要 value 是 UCC---，milsymbol 就會自動畫出閃電 -->
+    <option value="UCC---">通信 (Signal)</option>
     <option value="UAM---">醫療 (Medical)</option>
     <option value="UCE---">工兵 (Engineer)</option>
 </select>
@@ -362,7 +361,32 @@ window.setMode = function(mode) {
     window.togglePanel = (btn) => btn.parentElement.classList.toggle('panel-collapsed');
     window.toggleSection = (el, id) => { document.getElementById(id).classList.toggle('collapsed'); el.classList.toggle('collapsed'); };
     window.broadcastClear = () => { if(confirm("確定刪除所有圖層？")) drawnItems.clearLayers(); };
-    window.joinTacticalNetwork = () => document.getElementById('login-overlay').style.display = 'none';
+    window.joinTacticalNetwork = () => {
+    // 1. 取得使用者輸入的呼號
+    const callsignInput = document.getElementById('user-callsign').value.trim();
+    
+    // 2. 基本驗證：不能為空白
+    if (!callsignInput) {
+        alert("⚠️ 錯誤：請輸入有效的作戰呼號 (Callsign)！");
+        return; // 中斷登入程序
+    }
+
+    // 3. 將全域變數更新為使用者輸入的呼號
+    myCallsign = callsignInput;
+
+    // 4. 隱藏登入覆蓋層，進入 COP 系統
+    document.getElementById('login-overlay').style.display = 'none';
+    
+    // 5. 更新狀態面板：顯示自己的呼號
+    document.getElementById('user-count').innerText = "1";
+    document.getElementById('user-list').innerHTML = `
+        <div style="color: #fff; padding: 2px 0;">
+            📡 ${myCallsign} (本機)
+        </div>
+    `;
+    
+    console.log(`[系統] ${myCallsign} 已成功登入本機戰術網路。`);
+};
     window.toggleMapStyle = () => alert("功能待實作");
 </script>
 </body>
