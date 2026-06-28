@@ -183,6 +183,7 @@
                 iconAnchor: [20, 20]
             }),
             draggable: isLocal // ★ 權限控管：只有本地端繪製的才能拖曳
+            layerName: '' // 初始化屬性，避免 undefined
         }).addTo(drawnItems);
         if (sidc.includes('USC')) {
         marker.bindTooltip("Z", { permanent: true, direction: 'center', className: 'my-label' }).openTooltip();
@@ -193,16 +194,16 @@
 
         // 綁定彈跳視窗
 marker.bindPopup(`
-    <div class="popup-info">部署者: ${owner}</div>
-    <div style="margin:5px 0;">
-        名稱: <input type="text" id="name-${layerId}" value="${layer.options.layerName || '未命名'}" 
-              onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
-    </div>
-    <div style="margin:5px 0;">
-        顏色: <input type="color" value="#00ffcc" onchange="updateLayerColor('${layerId}', this.value)">
-    </div>
-    ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : '<div style="color:red; font-size:10px; text-align:center;">無權限</div>'}
-`);
+        <div class="popup-info">部署者: ${owner}</div>
+        <div style="margin:5px 0;">
+            名稱: <input type="text" id="name-${layerId}" value="${marker.options.layerName || ''}" 
+                  onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
+        </div>
+        <div style="margin:5px 0;">
+            顏色: <input type="color" value="#00ffcc" onchange="updateLayerColor('${layerId}', this.value)">
+        </div>
+        ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : '<div style="color:red; font-size:10px; text-align:center;">無權限</div>'}
+    `);
 
         // 如果是本地建立的，監聽拖曳結束事件並廣播新位置
         if (isLocal) {
