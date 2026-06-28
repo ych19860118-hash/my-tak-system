@@ -60,6 +60,7 @@ io.on('connection', (socket) => {
         
         if (!roomLayers[room]) roomLayers[room] = [];
 
+        // 檢查權限與更新邏輯整合
         if (action === 'rename' || action === 'color') {
             const roomLayersList = roomLayers[room] || [];
             const idx = roomLayersList.findIndex(l => l.id === id);
@@ -69,11 +70,9 @@ io.on('connection', (socket) => {
                 console.log("偵測到非法修改請求");
                 return; // 拒絕執行
             }
-        }
-        // ★ 新增：支援修改名稱的紀錄更新 ★
-        else if (action === 'rename') {
-            const idx = roomLayers[room].findIndex(l => l.id === id);
-            if (idx !== -1) {
+
+            // 如果驗證通過且是重新命名，更新名稱紀錄
+            if (action === 'rename' && idx !== -1) {
                 if (!roomLayers[room][idx].data) roomLayers[room][idx].data = {};
                 roomLayers[room][idx].data.name = data.name;
             }
@@ -83,4 +82,10 @@ io.on('connection', (socket) => {
         socket.to(room).emit('server_action', payload);
         console.log(`[同步] 房間 ${room} 執行動作: ${action}`);
     });
-}); // <--- ★ 修正：這裡補上了原先漏掉的整個連線結尾括號
+});
+
+// ★ 修正：動態綁定連接埠，雲端環境必須讀取 process.env.PORT ★
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`伺服器正在連接埠 ${PORT} 上執行...`);
+});
