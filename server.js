@@ -55,7 +55,7 @@ io.on('connection', (socket) => {
     });
 
     // 3. 處理戰術地圖的即時同步 (含繪圖、移動、刪除、顏色變更)
-    socket.on('client_action', (payload) => {
+socket.on('client_action', (payload) => {
         const { room, action, id, data } = payload;
         
         if (!roomLayers[room]) roomLayers[room] = [];
@@ -69,12 +69,18 @@ io.on('connection', (socket) => {
         } else if (action === 'delete') {
             roomLayers[room] = roomLayers[room].filter(l => l.id !== id);
         } else if (action === 'color') {
-            // ★ 新增：更新顏色紀錄
             const idx = roomLayers[room].findIndex(l => l.id === id);
             if (idx !== -1) {
-                // 如果原始資料沒有 data 物件，先建立一個
                 if (!roomLayers[room][idx].data) roomLayers[room][idx].data = {};
                 roomLayers[room][idx].data.color = data.color;
+            }
+        } 
+        // ★ 新增：支援修改名稱的紀錄更新 ★
+        else if (action === 'rename') {
+            const idx = roomLayers[room].findIndex(l => l.id === id);
+            if (idx !== -1) {
+                if (!roomLayers[room][idx].data) roomLayers[room][idx].data = {};
+                roomLayers[room][idx].data.name = data.name;
             }
         }
 
@@ -82,8 +88,3 @@ io.on('connection', (socket) => {
         socket.to(room).emit('server_action', payload);
         console.log(`[同步] 房間 ${room} 執行動作: ${action}`);
     });
-});
-
-server.listen(3000, () => {
-    console.log('戰術伺服器已啟動，請連線至 http://localhost:3000');
-});
