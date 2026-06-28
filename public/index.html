@@ -455,11 +455,21 @@ else if (action === 'move') {
                 }
             });
         }
-        // ★ 在這裡加入 rename 的處理邏輯 ★
-        else if (action === 'rename') {
-            drawnItems.eachLayer(layer => {
-                if (layer.customData && layer.customData.id === id) {
-                    layer.options.layerName = data.name; // 更新屬性
+// 修正建議：確保大括號正確閉合
+else if (action === 'rename') {
+    drawnItems.eachLayer(layer => {
+        if (layer.customData && layer.customData.id === id) {
+            layer.options.layerName = data.name;
+            // 此處需完善標籤更新邏輯
+        }
+    });
+} // 這裡必須閉合 rename 的 else if
+else if (action === 'delete') {
+    drawnItems.eachLayer(layer => {
+        if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
+    });
+} // 閉合 delete 的 else if
+// 這裡缺少一個閉合 socket.on 的大括號 });
 if (data.name) {
     layer.labelMarker.setLatLng(layer.getBounds().getCenter());
     layer.labelMarker.setIcon(L.divIcon({ 
