@@ -45,6 +45,15 @@
         .panel-section-content.collapsed { max-height: 0; opacity: 0; pointer-events: none; }
         
         .popup-info { font-size: 12px; color: #000; text-align: center; margin-bottom: 5px; font-weight: bold; }
+    .my-label { 
+    background: transparent; 
+    border: none; 
+    box-shadow: none; 
+    font-weight: bold; 
+    color: #fff; 
+    font-size: 16px; 
+    text-shadow: 1px 1px 2px #000; 
+}
     </style>
 </head>
 <body>
@@ -165,7 +174,11 @@
             }),
             draggable: isLocal // ★ 權限控管：只有本地端繪製的才能拖曳
         }).addTo(drawnItems);
-        
+        if (sidc.includes('USC')) {
+        marker.bindTooltip("Z", { permanent: true, direction: 'center', className: 'my-label' }).openTooltip();
+    } else if (sidc.includes('UAM')) {
+        marker.bindTooltip("+", { permanent: true, direction: 'center', className: 'my-label' }).openTooltip();
+    }
         marker.customData = { username: owner, id: layerId, type: 'mil' };
 
         // 綁定彈跳視窗
