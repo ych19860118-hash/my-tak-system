@@ -144,3 +144,38 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`WEB-TAK Server running on port ${PORT}`));
+// 1. 在檔案最上方宣告儲存資料的容器
+const roomLayers = {}; 
+
+io.on('connection', (socket) => {
+    // 2. 當用戶加入房間時
+    socket.on('request_join', (data) => {
+        socket.join(data.room); // 讓 socket 進入該房間通道
+        
+        // 如果該房間有之前存的圖層，發送給這位新用戶
+        if (roomLayers[data.room]) {
+            socket.emit('room_sync', roomLayers[data.room]);
+        }
+        
+        // ... 原本的 join_success 邏輯 ...
+        socket.emit('join_success', data);
+    });
+
+    // 3. 處理所有動作 (繪圖、刪除、移動)
+    socket.on('client_action', (payload) => {
+        const { room, action, id, data } = payload;
+        if (!roomLayers[room]) roomLayers[room] = [];
+
+        if (action === 'draw') {
+            roomLayers[room].push(payload); // 儲存新增圖層
+        } else if (action === 'delete') {
+            roomLayers[room] = roomLayers[room].filter(item => item.id !== id); // 移除圖層
+        } else if (action === 'move' || action === 'style') {
+            const target = roomLayers[room].find(item => item.id === id);
+            if (target) Object.assign(target.data, data); // 更新既有圖層
+        }
+
+        // 廣播給房間內其他人
+        socket.to(room).emit('server_action', payload);
+    });
+});
