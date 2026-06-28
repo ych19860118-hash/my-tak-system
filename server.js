@@ -1,91 +1,146 @@
-// 檔案名稱：server.js
+// server.js (Node.js + Socket.io)
+// npm install express socket.io
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server);
 
-// 儲存每個房間的線上使用者
-const roomUsers = {};
-// 儲存每個房間的圖層歷史 (包含顏色資訊)
-const roomLayers = {};
+app.use(express.static('public')); // HTML 放在 public/ 資料夾
 
-app.use(express.static('public'));
+// ★ 核心：每個房間的狀態倉庫
+// roomState[roomID] = {
+//   users: Set of callsigns,
+//   layers: Map of layerId -> layerPayload
+// }
+const roomState = {};
+
+function ensureRoom(roomID) {
+    if (!roomState[roomID]) {
+        roomState[roomID] = {
+            users: new Set(),
+            layers: new Map()
+        };
+    }
+    return roomState[roomID];
+}
 
 io.on('connection', (socket) => {
-    console.log('新連線:', socket.id);
+    console.log(`[+] Socket connected: ${socket.id}`);
 
-    // 1. 處理加入房間的請求
-    socket.on('request_join', (data) => {
-        const { callsign, room } = data;
-
-        if (!roomUsers[room]) roomUsers[room] = [];
-        if (roomUsers[room].includes(callsign)) {
-            socket.emit('join_failed', `房間 [${room}] 中已有相同呼號 (${callsign})，請更換呼號！`);
-            return;
+    // ── 加入房間 ──────────────────────────────────────
+    socket.on('request_join', ({ callsign, room }) => {
+        if (!callsign || !room) {
+            return socket.emit('join_failed', '呼號或房間代碼不得為空！');
         }
 
+        const state = ensureRoom(room);
+
+        // 檢查呼號是否重複
+        if (state.users.has(callsign)) {
+            return socket.emit('join_failed', `呼號 "${callsign}" 已在房間中，請換一個！`);
+        }
+
+        // 加入 Socket.io 房間
         socket.join(room);
-        roomUsers[room].push(callsign);
         socket.callsign = callsign;
         socket.room = room;
+        state.users.add(callsign);
 
+        // 回傳登入成功
         socket.emit('join_success', { callsign, room });
-        
-        // 當新用戶加入時，發送房間所有歷史圖層 (含顏色)
-        if (roomLayers[room]) {
-            roomLayers[room].forEach(layerData => {
-                socket.emit('server_action', layerData);
-            });
+
+        // ★ 推送歷史圖層狀態給新加入的用戶
+        const history = Array.from(state.layers.values());
+        if (history.length > 0) {
+            socket.emit('room_state', { layers: history });
+            console.log(`[SYNC] Sent ${history.length} layers to ${callsign}`);
         }
 
-        io.to(room).emit('update_user_list', roomUsers[room]);
-        console.log(`[${room}] ${callsign} 加入，已同步歷史資料。`);
+        // 廣播更新用戶列表
+        io.to(room).emit('update_user_list', Array.from(state.users));
+        console.log(`[JOIN] ${callsign} joined room: ${room}`);
     });
 
-    // 2. 處理使用者斷線
+    // ── 接收客戶端動作並廣播 ──────────────────────────
+    socket.on('client_action', (payload) => {
+        const { room, action, id } = payload;
+        if (!room || !roomState[room]) return;
+
+        const state = roomState[room];
+
+        if (action === 'draw') {
+            // ★ 儲存新圖層到房間狀態
+            state.layers.set(id, {
+                ...payload,
+                username: socket.callsign  // 確保用伺服器端的 callsign
+            });
+
+        } else if (action === 'move') {
+            // ★ 更新圖層座標
+            if (state.layers.has(id)) {
+                const existing = state.layers.get(id);
+                state.layers.set(id, { ...existing, data: payload.data });
+            }
+
+        } else if (action === 'color') {
+            // ★ 更新圖層顏色
+            if (state.layers.has(id)) {
+                const existing = state.layers.get(id);
+                existing.data = { ...existing.data, color: payload.data.color };
+                state.layers.set(id, existing);
+            }
+
+        } else if (action === 'rename') {
+            // ★ 更新圖層名稱
+            if (state.layers.has(id)) {
+                const existing = state.layers.get(id);
+                existing.data = { ...existing.data, name: payload.data.name };
+                state.layers.set(id, existing);
+            }
+
+        } else if (action === 'delete') {
+            // ★ 從房間狀態中移除圖層
+            // 驗證只有擁有者能刪除
+            const layer = state.layers.get(id);
+            if (layer && layer.username === socket.callsign) {
+                state.layers.delete(id);
+            } else {
+                // 告知用戶無權限，不廣播刪除
+                socket.emit('server_error', { msg: '無權限刪除他人標記！' });
+                return;
+            }
+        }
+
+        // 廣播給房間內所有人 (包含自己，前端用 username 過濾)
+        io.to(room).emit('server_action', {
+            ...payload,
+            username: socket.callsign
+        });
+    });
+
+    // ── 斷線處理 ─────────────────────────────────────
     socket.on('disconnect', () => {
         const { callsign, room } = socket;
-        if (room && roomUsers[room]) {
-            roomUsers[room] = roomUsers[room].filter(user => user !== callsign);
-            io.to(room).emit('update_user_list', roomUsers[room]);
-        }
-    });
+        if (!callsign || !room || !roomState[room]) return;
 
-    // 3. 處理戰術地圖的即時同步 (含繪圖、移動、刪除、顏色變更)
-    socket.on('client_action', (payload) => {
-        const { room, action, id, data, username } = payload;
-        
-        if (!roomLayers[room]) roomLayers[room] = [];
+        roomState[room].users.delete(callsign);
+        io.to(room).emit('update_user_list', Array.from(roomState[room].users));
 
-        // 檢查權限與更新邏輯整合
-        if (action === 'rename' || action === 'color') {
-            const roomLayersList = roomLayers[room] || [];
-            const idx = roomLayersList.findIndex(l => l.id === id);
-            
-            // 檢查：只有圖層原本的建立者才能修改
-            if (idx !== -1 && roomLayersList[idx].username !== username) {
-                console.log("偵測到非法修改請求");
-                return; // 拒絕執行
-            }
+        // 選擇性：是否要清除該用戶的圖層 (取消註解以啟用)
+        // roomState[room].layers.forEach((layer, id) => {
+        //     if (layer.username === callsign) {
+        //         roomState[room].layers.delete(id);
+        //         io.to(room).emit('server_action', { action: 'delete', id });
+        //     }
+        // });
 
-            // 如果驗證通過且是重新命名，更新名稱紀錄
-            if (action === 'rename' && idx !== -1) {
-                if (!roomLayers[room][idx].data) roomLayers[room][idx].data = {};
-                roomLayers[room][idx].data.name = data.name;
-            }
-        }
-
-        // 廣播給該房間內所有人
-        socket.to(room).emit('server_action', payload);
-        console.log(`[同步] 房間 ${room} 執行動作: ${action}`);
+        console.log(`[-] ${callsign} left room: ${room}`);
     });
 });
 
-// ★ 修正：動態綁定連接埠，雲端環境必須讀取 process.env.PORT ★
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`伺服器正在連接埠 ${PORT} 上執行...`);
-});
+server.listen(PORT, () => console.log(`WEB-TAK Server running on port ${PORT}`));
