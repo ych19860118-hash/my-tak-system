@@ -55,21 +55,21 @@ io.on('connection', (socket) => {
     });
 
     // 3. 處理戰術地圖的即時同步 (含繪圖、移動、刪除、顏色變更)
-socket.on('client_action', (payload) => {
-       const { room, action, id, data, username } = payload;
+    socket.on('client_action', (payload) => {
+        const { room, action, id, data, username } = payload;
         
         if (!roomLayers[room]) roomLayers[room] = [];
 
-if (action === 'rename' || action === 'color') {
-        const roomLayersList = roomLayers[room] || [];
-        const idx = roomLayersList.findIndex(l => l.id === id);
-        
-        // 檢查：只有圖層原本的建立者才能修改
-        if (idx !== -1 && roomLayersList[idx].username !== username) {
-            console.log("偵測到非法修改請求");
-            return; // 拒絕執行
+        if (action === 'rename' || action === 'color') {
+            const roomLayersList = roomLayers[room] || [];
+            const idx = roomLayersList.findIndex(l => l.id === id);
+            
+            // 檢查：只有圖層原本的建立者才能修改
+            if (idx !== -1 && roomLayersList[idx].username !== username) {
+                console.log("偵測到非法修改請求");
+                return; // 拒絕執行
+            }
         }
-    }
         // ★ 新增：支援修改名稱的紀錄更新 ★
         else if (action === 'rename') {
             const idx = roomLayers[room].findIndex(l => l.id === id);
@@ -83,3 +83,4 @@ if (action === 'rename' || action === 'color') {
         socket.to(room).emit('server_action', payload);
         console.log(`[同步] 房間 ${room} 執行動作: ${action}`);
     });
+}); // <--- ★ 修正：這裡補上了原先漏掉的整個連線結尾括號
