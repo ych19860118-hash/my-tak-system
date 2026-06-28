@@ -289,29 +289,43 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            const branch = document.querySelector('#mil-branch-select').value; // CA, KA, FA, CC, MA, EA
-            const size = document.querySelector('#mil-size-select').value;     // 1, 2, 3, 4, 5
+            // 1. 取得兵科代碼 (請注意：milsymbol 的代碼定義是嚴格的)
+            const branch = document.querySelector('#mil-branch-select').value; 
+            const size = document.querySelector('#mil-size-select').value;     
             
             const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
             const aff = affMap[mode] || 'U';
             
-            // 【最後通牒修正】：使用最標準的 15 碼格式，不使用任何縮寫符號
-            // 結構：S(標準) + 陣營 + P(地面) + 兵科(2碼) + 00 + 階級(1碼) + 00000
-            // 這是 milsymbol 2.0.0 最穩定的寫法
-            const sidc = `S${aff}P${branch}00${size}00000`.substring(0, 15);
+            // 2. 【正確的 SIDC 格式】：
+            // S (標準) + A (待命/存在) + F (地面) + 陣營 + 兵科代碼 + 0 (實心) + 階級 + 0000
+            // CA (步兵), KA (裝甲), FA (砲兵), CC (通信), MA (醫療), EA (工兵)
+            // 這些代碼必須是 milsymbol 能識別的
+            const sidc = `S${aff}G` + 'P' + branch + '0' + size + '00000';
             
-            const symbol = new ms.Symbol(sidc, { size: 35 });
-            
-            const marker = L.marker(e.latlng, {
-                icon: L.divIcon({ 
-                    html: symbol.asSVG(), 
-                    className: 'mil-icon', 
-                    iconSize: [35, 35] 
-                }),
-                draggable: true
-            }).addTo(drawnItems);
-            
-            marker.customData = { username: myCallsign, type: 'mil' };
+            try {
+                // 加入 options，確保圖標能正常顯示
+                const symbol = new ms.Symbol(sidc, { 
+                    size: 35,
+                    // 加上此屬性讓圖標更穩定顯示
+                    quantity: "",
+                    staffComments: "",
+                    additionalInformation: ""
+                });
+                
+                const marker = L.marker(e.latlng, {
+                    icon: L.divIcon({ 
+                        html: symbol.asSVG(), 
+                        className: 'mil-icon', 
+                        iconSize: [40, 40], // 稍微放大以確保圖標完整呈現
+                        iconAnchor: [20, 20]
+                    }),
+                    draggable: true
+                }).addTo(drawnItems);
+                
+                marker.customData = { username: myCallsign, type: 'mil' };
+            } catch (err) {
+                console.error("兵符繪製錯誤:", err);
+            }
         });
     } else if (drawTools[mode]) {
         drawTools[mode].enable();
