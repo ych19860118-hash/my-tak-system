@@ -376,11 +376,24 @@ socket.on('server_action', (payload) => {
             if (type === 'mil') renderMilSymbol(data.latlng, data.sidc, username, id, false);
             else renderShape(type, data, username, id, false);
         } 
-        else if (action === 'move') {
-            // ... (原本的 move 邏輯不動) ...
+       else if (action === 'move') {
+            drawnItems.eachLayer(layer => {
+                if (layer.customData && layer.customData.id === id) {
+                    if (layer.setLatLng) layer.setLatLng(data.latlng); // 對於 Marker
+                    else if (layer.setLatLngs) layer.setLatLngs(data.latlngs); // 對於圖形
+                    else if (layer.setRadius) { // 對於圓形
+                        layer.setLatLng(data.latlng);
+                        layer.setRadius(data.radius);
+                    }
+                }
+            });
         } 
         else if (action === 'color') {
-            // ... (原本的 color 邏輯不動) ...
+            drawnItems.eachLayer(layer => {
+                if (layer.customData && layer.customData.id === id) {
+                    layer.setStyle({ color: data.color }); // 更新顏色
+                }
+            });
         }
         // ★ 在這裡加入 rename 的處理邏輯 ★
         else if (action === 'rename') {
@@ -417,6 +430,16 @@ window.updateLayerName = function(layerId, newName) {
             
             socket.emit('client_action', { 
                 room: myRoomID, action: 'rename', id: layerId, data: { name: newName } 
+            });
+        }
+    });
+};
+    window.updateLayerColor = function(layerId, newColor) {
+    drawnItems.eachLayer(layer => {
+        if (layer.customData && layer.customData.id === layerId) {
+            layer.setStyle({ color: newColor });
+            socket.emit('client_action', { 
+                room: myRoomID, action: 'color', id: layerId, data: { color: newColor } 
             });
         }
     });
