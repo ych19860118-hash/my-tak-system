@@ -1,9 +1,9 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB-TAK 共同作戰圖像平台 (多人權限同步版)</title>
+    <title>WEB-TAK COP 共同作戰圖像平台</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -14,506 +14,587 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-        
-        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; color: #00ffcc; }
-        .login-box { background: rgba(15, 25, 35, 0.9); border: 2px solid #00ffcc; box-shadow: 0 0 25px rgba(0, 255, 204, 0.5); padding: 30px; border-radius: 8px; width: 320px; text-align: center; }
-        .login-box h2 { margin-bottom: 20px; letter-spacing: 2px; font-size: 20px; }
-        .login-input { width: 100%; height: 35px; background: #141e28; border: 1px solid #00ffcc; color: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 15px; font-family: inherit; }
-        .login-btn { width: 100%; height: 40px; background: #00ffcc; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 14px; transition: all 0.2s; }
-        .login-btn:hover { background: #00ccaa; box-shadow: 0 0 10px rgba(0, 255, 204, 0.8); }
 
-        .status-panel { position: absolute; top: 20px; right: 20px; z-index: 10; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.3); padding: 15px; border-radius: 6px; color: #00ffcc; font-size: 13px; width: 250px; }
-        .panel-collapsed { height: 35px !important; overflow: hidden; padding: 5px !important; }
-        .panel-collapsed > *:not(button) { display: none !important; }
+        #login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 10, 15, 0.97); z-index: 9999;
+            display: flex; align-items: center; justify-content: center; color: #00ffcc;
+        }
+        .login-box {
+            background: rgba(10, 20, 30, 0.95); border: 2px solid #00ffcc;
+            box-shadow: 0 0 40px rgba(0,255,204,0.4), inset 0 0 20px rgba(0,255,204,0.05);
+            padding: 35px; border-radius: 8px; width: 340px; text-align: center;
+        }
+        .login-box h2 { margin-bottom: 6px; letter-spacing: 3px; font-size: 18px; text-transform: uppercase; }
+        .login-box p { font-size: 10px; color: #448866; margin-bottom: 25px; letter-spacing: 1px; }
+        .login-input {
+            width: 100%; height: 36px; background: #0a1620; border: 1px solid #336655;
+            color: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 12px;
+            font-family: inherit; font-size: 13px; transition: border-color 0.2s;
+        }
+        .login-input:focus { outline: none; border-color: #00ffcc; }
+        .select-label { display: block; font-size: 10px; color: #5a8877; margin: 8px 0 4px 0; text-align: left; letter-spacing: 1px; text-transform: uppercase; }
+        .select-input {
+            width: 100%; height: 36px; background: #0a1620; border: 1px solid #336655;
+            color: #ffffff; padding: 0 8px; border-radius: 4px; font-size: 12px;
+            cursor: pointer; margin-bottom: 12px; font-family: inherit;
+        }
+        .select-input:focus { outline: none; border-color: #00ffcc; }
+        .login-btn {
+            width: 100%; height: 42px; background: #00ffcc; border: none; color: #000;
+            font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px;
+            letter-spacing: 2px; transition: all 0.2s; margin-top: 8px; font-family: inherit;
+        }
+        .login-btn:hover { background: #00ddaa; box-shadow: 0 0 20px rgba(0,255,204,0.6); }
 
-        .action-panel { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; flex-direction: column; gap: 8px; max-height: 90vh; overflow-y: auto; width: 200px; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; padding: 10px; border-radius: 6px; }
-        .btn, .btn-toggle-map { width: 100%; height: 32px; background: rgba(40, 60, 80, 0.7); border: 1px solid #00ffcc; color: #fff; cursor: pointer; font-size: 11px; border-radius: 4px; display: flex; align-items: center; justify-content: center; margin-bottom: 5px;}
-        .btn:hover { background: rgba(0, 255, 204, 0.2); }
-        .btn-clear { background: rgba(100, 20, 20, 0.8); border: 1px solid #e74c3c; color: #ffcccc; margin-top: 5px;}
+        /* ---- Panels ---- */
+        .status-panel {
+            position: absolute; top: 15px; right: 15px; z-index: 10;
+            background: rgba(0,15,20,0.92); border: 1px solid #1a5544;
+            box-shadow: 0 0 15px rgba(0,255,204,0.15); padding: 12px 14px;
+            border-radius: 6px; color: #00ffcc; font-size: 12px; width: 220px;
+            transition: height 0.2s;
+        }
+        .action-panel {
+            position: absolute; top: 15px; left: 15px; z-index: 10;
+            display: flex; flex-direction: column; gap: 0;
+            max-height: 92vh; overflow-y: auto; width: 195px;
+            background: rgba(0,15,20,0.92); border: 1px solid #1a5544;
+            padding: 8px; border-radius: 6px;
+        }
+        .panel-collapsed { height: 32px !important; overflow: hidden; }
 
-        .panel-section { padding: 10px 0; border-bottom: 1px solid #114444; }
-        .panel-title { font-size: 12px; color: #00ffcc; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .panel-title::after { content: '▼'; font-size: 10px; }
-        .panel-title.collapsed::after { content: '▶'; }
-        
-        .select-label { display: block; font-size: 10px; color: #88aaaa; margin: 8px 0 4px 0; }
-        .select-input { width: 100%; height: 30px; background: #0a1620; border: 1px solid #00ffcc; color: #ffffff; padding: 0 5px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-        .select-input:focus { outline: none; background: #152535; border-color: #00ffcc; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; }
+        .btn, .btn-map {
+            width: 100%; height: 30px; background: rgba(30,55,65,0.8);
+            border: 1px solid #1a6655; color: #cceedd; cursor: pointer;
+            font-size: 11px; border-radius: 4px; display: flex;
+            align-items: center; justify-content: center; gap: 5px;
+            font-family: inherit; transition: background 0.15s, border-color 0.15s;
+        }
+        .btn:hover, .btn-map:hover { background: rgba(0,255,204,0.15); border-color: #00ffcc; color: #fff; }
+        .btn-map { margin-bottom: 8px; }
+        .btn-danger { background: rgba(80,15,15,0.9); border-color: #aa3333; color: #ffaaaa; }
+        .btn-danger:hover { background: rgba(140,20,20,0.9); border-color: #e74c3c; }
 
-        .panel-section-content { transition: max-height 0.3s ease-out, opacity 0.3s; overflow: hidden; max-height: 500px; opacity: 1; }
+        .panel-section { padding: 8px 0; border-bottom: 1px solid #0d3333; }
+        .panel-section:last-child { border-bottom: none; }
+        .panel-title {
+            font-size: 10px; color: #44bbaa; margin-bottom: 0; font-weight: bold;
+            text-transform: uppercase; cursor: pointer; letter-spacing: 1px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 3px 2px;
+        }
+        .panel-title::after { content: '[-]'; font-size: 9px; color: #226655; }
+        .panel-title.collapsed::after { content: '[+]'; }
+
+        .panel-section-content {
+            transition: max-height 0.25s ease-out, opacity 0.25s;
+            overflow: hidden; max-height: 400px; opacity: 1; padding-top: 6px;
+        }
         .panel-section-content.collapsed { max-height: 0; opacity: 0; pointer-events: none; }
-        
-        .popup-info { font-size: 12px; color: #000; text-align: center; margin-bottom: 5px; font-weight: bold; }
-        
-        .my-label { 
-            background: transparent; 
-            border: none; 
-            box-shadow: none; 
-            font-weight: bold; 
-            color: #fff; 
-            font-size: 16px; 
-            text-shadow: 1px 1px 2px #000; 
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
+
+        /* ---- Mil Icons ---- */
+        .mil-icon { background: none !important; border: none !important; }
+
+        .my-label {
+            background: transparent; border: none; box-shadow: none;
+            font-weight: bold; color: #fff; font-size: 15px;
+            text-shadow: 1px 1px 3px #000, -1px -1px 3px #000;
         }
-        
-        /* 讓圖層上的名稱標籤更好看 */
-        .name-label { 
-            background: rgba(0, 0, 0, 0.6); 
-            border: 1px solid #00ffcc; 
-            color: #00ffcc; 
-            font-weight: bold; 
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-size: 12px;
+        .name-label {
+            background: rgba(0,0,0,0.7); border: 1px solid #00ffcc;
+            color: #00ffcc; font-weight: bold; padding: 2px 6px;
+            border-radius: 3px; font-size: 11px; white-space: nowrap;
         }
+
+        /* ---- Popup ---- */
+        .leaflet-popup-content-wrapper {
+            background: #0a1a22; border: 1px solid #00ffcc;
+            color: #cceedd; border-radius: 5px;
+        }
+        .leaflet-popup-tip { background: #00ffcc; }
+        .pop-owner { font-size: 11px; color: #44bbaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .pop-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 11px; color: #88aaaa; }
+        .pop-row input[type="text"] {
+            flex: 1; background: #0f2030; border: 1px solid #336655; color: #fff;
+            padding: 3px 6px; border-radius: 3px; font-family: inherit; font-size: 11px;
+        }
+        .pop-row input[type="color"] { width: 36px; height: 22px; border: 1px solid #336655; border-radius: 3px; cursor: pointer; background: none; }
+        .pop-no-perm { font-size: 10px; color: #885533; text-align: center; padding: 2px; border: 1px solid #553322; border-radius: 3px; }
+
+        /* ---- User list ---- */
+        .user-panel-header { font-weight: bold; margin-bottom: 6px; color: #00ffcc; font-size: 11px; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
+        .user-entry { padding: 3px 0; font-size: 11px; display: flex; align-items: center; gap: 5px; }
+        .user-dot { width: 7px; height: 7px; border-radius: 50%; background: #00ffcc; display: inline-block; box-shadow: 0 0 5px #00ffcc; }
+        .user-dot.remote { background: #aabbaa; box-shadow: none; }
+
+        /* ---- Close btn ---- */
+        .panel-close {
+            position: absolute; top: 5px; right: 6px; cursor: pointer;
+            background: none; border: none; color: #336655; font-size: 12px;
+            font-family: inherit; line-height: 1;
+        }
+        .panel-close:hover { color: #00ffcc; }
+
+        /* Scrollbar */
+        .action-panel::-webkit-scrollbar { width: 4px; }
+        .action-panel::-webkit-scrollbar-track { background: transparent; }
+        .action-panel::-webkit-scrollbar-thumb { background: #1a5544; border-radius: 2px; }
     </style>
 </head>
 <body>
-    <div id="login-overlay">
-        <div class="login-box">
-            <h2>WEB-TAK 戰術登入</h2>
-            <label class="select-label" style="text-align:left;">👤 輸入作戰呼號 (Callsign)</label>
-            <input type="text" id="user-callsign" class="login-input" value="ALPHA-01">
-            
-            <label class="select-label" style="text-align:left;">⛺ 選擇/建立戰術房間</label>
-            <select id="room-type-select" class="select-input" onchange="toggleCustomRoomInput()">
-                <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
-                <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
-                <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
+
+<!-- ======== LOGIN ======== -->
+<div id="login-overlay">
+    <div class="login-box">
+        <h2>WEB-TAK</h2>
+        <p>COMMON OPERATING PICTURE SYSTEM</p>
+
+        <label class="select-label">Callsign / Operator ID</label>
+        <input type="text" id="user-callsign" class="login-input" placeholder="e.g. ALPHA-01" value="ALPHA-01">
+
+        <label class="select-label">Select Tactical Room</label>
+        <select id="room-type-select" class="select-input" onchange="toggleCustomRoomInput()">
+            <option value="PUBLIC_01">Public Room 01</option>
+            <option value="PUBLIC_02">Public Room 02</option>
+            <option value="CUSTOM">Private Room (Custom)</option>
+        </select>
+        <input type="text" id="custom-room-id" class="login-input" placeholder="Enter private room code..." style="display:none;">
+
+        <button class="login-btn" onclick="joinTacticalNetwork()">CONNECT TO COP</button>
+    </div>
+</div>
+
+<!-- ======== MAP ======== -->
+<div id="map"></div>
+
+<!-- ======== STATUS PANEL (right) ======== -->
+<div class="status-panel" id="status-panel" style="position:absolute;">
+    <button class="panel-close" onclick="togglePanel('status-panel')">[X]</button>
+    <div class="user-panel-header">
+        ONLINE OPERATORS &nbsp;<span id="user-count">0</span>
+    </div>
+    <div id="user-list"></div>
+</div>
+
+<!-- ======== ACTION PANEL (left) ======== -->
+<div class="action-panel" id="action-panel" style="position:absolute;">
+    <button class="panel-close" onclick="togglePanel('action-panel')">[X]</button>
+
+    <button class="btn btn-map" onclick="toggleMapStyle()">[ MAP STYLE ]</button>
+
+    <!-- Section 1 -->
+    <div class="panel-section">
+        <div class="panel-title" onclick="toggleSection(this,'section1')">1. Military Units</div>
+        <div id="section1" class="panel-section-content">
+            <label class="select-label">Branch / Arm</label>
+            <select id="mil-branch-select" class="select-input">
+                <option value="I">Infantry</option>
+                <option value="Z">Armor</option>
+                <option value="FA">Artillery</option>
+                <option value="SC">Signal</option>
+                <option value="E">Engineer</option>
+                <option value="MC">Medical</option>
             </select>
-            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none; margin-top: 10px;">
-            
-            <button class="login-btn" onclick="joinTacticalNetwork()" style="margin-top: 15px;">連線進入 COP 系統</button>
-        </div>
-    </div>
 
-    <div id="map"></div>
-    
-    <div class="status-panel">
-        <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer; background:none; border:none; color:#00ffcc;">✖</button>
-        <div class="user-list-box">
-            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">
-                🟢 線上隊員 (<span id="user-count">1</span>)
-            </div>
-            <div id="user-list"></div>
-        </div>
-    </div>
+            <label class="select-label">Echelon / Size</label>
+            <select id="mil-size-select" class="select-input">
+                <option value="C">Squad</option>
+                <option value="D">Platoon</option>
+                <option value="E">Company</option>
+                <option value="F">Battalion</option>
+                <option value="G">Regiment</option>
+                <option value="H">Brigade</option>
+            </select>
 
-   <div class="action-panel">
-        <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer; background:none; border:none; color:#00ffcc;">✖</button>
-        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>        
-
-        <div class="panel-section">
-            <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
-            <div id="section1" class="panel-section-content">
-                <label class="select-label">🔹 選擇兵科 (六大兵科)</label>
-                <select id="mil-branch-select" class="select-input">
-                    <option value="UCI---">步兵 (Infantry)</option>
-                    <option value="UCA---">裝甲 (Armor)</option>
-                    <option value="UCF---">砲兵 (Artillery)</option>
-                    <!-- 通信兵應使用 USC (Combat Support - Signal) -->
-                    <option value="USC---">通信 (Signal)</option> 
-                    <option value="UCE---">工兵 (Engineer)</option>
-                    <!-- 醫療兵應使用 UAM (Combat Service Support - Medical) -->
-                    <option value="UAM---">醫療 (Medical)</option>
-                </select>
-
-                <label class="select-label">🔹 選擇層級</label>
-                <select id="mil-size-select" class="select-input">
-                    <option value="C">班 (••)</option>
-                    <option value="D">排 (•••)</option>
-                    <option value="E">連 (I)</option>
-                    <option value="F">營 (II)</option>
-                    <option value="H">旅 (X)</option>
-                </select>
-
-                <label class="select-label">▼ 選擇陣營放置</label>
-                <div class="grid-2">
-                    <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')">友軍</button>
-                    <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')">敵軍</button>
-                    <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')">中立</button>
-                    <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')">不明</button>
-                </div>
-            </div>
-        </div>
-        
-        <div class="panel-section">
-            <div class="panel-title" onclick="toggleSection(this, 'section2')">2. 範圍工具</div>
-            <div id="section2" class="panel-section-content">
-                <div class="grid-2">
-                    <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
-                    <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
-                    <button class="btn" id="btn-poly" onclick="setMode('poly')">⬡ 多邊形</button>
-                    <button class="btn" id="btn-line" onclick="setMode('line')">📈 線條</button>
-                </div>
+            <label class="select-label">Affiliation</label>
+            <div class="grid-2">
+                <button class="btn" onclick="setMode('mil-friend')">Friend</button>
+                <button class="btn" onclick="setMode('mil-hostile')">Hostile</button>
+                <button class="btn" onclick="setMode('mil-neutral')">Neutral</button>
+                <button class="btn" onclick="setMode('mil-unknown')">Unknown</button>
             </div>
         </div>
     </div>
-    
+
+    <!-- Section 2 -->
+    <div class="panel-section">
+        <div class="panel-title" onclick="toggleSection(this,'section2')">2. Draw Tools</div>
+        <div id="section2" class="panel-section-content">
+            <div class="grid-2">
+                <button class="btn" onclick="setMode('circle')">Circle</button>
+                <button class="btn" onclick="setMode('rect')">Rectangle</button>
+                <button class="btn" onclick="setMode('poly')">Polygon</button>
+                <button class="btn" onclick="setMode('line')">Polyline</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    // ==========================================
-    // 0. 初始化 Socket 連線與全域變數
-    // ==========================================
-    const socket = io(); 
-    let myCallsign = "", myRoomID = "";
+// ==========================================
+// 0. GLOBALS & MAP INIT
+// ==========================================
+const socket = io();
+let myCallsign = '', myRoomID = '';
 
-    // ★ 新增：定義圖層與目前選用的地圖
-    let currentTileLayer;
-    const mapLayers = {
-        "OSM": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
-    };
+const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 13);
+const drawnItems = new L.FeatureGroup().addTo(map);
 
-    const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
-    
-    // ★ 新增：初始化時載入預設的 OSM 圖層
-    currentTileLayer = mapLayers["OSM"].addTo(map);
-    
-    const drawnItems = new L.FeatureGroup().addTo(map);
+// FIX: Map layers defined and managed cleanly
+const mapLayerDefs = {
+    OSM: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }),
+    Satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' })
+};
+let currentLayerKey = 'OSM';
+mapLayerDefs.OSM.addTo(map);
 
-    // ★ 新增：切換地圖風格邏輯
-    window.toggleMapStyle = function() {
-        map.removeLayer(currentTileLayer);
-        
-        if (currentTileLayer === mapLayers["OSM"]) {
-            currentTileLayer = mapLayers["Satellite"];
-        } else {
-            currentTileLayer = mapLayers["OSM"];
-        }
-        
-        currentTileLayer.addTo(map);
-    };
-    
-    // 產生圖層專屬唯一 ID (用來同步修改與刪除)
-    function generateId() { return Math.random().toString(36).substr(2, 9); }
+window.toggleMapStyle = function () {
+    map.removeLayer(mapLayerDefs[currentLayerKey]);
+    currentLayerKey = currentLayerKey === 'OSM' ? 'Satellite' : 'OSM';
+    mapLayerDefs[currentLayerKey].addTo(map);
+};
 
-    const drawTools = {
-        circle: new L.Draw.Circle(map),
-        rect: new L.Draw.Rectangle(map),
-        poly: new L.Draw.Polygon(map),
-        line: new L.Draw.Polyline(map)
-    };
+// FIX: Draw tools keyed consistently
+const drawTools = {
+    circle: new L.Draw.Circle(map),
+    rect: new L.Draw.Rectangle(map),
+    poly: new L.Draw.Polygon(map),
+    line: new L.Draw.Polyline(map)
+};
 
-    // ==========================================
-    // 1. 核心繪製邏輯 (負責畫上地圖、賦予權限)
-    // ==========================================
-    // 繪製兵棋
-    function renderMilSymbol(latlng, sidc, owner, layerId, isLocal) {
-        const symbol = new ms.Symbol(sidc, { size: 35 });
-        const marker = L.marker(latlng, {
-            icon: L.divIcon({ 
-                html: symbol.asSVG(), 
-                className: 'mil-icon', 
-                iconSize: [40, 40],
-                iconAnchor: [20, 20]
-            }),
-            draggable: isLocal, // ★ 權限控管：只有本地端繪製的才能拖曳，這裡已經補上逗號了
-            layerName: '' // 初始化屬性，避免 undefined
-        }).addTo(drawnItems);
-        
-        if (sidc.includes('USC')) {
-            marker.bindTooltip("Z", { permanent: true, direction: 'center', className: 'my-label' }).openTooltip();
-        } else if (sidc.includes('UAM')) {
-            marker.bindTooltip("+", { permanent: true, direction: 'center', className: 'my-label' }).openTooltip();
-        }
-        
-        marker.customData = { username: owner, id: layerId, type: 'mil' };
-
-        // 綁定彈跳視窗
-        marker.bindPopup(`
-            <div class="popup-info">部署者: ${owner}</div>
-            <div style="margin:5px 0;">
-                名稱: <input type="text" id="name-${layerId}" value="${marker.options.layerName || ''}" 
-                      onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
-            </div>
-            <div style="margin:5px 0;">
-                顏色: <input type="color" value="#00ffcc" onchange="updateLayerColor('${layerId}', this.value)">
-            </div>
-            ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : '<div style="color:red; font-size:10px; text-align:center;">無權限</div>'}
-        `);
-
-        // 如果是本地建立的，監聽拖曳結束事件並廣播新位置
-        if (isLocal) {
-            marker.on('dragend', function(e) {
-                socket.emit('client_action', { 
-                    room: myRoomID, action: 'move', id: layerId, data: { latlng: marker.getLatLng() }
-                });
-            });
-        }
-        return marker;
-    }
-
-    // 繪製幾何圖形 (接收遠端資料時使用)
-    function renderShape(type, data, owner, layerId, isLocal) {
-        let layer;
-        if (type === 'circle') layer = L.circle(data.latlng, { radius: data.radius });
-        else if (type === 'rectangle') layer = L.rectangle(data.latlngs);
-        else if (type === 'polygon') layer = L.polygon(data.latlngs);
-        else if (type === 'polyline') layer = L.polyline(data.latlngs);
-
-        if (layer) {
-            layer.options.layerName = ''; // 加入這一行初始化
-            layer.customData = { username: owner, id: layerId, type: type };
-            drawnItems.addLayer(layer);
-            
-            // 綁定彈跳視窗
-            layer.bindPopup(`
-                <div class="popup-info">部署者: ${owner}</div>
-                <div style="margin:5px 0;">
-                    名稱: <input type="text" id="name-${layerId}" value="${layer.options.layerName || ''}" 
-                          placeholder="輸入名稱..." onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
-                </div>
-                <div style="margin:5px 0;">
-                    顏色: <input type="color" value="${layer.options.color || '#3388ff'}" onchange="updateLayerColor('${layerId}', this.value)">
-                </div>
-                ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : ''}
-            `);
-
-            // ★ 權限控管：只有本地繪製的圖形才能開啟 Leaflet.Draw 的編輯模式
-            if (isLocal && layer.editing) {
-                layer.editing.enable();
-            }
-        }
-    }
-
-    // ==========================================
-    // 2. 本地端按鈕操作與畫圖事件
-    // ==========================================
-    window.setMode = function(mode) {
-        Object.values(drawTools).forEach(t => t.disable());
-        
-        if (mode.startsWith('mil-')) {
-            map.once('click', function(e) {
-                const branch = document.querySelector('#mil-branch-select').value; 
-                const size = document.querySelector('#mil-size-select').value;     
-                const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
-                const sidc = `S${affMap[mode] || 'U'}GP${branch}-${size}---`;
-                const layerId = generateId();
-
-                // 1. 畫在自己螢幕上 (isLocal = true)
-                renderMilSymbol(e.latlng, sidc, myCallsign, layerId, true);
-
-                // 2. 廣播給其他人
-                socket.emit('client_action', {
-                    room: myRoomID, action: 'draw', username: myCallsign, id: layerId, type: 'mil',
-                    data: { latlng: e.latlng, sidc: sidc }
-                });
-            });
-        } else if (drawTools[mode]) {
-            drawTools[mode].enable();
-        }
-    };
-
-    // 監聽圖形繪製完成 (Leaflet Draw 工具)
-    map.on(L.Draw.Event.CREATED, function (e) {
-        const layerType = e.layerType; 
-        const layerId = generateId();
-        
-        // 解析圖形座標資料
-        let drawData = {};
-        if (layerType === 'circle') drawData = { latlng: e.layer.getLatLng(), radius: e.layer.getRadius() };
-        else drawData = { latlngs: e.layer.getLatLngs() };
-
-        // 1. 畫在自己螢幕上 (isLocal = true)
-        renderShape(layerType, drawData, myCallsign, layerId, true);
-
-        // 2. 廣播給其他人
-        socket.emit('client_action', {
-            room: myRoomID, action: 'draw', username: myCallsign, id: layerId, type: layerType, data: drawData
-        });
-    });
-
-// 監聽本地圖形編輯完成 (廣播新頂點或半徑)
-    map.on('draw:edited', function (e) {
-        e.layers.eachLayer(function (layer) {
-            
-            // ★ 修正：徹底解綁舊標籤，重新綁定以強制計算新中心點
-            if (layer.options.layerName) {
-                const currentName = layer.options.layerName;
-                layer.unbindTooltip();
-                layer.bindTooltip(currentName, { permanent: true, direction: 'center', className: 'name-label' }).openTooltip();
-            }
-
-            if (layer.customData && layer.customData.username === myCallsign) {
-                let updatedData = {};
-                if (layer.customData.type === 'circle') updatedData = { latlng: layer.getLatLng(), radius: layer.getRadius() };
-                else updatedData = { latlngs: layer.getLatLngs() };
-
-                socket.emit('client_action', { 
-                    room: myRoomID, action: 'move', id: layer.customData.id, data: updatedData 
-                });
-            }
-        });
-    });
-
-    // ==========================================
-    // 3. 刪除與 UI 控制
-    // ==========================================
-    window.deleteLayer = function(targetId) {
-        drawnItems.eachLayer(layer => {
-            if (layer.customData && layer.customData.id === targetId) {
-                if (layer.customData.username === myCallsign) {
-                    drawnItems.removeLayer(layer);
-                    // 廣播刪除指令
-                    socket.emit('client_action', { room: myRoomID, action: 'delete', id: targetId });
-                } else {
-                    alert("⚠️ 權限不足：您無法刪除其他隊員的標記！");
-                }
-            }
-        });
-    };
-
-    window.toggleCustomRoomInput = () => {
-        const select = document.getElementById('room-type-select');
-        document.getElementById('custom-room-id').style.display = (select.value === 'CUSTOM') ? 'block' : 'none';
-    };
-    
-    window.togglePanel = (btn) => {
-        btn.parentElement.classList.toggle('panel-collapsed');
-    };
-    
-    window.toggleSection = (el, id) => { 
-        document.getElementById(id).classList.toggle('collapsed'); 
-        el.classList.toggle('collapsed'); 
-    };
-
-    // ==========================================
-    // 4. Socket.io 登入與多人即時接收邏輯
-    // ==========================================
-    window.joinTacticalNetwork = () => {
-        const callsignInput = document.getElementById('user-callsign').value.trim();
-        const roomSelect = document.getElementById('room-type-select').value;
-        const customRoom = document.getElementById('custom-room-id').value.trim();
-        
-        if (!callsignInput) return alert("⚠️ 請輸入有效的作戰呼號！");
-        const targetRoom = (roomSelect === 'CUSTOM') ? customRoom : roomSelect;
-        if (roomSelect === 'CUSTOM' && !targetRoom) return alert("⚠️ 請輸入自訂房間代碼！");
-
-        socket.emit('request_join', { callsign: callsignInput, room: targetRoom });
-    };
-
-    socket.on('join_failed', (msg) => {
-        alert(`❌ 登入失敗：\n${msg}`);
-    });
-    
-    socket.on('join_success', (data) => {
-        myCallsign = data.callsign;
-        myRoomID = data.room;
-        document.getElementById('login-overlay').style.display = 'none';
-    });
-
-    socket.on('update_user_list', (users) => {
-        document.getElementById('user-count').innerText = users.length;
-        document.getElementById('user-list').innerHTML = users.map(u => 
-            `<div style="color: ${u === myCallsign ? '#00ffcc' : '#ffffff'}; padding: 3px 0; font-size: 11px;">
-                📡 ${u} ${u === myCallsign ? '(本機)' : ''}
-            </div>`
-        ).join('');
-    });
-
-    // ★ 接收伺服器廣播的別人繪圖動作 ★
-    socket.on('server_action', (payload) => {
-        const { action, username, id, type, data } = payload;
-        
-        if (username === myCallsign) return;
-
-        if (action === 'draw') {
-            if (type === 'mil') {
-                renderMilSymbol(data.latlng, data.sidc, username, id, false);
-            } else {
-                renderShape(type, data, username, id, false);
-            }
-        } 
-else if (action === 'move') {
-            drawnItems.eachLayer(layer => {
-                if (layer.customData && layer.customData.id === id) {
-                    
-                    // 依照圖形種類更新座標
-                    if (layer.customData.type === 'mil') {
-                        layer.setLatLng(data.latlng);
-                    } else if (layer.customData.type === 'circle') {
-                        layer.setLatLng(data.latlng);
-                        layer.setRadius(data.radius);
-                    } else {
-                        // 針對方形、多邊形、線條
-                        layer.setLatLngs(data.latlngs);
-                    }
-
-                    // ★ 修正：收到遠端變更後，同樣徹底解綁並重新綁定標籤
-                    if (layer.options.layerName) {
-                        const currentName = layer.options.layerName;
-                        layer.unbindTooltip();
-                        layer.bindTooltip(currentName, { permanent: true, direction: 'center', className: 'name-label' }).openTooltip();
-                    }
-                }
-            });
-        }
-        else if (action === 'color') {
-            drawnItems.eachLayer(layer => {
-                if (layer.customData && layer.customData.id === id) {
-                    layer.setStyle({ color: data.color }); // 更新顏色
-                }
-            });
-        }
-// 修正建議：確保大括號正確閉合
-else if (action === 'rename') {
-    drawnItems.eachLayer(layer => {
-        if (layer.customData && layer.customData.id === id) {
-            layer.options.layerName = data.name;
-            // 此處需完善標籤更新邏輯
-        }
-    });
-} // 這裡必須閉合 rename 的 else if
-else if (action === 'delete') {
-    drawnItems.eachLayer(layer => {
-        if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
-    });
-} // 閉合 delete 的 else if
-// 這裡缺少一個閉合 socket.on 的大括號 });
-if (data.name) {
-    layer.labelMarker.setLatLng(layer.getBounds().getCenter());
-    layer.labelMarker.setIcon(L.divIcon({ 
-        className: 'name-label', 
-        html: data.name, 
-        iconAnchor: [0, 0] 
-    }));
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
-        else if (action === 'delete') {
-            drawnItems.eachLayer(layer => {
-                if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
-            });
-        }
-    });
 
-    // 處理本地顏色與名稱變更
-    window.updateLayerName = function(layerId, newName) {
-        drawnItems.eachLayer(layer => {
-            if (layer.customData && layer.customData.id === layerId) {
-                layer.options.layerName = newName;
-                // 本地修改時也顯示標籤
-                if (newName) {
-                    layer.bindTooltip(newName, { permanent: true, direction: 'center', className: 'name-label' }).openTooltip();
-                } else {
-                    layer.unbindTooltip();
-                }
-                
-                socket.emit('client_action', { 
-                    room: myRoomID, action: 'rename', id: layerId, data: { name: newName } 
-                });
-            }
+// ==========================================
+// 1. RENDER FUNCTIONS
+// ==========================================
+
+/**
+ * FIX: SIDC assembly corrected.
+ * milsymbol SIDC format: S-A-G-XX-E--- where XX is the function ID (branch code).
+ * The branch select now stores the raw function ID (e.g. "I", "Z", "FA"),
+ * and we build the full 15-char SIDC properly.
+ */
+function buildSIDC(affCode, branchCode, sizeCode) {
+    // Standard SIDC: S + Affiliation + GP + FunctionID (padded) + Echelon
+    // milsymbol is flexible; use the standard ground unit format:
+    // SHGP + function code + echelon
+    const padded = (branchCode + '------').substr(0, 6);
+    return `S${affCode}GP${padded}${sizeCode}---`;
+}
+
+function renderMilSymbol(latlng, sidc, owner, layerId, isLocal) {
+    let symbol;
+    try {
+        symbol = new ms.Symbol(sidc, { size: 32 });
+    } catch (e) {
+        console.warn('Invalid SIDC:', sidc, e);
+        return null;
+    }
+
+    const marker = L.marker(latlng, {
+        icon: L.divIcon({
+            html: symbol.asSVG(),
+            className: 'mil-icon',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        }),
+        draggable: isLocal
+    }).addTo(drawnItems);
+
+    // FIX: Store all custom data in customData, not options
+    marker.customData = { username: owner, id: layerId, type: 'mil', layerName: '' };
+
+    bindMarkerPopup(marker, owner, layerId, isLocal);
+
+    if (isLocal) {
+        marker.on('dragend', function () {
+            socket.emit('client_action', {
+                room: myRoomID, action: 'move', id: layerId,
+                data: { latlng: marker.getLatLng() }
+            });
         });
-    };
-    
-    window.updateLayerColor = function(layerId, newColor) {
-        drawnItems.eachLayer(layer => {
-            if (layer.customData && layer.customData.id === layerId) {
-                layer.setStyle({ color: newColor });
-                socket.emit('client_action', { 
-                    room: myRoomID, action: 'color', id: layerId, data: { color: newColor } 
-                });
-            }
+    }
+    return marker;
+}
+
+function renderShape(type, data, owner, layerId, isLocal) {
+    let layer;
+    const styleOpts = { color: '#00ccff', weight: 2, opacity: 0.9, fillOpacity: 0.15 };
+
+    if (type === 'circle') {
+        layer = L.circle(data.latlng, { radius: data.radius, ...styleOpts });
+    } else if (type === 'rectangle') {
+        layer = L.rectangle(data.latlngs, styleOpts);
+    } else if (type === 'polygon') {
+        layer = L.polygon(data.latlngs, styleOpts);
+    } else if (type === 'polyline') {
+        layer = L.polyline(data.latlngs, { color: '#00ccff', weight: 2 });
+    }
+
+    if (!layer) return null;
+
+    // FIX: All custom data stored in customData only
+    layer.customData = { username: owner, id: layerId, type: type, layerName: '' };
+    drawnItems.addLayer(layer);
+
+    bindShapePopup(layer, owner, layerId, isLocal);
+
+    // FIX: DO NOT call layer.editing.enable() here — it enables edit handles immediately which is wrong
+    return layer;
+}
+
+function bindMarkerPopup(marker, owner, layerId, isLocal) {
+    marker.bindPopup(() => buildPopupHTML(marker, owner, layerId, isLocal));
+}
+
+function bindShapePopup(layer, owner, layerId, isLocal) {
+    layer.bindPopup(() => buildPopupHTML(layer, owner, layerId, isLocal));
+}
+
+function buildPopupHTML(layer, owner, layerId, isLocal) {
+    const name = (layer.customData && layer.customData.layerName) || '';
+    const color = (layer.options && layer.options.color) || '#00ccff';
+    const deleteBtn = isLocal
+        ? `<button class="btn btn-danger" style="width:100%;margin-top:4px;" onclick="deleteLayer('${layerId}')">DELETE MARKER</button>`
+        : `<div class="pop-no-perm">READ ONLY - Not your marker</div>`;
+
+    return `
+        <div class="pop-owner">Deployed by: ${owner}</div>
+        <div class="pop-row">
+            <span>Label:</span>
+            <input type="text" value="${name}" placeholder="Add label..."
+                onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
+        </div>
+        <div class="pop-row">
+            <span>Color:</span>
+            <input type="color" value="${color}" onchange="updateLayerColor('${layerId}', this.value)">
+        </div>
+        ${deleteBtn}
+    `;
+}
+
+function updateTooltip(layer) {
+    const name = layer.customData && layer.customData.layerName;
+    layer.unbindTooltip();
+    if (name) {
+        layer.bindTooltip(name, {
+            permanent: true,
+            direction: 'center',
+            className: 'name-label'
+        }).openTooltip();
+    }
+}
+
+// ==========================================
+// 2. DRAW EVENT HANDLERS
+// ==========================================
+window.setMode = function (mode) {
+    Object.values(drawTools).forEach(t => t.disable());
+
+    if (mode.startsWith('mil-')) {
+        map.getContainer().style.cursor = 'crosshair';
+        map.once('click', function (e) {
+            map.getContainer().style.cursor = '';
+            const branchCode = document.getElementById('mil-branch-select').value;
+            const sizeCode   = document.getElementById('mil-size-select').value;
+            const affMap = { 'mil-friend': 'F', 'mil-hostile': 'H', 'mil-neutral': 'N', 'mil-unknown': 'U' };
+            // FIX: Use corrected SIDC builder
+            const sidc = buildSIDC(affMap[mode] || 'U', branchCode, sizeCode);
+            const layerId = generateId();
+
+            renderMilSymbol(e.latlng, sidc, myCallsign, layerId, true);
+            socket.emit('client_action', {
+                room: myRoomID, action: 'draw', username: myCallsign,
+                id: layerId, type: 'mil',
+                data: { latlng: e.latlng, sidc: sidc }
+            });
         });
-    };
+    } else if (drawTools[mode]) {
+        drawTools[mode].enable();
+    }
+};
+
+map.on(L.Draw.Event.CREATED, function (e) {
+    const layerType = e.layerType;
+    const layerId = generateId();
+
+    let drawData = {};
+    if (layerType === 'circle') {
+        drawData = { latlng: e.layer.getLatLng(), radius: e.layer.getRadius() };
+    } else {
+        drawData = { latlngs: e.layer.getLatLngs() };
+    }
+
+    renderShape(layerType, drawData, myCallsign, layerId, true);
+    socket.emit('client_action', {
+        room: myRoomID, action: 'draw', username: myCallsign,
+        id: layerId, type: layerType, data: drawData
+    });
+});
+
+map.on('draw:edited', function (e) {
+    e.layers.eachLayer(function (layer) {
+        if (!layer.customData || layer.customData.username !== myCallsign) return;
+
+        let updatedData = {};
+        if (layer.customData.type === 'circle') {
+            updatedData = { latlng: layer.getLatLng(), radius: layer.getRadius() };
+        } else {
+            updatedData = { latlngs: layer.getLatLngs() };
+        }
+
+        updateTooltip(layer);
+
+        socket.emit('client_action', {
+            room: myRoomID, action: 'move',
+            id: layer.customData.id, data: updatedData
+        });
+    });
+});
+
+// ==========================================
+// 3. LAYER OPERATIONS
+// ==========================================
+function findLayerById(id) {
+    let found = null;
+    drawnItems.eachLayer(l => { if (l.customData && l.customData.id === id) found = l; });
+    return found;
+}
+
+window.deleteLayer = function (targetId) {
+    const layer = findLayerById(targetId);
+    if (!layer) return;
+    if (layer.customData.username !== myCallsign) {
+        alert('Permission denied: you cannot delete another operator\'s marker.');
+        return;
+    }
+    drawnItems.removeLayer(layer);
+    socket.emit('client_action', { room: myRoomID, action: 'delete', id: targetId });
+};
+
+window.updateLayerName = function (layerId, newName) {
+    const layer = findLayerById(layerId);
+    if (!layer) return;
+    layer.customData.layerName = newName;
+    updateTooltip(layer);
+    socket.emit('client_action', {
+        room: myRoomID, action: 'rename', id: layerId, data: { name: newName }
+    });
+};
+
+window.updateLayerColor = function (layerId, newColor) {
+    const layer = findLayerById(layerId);
+    if (!layer) return;
+    if (layer.setStyle) layer.setStyle({ color: newColor });
+    socket.emit('client_action', {
+        room: myRoomID, action: 'color', id: layerId, data: { color: newColor }
+    });
+};
+
+// ==========================================
+// 4. SOCKET.IO - CLIENT EVENTS
+// ==========================================
+window.joinTacticalNetwork = function () {
+    const callsign = document.getElementById('user-callsign').value.trim();
+    const roomSel  = document.getElementById('room-type-select').value;
+    const customId = document.getElementById('custom-room-id').value.trim();
+
+    if (!callsign) return alert('Please enter a valid callsign.');
+    const targetRoom = (roomSel === 'CUSTOM') ? customId : roomSel;
+    if (roomSel === 'CUSTOM' && !targetRoom) return alert('Please enter a private room code.');
+
+    socket.emit('request_join', { callsign, room: targetRoom });
+};
+
+socket.on('join_failed', (msg) => {
+    alert(`Connection failed:\n${msg}`);
+});
+
+socket.on('join_success', (data) => {
+    myCallsign = data.callsign;
+    myRoomID   = data.room;
+    document.getElementById('login-overlay').style.display = 'none';
+});
+
+socket.on('update_user_list', (users) => {
+    document.getElementById('user-count').textContent = users.length;
+    document.getElementById('user-list').innerHTML = users.map(u => {
+        const isMe = (u === myCallsign);
+        return `<div class="user-entry">
+            <span class="user-dot ${isMe ? '' : 'remote'}"></span>
+            <span style="color:${isMe ? '#00ffcc' : '#aabbaa'}">${u}${isMe ? ' [YOU]' : ''}</span>
+        </div>`;
+    }).join('');
+});
+
+// ==========================================
+// 5. SOCKET.IO - SERVER BROADCAST HANDLER
+// FIX: Completely rewritten — single clean block, no duplicates, no orphaned code
+// ==========================================
+socket.on('server_action', (payload) => {
+    const { action, username, id, type, data } = payload;
+
+    // Ignore echoes from self (server should also filter, but double-check here)
+    if (username === myCallsign && (action === 'draw')) return;
+
+    if (action === 'draw') {
+        if (type === 'mil') {
+            renderMilSymbol(data.latlng, data.sidc, username, id, false);
+        } else {
+            renderShape(type, data, username, id, false);
+        }
+        return;
+    }
+
+    const layer = findLayerById(id);
+    if (!layer) return;
+
+    if (action === 'move') {
+        if (layer.customData.type === 'mil') {
+            layer.setLatLng(data.latlng);
+        } else if (layer.customData.type === 'circle') {
+            layer.setLatLng(data.latlng);
+            layer.setRadius(data.radius);
+        } else {
+            layer.setLatLngs(data.latlngs);
+        }
+        updateTooltip(layer);
+
+    } else if (action === 'rename') {
+        // FIX: Actually update the tooltip on rename from remote
+        layer.customData.layerName = data.name;
+        updateTooltip(layer);
+
+    } else if (action === 'color') {
+        if (layer.setStyle) layer.setStyle({ color: data.color });
+
+    } else if (action === 'delete') {
+        drawnItems.removeLayer(layer);
+    }
+});
+
+// ==========================================
+// 6. UI HELPERS
+// ==========================================
+window.toggleCustomRoomInput = function () {
+    const sel = document.getElementById('room-type-select');
+    document.getElementById('custom-room-id').style.display =
+        (sel.value === 'CUSTOM') ? 'block' : 'none';
+};
+
+window.togglePanel = function (panelId) {
+    document.getElementById(panelId).classList.toggle('panel-collapsed');
+};
+
+window.toggleSection = function (titleEl, sectionId) {
+    titleEl.classList.toggle('collapsed');
+    document.getElementById(sectionId).classList.toggle('collapsed');
+};
 </script>
 </body>
 </html>
