@@ -169,8 +169,12 @@
         marker.customData = { username: owner, id: layerId, type: 'mil' };
 
         // 綁定彈跳視窗
-        marker.bindPopup(`
-<div class="popup-info">部署者: ${owner}</div>
+marker.bindPopup(`
+    <div class="popup-info">部署者: ${owner}</div>
+    <div style="margin:5px 0;">
+        名稱: <input type="text" id="name-${layerId}" value="${layer.options.layerName || '未命名'}" 
+              onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
+    </div>
     <div style="margin:5px 0;">
         顏色: <input type="color" value="#00ffcc" onchange="updateLayerColor('${layerId}', this.value)">
     </div>
@@ -201,8 +205,12 @@
             drawnItems.addLayer(layer);
             
             // 綁定彈跳視窗
-            layer.bindPopup(`
-<div class="popup-info">繪製者: ${owner}</div>
+           layer.bindPopup(`
+    <div class="popup-info">繪製者: ${owner}</div>
+    <div style="margin:5px 0;">
+        名稱: <input type="text" id="name-${layerId}" value="${layer.options.layerName || '未命名'}" 
+              onchange="updateLayerName('${layerId}', this.value)" style="width:100px;">
+    </div>
     <div style="margin:5px 0;">
         顏色: <input type="color" value="${layer.options.color || '#3388ff'}" onchange="updateLayerColor('${layerId}', this.value)">
     </div>
@@ -370,19 +378,16 @@
     });
 
     // 處理本地顏色變更
-    window.updateLayerColor = function(layerId, color) {
-        drawnItems.eachLayer(layer => {
-            if (layer.customData && layer.customData.id === layerId) {
-                layer.setStyle({ color: color, fillColor: color });
-                socket.emit('client_action', { 
-                    room: myRoomID, 
-                    action: 'color', 
-                    id: layerId, 
-                    data: { color: color } 
-                });
-            }
-        });
-    };
+window.updateLayerName = function(layerId, newName) {
+    drawnItems.eachLayer(layer => {
+        if (layer.customData && layer.customData.id === layerId) {
+            layer.options.layerName = newName; // 存入圖層屬性
+            socket.emit('client_action', { 
+                room: myRoomID, action: 'rename', id: layerId, data: { name: newName } 
+            });
+        }
+    });
+};
 </script>
 </body>
 </html>
