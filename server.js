@@ -10,7 +10,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 // 儲存每個房間的線上使用者：{ "PUBLIC_01": ["ALPHA-01", "BRAVO-02"] }
 const roomUsers = {};
 
-// 提供您的靜態 HTML 檔案 (假設您的 html 叫 index.html，放在 public 資料夾下)
+// 提供靜態 HTML 檔案 (請確認 index.html 放在同目錄或 public 資料夾內)
 app.use(express.static('public'));
 
 io.on('connection', (socket) => {
@@ -25,23 +25,18 @@ io.on('connection', (socket) => {
 
         // 檢查呼號是否重複
         if (roomUsers[room].includes(callsign)) {
-            // 呼號重複，拒絕登入
             socket.emit('join_failed', `房間 [${room}] 中已有相同呼號 (${callsign})，請更換呼號！`);
             return;
         }
 
-        // 登入成功：將使用者加入 Socket 房間與記錄名單
+        // 登入成功
         socket.join(room);
         roomUsers[room].push(callsign);
         
-        // 記錄該 socket 綁定的資訊，方便斷線時清理
         socket.callsign = callsign;
         socket.room = room;
 
-        // 回傳成功訊息給該使用者
         socket.emit('join_success', { callsign, room });
-
-        // 廣播給該房間內所有人更新後的名單
         io.to(room).emit('update_user_list', roomUsers[room]);
         console.log(`[${room}] ${callsign} 加入戰術網路。`);
     });
@@ -50,12 +45,18 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         const { callsign, room } = socket;
         if (room && roomUsers[room]) {
-            // 將斷線者從名單中移除
             roomUsers[room] = roomUsers[room].filter(user => user !== callsign);
-            // 通知房間內其他人更新名單
             io.to(room).emit('update_user_list', roomUsers[room]);
             console.log(`[${room}] ${callsign} 已離線。`);
         }
+    });
+
+    // 3. 【新增】處理戰術地圖的即時同步 (繪圖、移動、刪除)
+    socket.on('client_action', (payload) => {
+        const { room } = payload;
+        // 將動作廣播給該房間內【除了發送者之外】的所有人
+        socket.to(room).emit('server_action', payload);
+        console.log(`[同步] 房間 ${room} 執行動作: ${payload.action}`);
     });
 });
 
