@@ -225,13 +225,22 @@
 <!-- 1. 兵科選擇選單 (修正通信與醫療的標準代碼) -->
 <label class="select-label">🔹 選擇兵科</label>
 <select id="mil-branch-select" class="select-input">
-    <option value="UCI---">步兵 (Infantry)</option>
-    <option value="UCA---">裝甲 (Armor)</option>
-    <option value="UCF---">砲兵 (Artillery)</option>
-    <!-- 只要 value 是 UCC---，milsymbol 就會自動畫出閃電 -->
-    <option value="UCC---">通信 (Signal)</option>
-    <option value="UAM---">醫療 (Medical)</option>
-    <option value="UCE---">工兵 (Engineer)</option>
+    <!-- 基礎戰鬥部隊 -->
+    <option value="UCI---">步兵 (Infantry) - 交叉線</option>
+    <option value="UCA---">裝甲 (Armor) - 橢圓形</option>
+    <option value="UCF---">砲兵 (Artillery) - 圓點</option>
+    
+    <!-- 戰鬥支援與勤務 -->
+    <!-- 修正：這才是真正的通信閃電代碼！ -->
+    <option value="USC---">通信 (Signal) - 閃電</option> 
+    <option value="UCE---">工兵 (Engineer) - 橋樑/E字</option>
+    <option value="UAM---">醫療 (Medical) - 十字</option>
+
+    <!-- 👇 加碼推薦：戰術地圖上必備的高階兵科 👇 -->
+    <option value="UCR---">偵察 (Reconnaissance) - 左上到右下的斜線</option>
+    <option value="UCD---">防空 (Air Defense) - 底部半圓形</option>
+    <option value="UAA---">陸軍航空/直升機 (Army Aviation) - 旋翼符號</option>
+    <option value="UAS---">補給 (Supply) - 底部一條橫線</option>
 </select>
 
 <!-- 2. 層級選擇選單 (完全依照您的點數與標記需求) -->
