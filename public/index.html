@@ -460,15 +460,14 @@ else if (action === 'move') {
             drawnItems.eachLayer(layer => {
                 if (layer.customData && layer.customData.id === id) {
                     layer.options.layerName = data.name; // 更新屬性
-                    if (data.name) {
-                        // 綁定標籤並顯示
-                        layer.bindTooltip(data.name, { permanent: true, direction: 'center', className: 'name-label' }).openTooltip();
-                    } else {
-                        layer.unbindTooltip(); // 如果名字是空的，就移除標籤
-                    }
-                }
-            });
-        }
+if (data.name) {
+    layer.labelMarker.setLatLng(layer.getBounds().getCenter());
+    layer.labelMarker.setIcon(L.divIcon({ 
+        className: 'name-label', 
+        html: data.name, 
+        iconAnchor: [0, 0] 
+    }));
+}
         else if (action === 'delete') {
             drawnItems.eachLayer(layer => {
                 if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
