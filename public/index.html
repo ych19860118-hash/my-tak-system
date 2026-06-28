@@ -354,7 +354,7 @@ socket.on('update_user_list', users=>{
     </div>`).join('');
 });
 socket.on('room_sync', layers => {
-  // Full state sync on join
+  // 將伺服器傳來的舊資料逐一繪製出來
   layers.forEach(entry => applyAction(entry, false));
 });
 socket.on('server_action', payload => applyAction(payload, false));
