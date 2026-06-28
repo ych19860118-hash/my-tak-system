@@ -86,14 +86,16 @@
             <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
             <div id="section1" class="panel-section-content">
                 <label class="select-label">🔹 選擇兵科 (六大兵科)</label>
-                <select id="mil-branch-select" class="select-input">
-                    <option value="UCI---">步兵 (Infantry)</option>
-                    <option value="UCA---">裝甲 (Armor)</option>
-                    <option value="UCF---">砲兵 (Artillery)</option>
-                    <option value="USC---">通信 (Signal) - 閃電</option> 
-                    <option value="UCE---">工兵 (Engineer)</option>
-                    <option value="UAM---">醫療 (Medical)</option>
-                </select>
+<select id="mil-branch-select" class="select-input">
+    <option value="UCI---">步兵 (Infantry)</option>
+    <option value="UCA---">裝甲 (Armor)</option>
+    <option value="UCF---">砲兵 (Artillery)</option>
+    <!-- 通信兵應使用 USC (Combat Support - Signal) -->
+    <option value="USC---">通信 (Signal)</option> 
+    <option value="UCE---">工兵 (Engineer)</option>
+    <!-- 醫療兵應使用 UAM (Combat Service Support - Medical) -->
+    <option value="UAM---">醫療 (Medical)</option>
+</select>
 
                 <label class="select-label">🔹 選擇層級</label>
                 <select id="mil-size-select" class="select-input">
@@ -168,9 +170,12 @@
 
         // 綁定彈跳視窗
         marker.bindPopup(`
-            <div class="popup-info">部署者: ${owner}</div>
-            ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : `<div style="color:red; font-size:10px; text-align:center;">無修改權限</div>`}
-        `);
+<div class="popup-info">部署者: ${owner}</div>
+    <div style="margin:5px 0;">
+        顏色: <input type="color" value="#00ffcc" onchange="updateLayerColor('${layerId}', this.value)">
+    </div>
+    ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : '<div style="color:red; font-size:10px; text-align:center;">無權限</div>'}
+`);
 
         // 如果是本地建立的，監聽拖曳結束事件並廣播新位置
         if (isLocal) {
@@ -197,9 +202,12 @@
             
             // 綁定彈跳視窗
             layer.bindPopup(`
-                <div class="popup-info">繪製者: ${owner}</div>
-                ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : `<div style="color:red; font-size:10px; text-align:center;">無修改權限</div>`}
-            `);
+<div class="popup-info">繪製者: ${owner}</div>
+    <div style="margin:5px 0;">
+        顏色: <input type="color" value="${layer.options.color || '#3388ff'}" onchange="updateLayerColor('${layerId}', this.value)">
+    </div>
+    ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : '<div style="color:red; font-size:10px; text-align:center;">無權限</div>'}
+`);
 
             // ★ 權限控管：只有本地繪製的圖形才能開啟 Leaflet.Draw 的編輯模式
             if (isLocal && layer.editing) {
@@ -327,7 +335,7 @@
     });
 
     // ★ 接收伺服器廣播的別人繪圖動作 ★
-    socket.on('server_action', (payload) => {
+socket.on('server_action', (payload) => {
         const { action, username, id, type, data } = payload;
         
         // 忽略自己發送的廣播 (因為本地已經畫過了)
@@ -346,12 +354,42 @@
                 }
             });
         } 
+        // ★ 新增這段：處理顏色變更 ★
+        else if (action === 'color') {
+            drawnItems.eachLayer(layer => {
+                if (layer.customData && layer.customData.id === id) {
+                    layer.setStyle({ color: data.color, fillColor: data.color });
+                }
+            });
+        }
         else if (action === 'delete') {
             drawnItems.eachLayer(layer => {
                 if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
             });
         }
     });
+        else if (action === 'delete') {
+            drawnItems.eachLayer(layer => {
+                if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
+            });
+        }
+    });
+    window.updateLayerColor = function(layerId, color) {
+    drawnItems.eachLayer(layer => {
+        if (layer.customData && layer.customData.id === layerId) {
+            // 1. 本地端更新顯示
+            layer.setStyle({ color: color, fillColor: color }); // 對方塊/圓形有效
+            
+            // 2. 廣播給遠端
+            socket.emit('client_action', { 
+                room: myRoomID, 
+                action: 'color', 
+                id: layerId, 
+                data: { color: color } 
+            });
+        }
+    });
+};
 </script>
 </body>
 </html>
