@@ -353,7 +353,7 @@ socket.on('update_user_list', users=>{
       <span>${u}${u===myCallsign?' (YOU)':''}</span>
     </div>`).join('');
 });
-socket.on('room_sync', layers=>{
+socket.on('room_sync', layers => {
   // Full state sync on join
   layers.forEach(entry => applyAction(entry, false));
 });
