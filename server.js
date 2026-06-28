@@ -56,25 +56,20 @@ io.on('connection', (socket) => {
 
     // 3. 處理戰術地圖的即時同步 (含繪圖、移動、刪除、顏色變更)
 socket.on('client_action', (payload) => {
-        const { room, action, id, data } = payload;
+       const { room, action, id, data, username } = payload;
         
         if (!roomLayers[room]) roomLayers[room] = [];
 
-        // 更新歷史紀錄資料庫
-        if (action === 'draw') {
-            roomLayers[room].push(payload);
-        } else if (action === 'move') {
-            const idx = roomLayers[room].findIndex(l => l.id === id);
-            if (idx !== -1) roomLayers[room][idx].data = payload.data;
-        } else if (action === 'delete') {
-            roomLayers[room] = roomLayers[room].filter(l => l.id !== id);
-        } else if (action === 'color') {
-            const idx = roomLayers[room].findIndex(l => l.id === id);
-            if (idx !== -1) {
-                if (!roomLayers[room][idx].data) roomLayers[room][idx].data = {};
-                roomLayers[room][idx].data.color = data.color;
-            }
-        } 
+if (action === 'rename' || action === 'color') {
+        const roomLayersList = roomLayers[room] || [];
+        const idx = roomLayersList.findIndex(l => l.id === id);
+        
+        // 檢查：只有圖層原本的建立者才能修改
+        if (idx !== -1 && roomLayersList[idx].username !== username) {
+            console.log("偵測到非法修改請求");
+            return; // 拒絕執行
+        }
+    }
         // ★ 新增：支援修改名稱的紀錄更新 ★
         else if (action === 'rename') {
             const idx = roomLayers[room].findIndex(l => l.id === id);
