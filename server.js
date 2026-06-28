@@ -9,7 +9,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 // 儲存每個房間的線上使用者
 const roomUsers = {};
-// ★ 新增：儲存每個房間的圖層歷史 (這樣後進來的人才看得到)
+// 儲存每個房間的圖層歷史 (包含顏色資訊)
 const roomLayers = {};
 
 app.use(express.static('public'));
@@ -34,7 +34,7 @@ io.on('connection', (socket) => {
 
         socket.emit('join_success', { callsign, room });
         
-        // ★ 新增：當新用戶加入時，把該房間累積的所有歷史圖層發送給他
+        // 當新用戶加入時，發送房間所有歷史圖層 (含顏色)
         if (roomLayers[room]) {
             roomLayers[room].forEach(layerData => {
                 socket.emit('server_action', layerData);
@@ -54,9 +54,9 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 3. 處理戰術地圖的即時同步與【紀錄更新】
+    // 3. 處理戰術地圖的即時同步 (含繪圖、移動、刪除、顏色變更)
     socket.on('client_action', (payload) => {
-        const { room, action, id } = payload;
+        const { room, action, id, data } = payload;
         
         if (!roomLayers[room]) roomLayers[room] = [];
 
@@ -68,10 +68,19 @@ io.on('connection', (socket) => {
             if (idx !== -1) roomLayers[room][idx].data = payload.data;
         } else if (action === 'delete') {
             roomLayers[room] = roomLayers[room].filter(l => l.id !== id);
+        } else if (action === 'color') {
+            // ★ 新增：更新顏色紀錄
+            const idx = roomLayers[room].findIndex(l => l.id === id);
+            if (idx !== -1) {
+                // 如果原始資料沒有 data 物件，先建立一個
+                if (!roomLayers[room][idx].data) roomLayers[room][idx].data = {};
+                roomLayers[room][idx].data.color = data.color;
+            }
         }
 
         // 廣播給該房間內所有人
         socket.to(room).emit('server_action', payload);
+        console.log(`[同步] 房間 ${room} 執行動作: ${action}`);
     });
 });
 
