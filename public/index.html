@@ -222,24 +222,25 @@
     <div class="panel-section">
         <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
         <div id="section1" class="panel-section-content">
-            <label class="select-label">🔹 選擇兵科</label>
-  <select id="mil-branch-select" class="select-input">
-    <!-- value 必須是符合北約標準的 2 碼代碼 -->
-    <option value="CA">步兵 (Infantry)</option>
-    <option value="KA">裝甲 (Armor)</option>
-    <option value="FA">砲兵 (Artillery)</option>
-    <option value="CC">通信 (Signal)</option>
-    <option value="MA">醫療 (Medical)</option>
-    <option value="EA">工兵 (Engineer)</option>
+<!-- 區塊 1 的選單部分請替換成這樣 -->
+<label class="select-label">🔹 選擇兵科</label>
+<select id="mil-branch-select" class="select-input">
+    <!-- value 替換為北約標準 6 碼兵科代碼 (U=單位, C=戰鬥/支援, S=勤務) -->
+    <option value="UCI---">步兵 (Infantry)</option>
+    <option value="UCA---">裝甲 (Armor)</option>
+    <option value="UCF---">砲兵 (Artillery)</option>
+    <option value="UCC---">通信 (Signal)</option>
+    <option value="USM---">醫療 (Medical)</option>
+    <option value="UCE---">工兵 (Engineer)</option>
 </select>
 
 <select id="mil-size-select" class="select-input">
-    <!-- 對應階級標記 -->
-    <option value="1">班</option>
-    <option value="2">排</option>
-    <option value="3">連</option>
-    <option value="4">營</option>
-    <option value="5">團</option>
+    <!-- value 替換為北約標準階級代碼 (A=伍, B=班, C=組, D=排, E=連, F=營, G=團) -->
+    <option value="B">班</option>
+    <option value="D">排</option>
+    <option value="E">連</option>
+    <option value="F">營</option>
+    <option value="G">團</option>
 </select>
 
             <label class="select-label">▼ 選擇陣營放置</label>
@@ -289,35 +290,28 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            // 1. 取得兵科代碼 (請注意：milsymbol 的代碼定義是嚴格的)
+            // 1. 取得剛剛修改好的標準代碼 (例如: branch = "UCI---", size = "E")
             const branch = document.querySelector('#mil-branch-select').value; 
             const size = document.querySelector('#mil-size-select').value;     
             
             const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
             const aff = affMap[mode] || 'U';
             
-            // 2. 【正確的 SIDC 格式】：
-            // S (標準) + A (待命/存在) + F (地面) + 陣營 + 兵科代碼 + 0 (實心) + 階級 + 0000
-            // CA (步兵), KA (裝甲), FA (砲兵), CC (通信), MA (醫療), EA (工兵)
-            // 這些代碼必須是 milsymbol 能識別的
-            const sidc = `S${aff}G` + 'P' + branch + '0' + size + '00000';
+            // 2. 【終極標準 SIDC 組合】
+            // 結構：S(標準) + 陣營(1碼) + G(地面) + P(存在) + 兵科(6碼) + -(預留) + 階級(1碼) + ---(預留)
+            // 範例拼出來會是：S F G P UCI--- - E --- (完美 15 碼)
+            const sidc = `S${aff}GP${branch}-${size}---`;
             
             try {
-                // 加入 options，確保圖標能正常顯示
-                const symbol = new ms.Symbol(sidc, { 
-                    size: 35,
-                    // 加上此屬性讓圖標更穩定顯示
-                    quantity: "",
-                    staffComments: "",
-                    additionalInformation: ""
-                });
+                // milsymbol 會完美解析這 15 碼
+                const symbol = new ms.Symbol(sidc, { size: 35 });
                 
                 const marker = L.marker(e.latlng, {
                     icon: L.divIcon({ 
                         html: symbol.asSVG(), 
                         className: 'mil-icon', 
-                        iconSize: [40, 40], // 稍微放大以確保圖標完整呈現
-                        iconAnchor: [20, 20]
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20] // 確保圖標中心對齊滑鼠點擊位置
                     }),
                     draggable: true
                 }).addTo(drawnItems);
