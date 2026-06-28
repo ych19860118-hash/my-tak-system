@@ -284,13 +284,22 @@
 </div>
     
 <script>
-    // 1. 初始化環境
+    // ==========================================
+    // 0. 初始化 Socket 連線 (新增在最上面)
+    // ==========================================
+    const socket = io(); 
+
+    // ==========================================
+    // 1. 初始化環境 (維持原樣)
+    // ==========================================
     let myCallsign = "ALPHA-01", myRoomID = "PUBLIC_01";
     const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const drawnItems = new L.FeatureGroup().addTo(map);
 
-    // 2. 建立繪圖工具
+    // ==========================================
+    // 2. 建立繪圖工具 (維持原樣)
+    // ==========================================
     const drawTools = {
         circle: new L.Draw.Circle(map),
         rect: new L.Draw.Rectangle(map),
@@ -298,49 +307,47 @@
         line: new L.Draw.Polyline(map)
     };
 
-    // 3. 統一的模式切換 (包含繪圖與兵棋)
-   // 修改 setMode 內的 Sidc 生成邏輯
-window.setMode = function(mode) {
-    Object.values(drawTools).forEach(t => t.disable());
-    
-    if (mode.startsWith('mil-')) {
-        map.once('click', function(e) {
-            // 1. 取得剛剛修改好的標準代碼 (例如: branch = "UCI---", size = "E")
-            const branch = document.querySelector('#mil-branch-select').value; 
-            const size = document.querySelector('#mil-size-select').value;     
-            
-            const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
-            const aff = affMap[mode] || 'U';
-            
-            // 2. 【終極標準 SIDC 組合】
-            // 結構：S(標準) + 陣營(1碼) + G(地面) + P(存在) + 兵科(6碼) + -(預留) + 階級(1碼) + ---(預留)
-            // 範例拼出來會是：S F G P UCI--- - E --- (完美 15 碼)
-            const sidc = `S${aff}GP${branch}-${size}---`;
-            
-            try {
-                // milsymbol 會完美解析這 15 碼
-                const symbol = new ms.Symbol(sidc, { size: 35 });
+    // ==========================================
+    // 3. 兵棋與模式切換邏輯 (維持原樣，就是我們剛剛修好閃電的那段)
+    // ==========================================
+    window.setMode = function(mode) {
+        Object.values(drawTools).forEach(t => t.disable());
+        
+        if (mode.startsWith('mil-')) {
+            map.once('click', function(e) {
+                const branch = document.querySelector('#mil-branch-select').value; 
+                const size = document.querySelector('#mil-size-select').value;     
                 
-                const marker = L.marker(e.latlng, {
-                    icon: L.divIcon({ 
-                        html: symbol.asSVG(), 
-                        className: 'mil-icon', 
-                        iconSize: [40, 40],
-                        iconAnchor: [20, 20] // 確保圖標中心對齊滑鼠點擊位置
-                    }),
-                    draggable: true
-                }).addTo(drawnItems);
+                const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
+                const aff = affMap[mode] || 'U';
                 
-                marker.customData = { username: myCallsign, type: 'mil' };
-            } catch (err) {
-                console.error("兵符繪製錯誤:", err);
-            }
-        });
-    } else if (drawTools[mode]) {
-        drawTools[mode].enable();
-    }
-};
-    // 4. 繪圖完成處理
+                // 終極標準 SIDC 組合
+                const sidc = `S${aff}GP${branch}-${size}---`;
+                
+                try {
+                    const symbol = new ms.Symbol(sidc, { size: 35 });
+                    const marker = L.marker(e.latlng, {
+                        icon: L.divIcon({ 
+                            html: symbol.asSVG(), 
+                            className: 'mil-icon', 
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 20]
+                        }),
+                        draggable: true
+                    }).addTo(drawnItems);
+                    marker.customData = { username: myCallsign, type: 'mil' };
+                } catch (err) {
+                    console.error("兵符繪製錯誤:", err);
+                }
+            });
+        } else if (drawTools[mode]) {
+            drawTools[mode].enable();
+        }
+    };
+
+    // ==========================================
+    // 4 & 5. 繪圖與刪除邏輯 (維持原樣)
+    // ==========================================
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         layer.customData = { username: myCallsign };
@@ -355,7 +362,6 @@ window.setMode = function(mode) {
         layer.editing.enable();
     });
 
-    // 5. 共用刪除邏輯
     window.deleteLayer = function(btn) {
         const layer = map.eachLayer(l => l.getPopup()?.isOpen() ? l : null).find(l => l);
         if (layer && layer.customData.username === myCallsign) {
@@ -365,38 +371,72 @@ window.setMode = function(mode) {
         }
     };
 
-    // 6. UI 控制功能
-    window.saveEdit = (btn) => { /* 編輯儲存邏輯 */ btn.parentElement.parentElement._popup.closePopup(); };
+    // ==========================================
+    // 6. UI 控制功能 (維持原樣)
+    // ==========================================
+    window.saveEdit = (btn) => { btn.parentElement.parentElement._popup.closePopup(); };
     window.togglePanel = (btn) => btn.parentElement.classList.toggle('panel-collapsed');
     window.toggleSection = (el, id) => { document.getElementById(id).classList.toggle('collapsed'); el.classList.toggle('collapsed'); };
     window.broadcastClear = () => { if(confirm("確定刪除所有圖層？")) drawnItems.clearLayers(); };
-    window.joinTacticalNetwork = () => {
-    // 1. 取得使用者輸入的呼號
-    const callsignInput = document.getElementById('user-callsign').value.trim();
-    
-    // 2. 基本驗證：不能為空白
-    if (!callsignInput) {
-        alert("⚠️ 錯誤：請輸入有效的作戰呼號 (Callsign)！");
-        return; // 中斷登入程序
-    }
-
-    // 3. 將全域變數更新為使用者輸入的呼號
-    myCallsign = callsignInput;
-
-    // 4. 隱藏登入覆蓋層，進入 COP 系統
-    document.getElementById('login-overlay').style.display = 'none';
-    
-    // 5. 更新狀態面板：顯示自己的呼號
-    document.getElementById('user-count').innerText = "1";
-    document.getElementById('user-list').innerHTML = `
-        <div style="color: #fff; padding: 2px 0;">
-            📡 ${myCallsign} (本機)
-        </div>
-    `;
-    
-    console.log(`[系統] ${myCallsign} 已成功登入本機戰術網路。`);
-};
     window.toggleMapStyle = () => alert("功能待實作");
+
+    // ==========================================
+    // 7. 【全新加入的 Socket.io 登入與名單驗證邏輯】
+    // ==========================================
+    window.joinTacticalNetwork = () => {
+        const callsignInput = document.getElementById('user-callsign').value.trim();
+        const roomSelect = document.getElementById('room-type-select').value;
+        const customRoom = document.getElementById('custom-room-id').value.trim();
+        
+        if (!callsignInput) {
+            alert("⚠️ 錯誤：請輸入有效的作戰呼號 (Callsign)！");
+            return;
+        }
+
+        const targetRoom = (roomSelect === 'CUSTOM') ? customRoom : roomSelect;
+        if (roomSelect === 'CUSTOM' && !targetRoom) {
+            alert("⚠️ 錯誤：請輸入自訂房間代碼！");
+            return;
+        }
+
+        // 將資料發送給伺服器進行驗證
+        socket.emit('request_join', { callsign: callsignInput, room: targetRoom });
+    };
+
+    // --- 接收伺服器回傳結果 ---
+
+    // 1. 登入失敗 (例如：呼號重複)
+    socket.on('join_failed', (errorMessage) => {
+        alert(`❌ 登入失敗：\n${errorMessage}`);
+        // 登入框保持顯示，讓使用者重試
+    });
+
+    // 2. 登入成功
+    socket.on('join_success', (data) => {
+        myCallsign = data.callsign;
+        myRoomID = data.room;
+
+        // 隱藏登入介面，進入地圖
+        document.getElementById('login-overlay').style.display = 'none';
+        console.log(`[系統] 成功連線至房間 ${myRoomID}，呼號：${myCallsign}`);
+    });
+
+    // 3. 接收線上名單更新
+    socket.on('update_user_list', (users) => {
+        document.getElementById('user-count').innerText = users.length;
+        
+        // 動態生成右上角的連線名單，並把自己的呼號標示出來
+        const listHtml = users.map(u => {
+            const isMe = (u === myCallsign);
+            const color = isMe ? '#00ffcc' : '#ffffff';
+            const label = isMe ? '(本機)' : '';
+            return `<div style="color: ${color}; padding: 3px 0; font-size: 11px;">
+                        📡 ${u} ${label}
+                    </div>`;
+        }).join('');
+        
+        document.getElementById('user-list').innerHTML = listHtml;
+    });
 </script>
 </body>
 </html>
