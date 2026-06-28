@@ -289,19 +289,16 @@ window.setMode = function(mode) {
     
     if (mode.startsWith('mil-')) {
         map.once('click', function(e) {
-            // 1. 取得兵科代碼與階級
             const branch = document.querySelector('#mil-branch-select').value; // CA, KA, FA, CC, MA, EA
             const size = document.querySelector('#mil-size-select').value;     // 1, 2, 3, 4, 5
             
-            // 2. 陣營代碼映射 (milsymbol 標準規範)
-            // F=友軍(藍), H=敵軍(紅), N=中立(綠), U=不明(黃)
             const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
             const aff = affMap[mode] || 'U';
             
-            // 3. 【關鍵修正】：使用 milsymbol 官方提供的「標準化 SIDC 簡碼」
-            // 結構：S + Affiliation + G(Ground) + P(Unit) + Branch + - + Size + -----
-            // 這樣寫法會強制呼叫函式庫內建的 SVG，不會出現問號
-            const sidc = `S${aff}GP${branch}-${size}-----`;
+            // 【最後通牒修正】：使用最標準的 15 碼格式，不使用任何縮寫符號
+            // 結構：S(標準) + 陣營 + P(地面) + 兵科(2碼) + 00 + 階級(1碼) + 00000
+            // 這是 milsymbol 2.0.0 最穩定的寫法
+            const sidc = `S${aff}P${branch}00${size}00000`.substring(0, 15);
             
             const symbol = new ms.Symbol(sidc, { size: 35 });
             
