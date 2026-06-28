@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB-TAK 共同作戰圖像平台 (終極標準兵棋版)</title>
+    <title>WEB-TAK 共同作戰圖像平台 (多人權限同步版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-　　<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/milsymbol@2.0.0/dist/milsymbol.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/milsymbol@2.0.0/dist/milsymbol.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
         
-        /* 登入與房間選擇覆蓋層 */
         #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; color: #00ffcc; }
         .login-box { background: rgba(15, 25, 35, 0.9); border: 2px solid #00ffcc; box-shadow: 0 0 25px rgba(0, 255, 204, 0.5); padding: 30px; border-radius: 8px; width: 320px; text-align: center; }
         .login-box h2 { margin-bottom: 20px; letter-spacing: 2px; font-size: 20px; }
@@ -23,153 +22,29 @@
         .login-btn { width: 100%; height: 40px; background: #00ffcc; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 14px; transition: all 0.2s; }
         .login-btn:hover { background: #00ccaa; box-shadow: 0 0 10px rgba(0, 255, 204, 0.8); }
 
-       /* --- 面板位置調整 --- */
-.status-panel {
-    position: absolute;
-    top: 20px;
-    right: 20px; /* 改至右側 */
-    z-index: 10;
-    background: rgba(0, 20, 20, 0.9);
-    border: 1px solid #00ffcc;
-    box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
-    padding: 15px;
-    border-radius: 6px;
-    color: #00ffcc;
-    font-size: 13px;
-    width: 250px;
-}
+        .status-panel { position: absolute; top: 20px; right: 20px; z-index: 10; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.3); padding: 15px; border-radius: 6px; color: #00ffcc; font-size: 13px; width: 250px; }
+        .panel-collapsed { height: 35px !important; overflow: hidden; padding: 5px !important; }
+        .panel-collapsed > *:not(button) { display: none !important; }
 
-/* --- 修正後的收合功能樣式 --- */
-.panel-collapsed {
-    height: 35px !important; 
-    overflow: hidden;
-    padding: 5px !important;
-}
+        .action-panel { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; flex-direction: column; gap: 8px; max-height: 90vh; overflow-y: auto; width: 200px; background: rgba(0, 20, 20, 0.9); border: 1px solid #00ffcc; padding: 10px; border-radius: 6px; }
+        .btn, .btn-toggle-map { width: 100%; height: 32px; background: rgba(40, 60, 80, 0.7); border: 1px solid #00ffcc; color: #fff; cursor: pointer; font-size: 11px; border-radius: 4px; display: flex; align-items: center; justify-content: center; margin-bottom: 5px;}
+        .btn:hover { background: rgba(0, 255, 204, 0.2); }
+        .btn-clear { background: rgba(100, 20, 20, 0.8); border: 1px solid #e74c3c; color: #ffcccc; margin-top: 5px;}
 
-/* 修改這裡：確保收合時，除「收合按鈕(button)」外，其餘內容全部隱藏 */
-.panel-collapsed > *:not(button) {
-    display: none !important;
-}
+        .panel-section { padding: 10px 0; border-bottom: 1px solid #114444; }
+        .panel-title { font-size: 12px; color: #00ffcc; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .panel-title::after { content: '▼'; font-size: 10px; }
+        .panel-title.collapsed::after { content: '▶'; }
+        
+        .select-label { display: block; font-size: 10px; color: #88aaaa; margin: 8px 0 4px 0; }
+        .select-input { width: 100%; height: 30px; background: #0a1620; border: 1px solid #00ffcc; color: #ffffff; padding: 0 5px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .select-input:focus { outline: none; background: #152535; border-color: #00ffcc; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px; }
 
-/* --- 修正：左側控制面板 (Action Panel) 樣式統一 --- */
-.action-panel {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 90vh;
-    overflow-y: auto;
-    width: 200px;
-    background: rgba(0, 20, 20, 0.9);
-    border: 1px solid #00ffcc;
-    padding: 10px;
-    border-radius: 6px;
-}
-
-/* 統一調整左側所有按鈕樣式 */
-.btn, .btn-toggle-map, .btn-gps {
-    width: 100%;
-    height: 32px; 
-    background: rgba(40, 60, 80, 0.7); 
-    border: 1px solid #00ffcc;
-    color: #fff;
-    cursor: pointer;
-    font-size: 11px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.btn:hover { background: rgba(0, 255, 204, 0.2); }
-.btn.active { background: #00ffcc !important; color: #000; font-weight: bold; }
-
-.btn-clear {
-    background: rgba(100, 20, 20, 0.8);
-    border: 1px solid #e74c3c;
-    color: #ffcccc;
-}
-
-/* --- 優化：兵棋選單與標籤樣式 --- */
-.panel-section {
-    padding: 10px 0;
-    border-bottom: 1px solid #114444;
-}
-
-.panel-title {
-    font-size: 12px;
-    color: #00ffcc;
-    margin-bottom: 10px;
-    font-weight: bold;
-    text-transform: uppercase;
-}
-
-.select-label {
-    display: block;
-    font-size: 10px;
-    color: #88aaaa; /* 使用淺灰藍，讓標籤更清晰 */
-    margin: 8px 0 4px 0;
-}
-
-/* 統一調整所有下拉選單的樣式 */
-.select-input {
-    width: 100%;
-    height: 30px;
-    background: #0a1620; /* 深底色 */
-    border: 1px solid #00ffcc;
-    color: #ffffff;
-    padding: 0 5px;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.select-input:focus {
-    outline: none;
-    background: #152535;
-    border-color: #00ffcc;
-}
-
-/* 確保格狀佈局對齊 */
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    margin-top: 5px;
-}
-    /* 隱藏/顯示的開合動畫 */
-.panel-section-content {
-    transition: max-height 0.3s ease-out, opacity 0.3s;
-    overflow: hidden;
-    max-height: 500px; /* 展開時的高度 */
-    opacity: 1;
-}
-
-.panel-section-content.collapsed {
-    max-height: 0;
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* 標題變成可點擊的按鈕樣式 */
-.panel-title {
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.panel-title::after {
-    content: '▼';
-    font-size: 10px;
-}
-
-.panel-title.collapsed::after {
-    content: '▶';
-}
+        .panel-section-content { transition: max-height 0.3s ease-out, opacity 0.3s; overflow: hidden; max-height: 500px; opacity: 1; }
+        .panel-section-content.collapsed { max-height: 0; opacity: 0; pointer-events: none; }
+        
+        .popup-info { font-size: 12px; color: #000; text-align: center; margin-bottom: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -184,122 +59,88 @@
                 <option value="PUBLIC_01">公開作戰房 01 (Public)</option>
                 <option value="PUBLIC_02">公開作戰房 02 (Public)</option>
                 <option value="CUSTOM">🔒 自訂私人作戰房 (Private)</option>
-            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none;">
+            </select>
+            <input type="text" id="custom-room-id" class="login-input" placeholder="請輸入自訂房間代碼" style="display:none; margin-top: 10px;">
             
-            <button class="login-btn" onclick="joinTacticalNetwork()">連線進入 COP 系統</button>
+            <button class="login-btn" onclick="joinTacticalNetwork()" style="margin-top: 15px;">連線進入 COP 系統</button>
         </div>
     </div>
 
     <div id="map"></div>
     
-    <!-- 左側狀態面板 (修正結構) -->
-<!-- 左側狀態面板 (修正結構) -->
-<div class="status-panel">
-    <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-    
-    <!-- 隱藏的資料容器 -->
-    <div id="current-mode" style="display:none;"></div>
-    <div id="current-room" style="display:none;"></div>
-    <div id="weather-box" style="display:none;"></div>
-
-    <!-- 顯示內容區塊 -->
-    <div class="user-list-box">
-        <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">
-            🟢 線上隊員 (<span id="user-count">1</span>)
+    <div class="status-panel">
+        <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer; background:none; border:none; color:#00ffcc;">✖</button>
+        <div class="user-list-box">
+            <div style="font-weight:bold; margin-bottom:3px; color:#00ffcc;">
+                🟢 線上隊員 (<span id="user-count">1</span>)
+            </div>
+            <div id="user-list"></div>
         </div>
-        <div id="user-list"></div>
     </div>
-    
-    <div id="gps-status" style="font-size:10px; margin-top:5px; color:#aaa;"></div>
-</div>
 
-    <!-- 右側控制面板 (修正結構) -->
    <div class="action-panel">
-    <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer;">✖</button>
-    <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>        
+        <button onclick="togglePanel(this)" style="position:absolute; top:5px; right:5px; cursor:pointer; background:none; border:none; color:#00ffcc;">✖</button>
+        <button class="btn-toggle-map" onclick="toggleMapStyle()">🗺️ 切換地圖風格</button>        
 
-    <!-- 區塊 1 -->
-    <div class="panel-section">
-        <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
-        <div id="section1" class="panel-section-content">
-<!-- 1. 兵科選擇選單 (修正通信與醫療的標準代碼) -->
-<label class="select-label">🔹 選擇兵科</label>
-<select id="mil-branch-select" class="select-input">
-    <!-- 基礎戰鬥部隊 -->
-    <option value="UCI---">步兵 (Infantry) - 交叉線</option>
-    <option value="UCA---">裝甲 (Armor) - 橢圓形</option>
-    <option value="UCF---">砲兵 (Artillery) - 圓點</option>
-    
-    <!-- 戰鬥支援與勤務 -->
-    <!-- 修正：這才是真正的通信閃電代碼！ -->
-    <option value="USC---">通信 (Signal) - 閃電</option> 
-    <option value="UCE---">工兵 (Engineer) - 橋樑/E字</option>
-    <option value="UAM---">醫療 (Medical) - 十字</option>
+        <div class="panel-section">
+            <div class="panel-title" onclick="toggleSection(this, 'section1')">1. 兵棋自選選單</div>
+            <div id="section1" class="panel-section-content">
+                <label class="select-label">🔹 選擇兵科 (六大兵科)</label>
+                <select id="mil-branch-select" class="select-input">
+                    <option value="UCI---">步兵 (Infantry)</option>
+                    <option value="UCA---">裝甲 (Armor)</option>
+                    <option value="UCF---">砲兵 (Artillery)</option>
+                    <option value="USC---">通信 (Signal) - 閃電</option> 
+                    <option value="UCE---">工兵 (Engineer)</option>
+                    <option value="UAM---">醫療 (Medical)</option>
+                </select>
 
-    <!-- 👇 加碼推薦：戰術地圖上必備的高階兵科 👇 -->
-    <option value="UCR---">偵察 (Reconnaissance) - 左上到右下的斜線</option>
-    <option value="UCD---">防空 (Air Defense) - 底部半圓形</option>
-    <option value="UAA---">陸軍航空/直升機 (Army Aviation) - 旋翼符號</option>
-    <option value="UAS---">補給 (Supply) - 底部一條橫線</option>
-</select>
+                <label class="select-label">🔹 選擇層級</label>
+                <select id="mil-size-select" class="select-input">
+                    <option value="C">班 (••)</option>
+                    <option value="D">排 (•••)</option>
+                    <option value="E">連 (I)</option>
+                    <option value="F">營 (II)</option>
+                    <option value="H">旅 (X)</option>
+                </select>
 
-<!-- 2. 層級選擇選單 (完全依照您的點數與標記需求) -->
-<label class="select-label">🔹 選擇層級</label>
-<select id="mil-size-select" class="select-input">
-    <!-- 國軍的班是 ••，對應北約代碼為 C -->
-    <option value="C">班 (••)</option>
-    <!-- 排是 •••，對應北約代碼為 D -->
-    <option value="D">排 (•••)</option>
-    <!-- 連是 I，對應北約代碼為 E -->
-    <option value="E">連 (I)</option>
-    <!-- 營是 II，對應北約代碼為 F -->
-    <option value="F">營 (II)</option>
-    <!-- 旅是 X，對應北約代碼為 H -->
-    <option value="H">旅 (X)</option>
-</select>
-
-            <label class="select-label">▼ 選擇陣營放置</label>
-            <div class="grid-2">
-                <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')">友軍</button>
-                <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')">敵軍</button>
-                <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')">中立</button>
-                <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')">不明</button>
+                <label class="select-label">▼ 選擇陣營放置</label>
+                <div class="grid-2">
+                    <button class="btn" id="btn-mil-friend" onclick="setMode('mil-friend')">友軍</button>
+                    <button class="btn" id="btn-mil-hostile" onclick="setMode('mil-hostile')">敵軍</button>
+                    <button class="btn" id="btn-mil-neutral" onclick="setMode('mil-neutral')">中立</button>
+                    <button class="btn" id="btn-mil-unknown" onclick="setMode('mil-unknown')">不明</button>
+                </div>
             </div>
         </div>
         
-<!-- 區塊 2 -->
-    <div class="panel-section">
-        <div class="panel-title" onclick="toggleSection(this, 'section2')">2. 範圍工具</div>
-        <div id="section2" class="panel-section-content">
-            <div class="grid-2">
-                <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
-                <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
-                <button class="btn" id="btn-poly" onclick="setMode('poly')">⬡ 多邊形</button>
-                <button class="btn" id="btn-line" onclick="setMode('line')">📈 線條</button>
+        <div class="panel-section">
+            <div class="panel-title" onclick="toggleSection(this, 'section2')">2. 範圍工具</div>
+            <div id="section2" class="panel-section-content">
+                <div class="grid-2">
+                    <button class="btn" id="btn-circle" onclick="setMode('circle')">⭕ 圓形</button>
+                    <button class="btn" id="btn-rect" onclick="setMode('rect')">⬜ 方形</button>
+                    <button class="btn" id="btn-poly" onclick="setMode('poly')">⬡ 多邊形</button>
+                    <button class="btn" id="btn-line" onclick="setMode('line')">📈 線條</button>
+                </div>
             </div>
         </div>
     </div>
     
-    <button class="btn btn-clear" onclick="broadcastClear()">🗑️ 清除圖層</button>
-</div>
-    
 <script>
     // ==========================================
-    // 0. 初始化 Socket 連線 (新增在最上面)
+    // 0. 初始化 Socket 連線與全域變數
     // ==========================================
     const socket = io(); 
+    let myCallsign = "", myRoomID = "";
 
-    // ==========================================
-    // 1. 初始化環境 (維持原樣)
-    // ==========================================
-    let myCallsign = "ALPHA-01", myRoomID = "PUBLIC_01";
     const map = L.map('map', { zoomControl: false }).setView([24.9443, 121.2154], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const drawnItems = new L.FeatureGroup().addTo(map);
+    
+    // 產生圖層專屬唯一 ID (用來同步修改與刪除)
+    function generateId() { return Math.random().toString(36).substr(2, 9); }
 
-    // ==========================================
-    // 2. 建立繪圖工具 (維持原樣)
-    // ==========================================
     const drawTools = {
         circle: new L.Draw.Circle(map),
         rect: new L.Draw.Rectangle(map),
@@ -308,7 +149,67 @@
     };
 
     // ==========================================
-    // 3. 兵棋與模式切換邏輯 (維持原樣，就是我們剛剛修好閃電的那段)
+    // 1. 核心繪製邏輯 (負責畫上地圖、賦予權限)
+    // ==========================================
+    // 繪製兵棋
+    function renderMilSymbol(latlng, sidc, owner, layerId, isLocal) {
+        const symbol = new ms.Symbol(sidc, { size: 35 });
+        const marker = L.marker(latlng, {
+            icon: L.divIcon({ 
+                html: symbol.asSVG(), 
+                className: 'mil-icon', 
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            }),
+            draggable: isLocal // ★ 權限控管：只有本地端繪製的才能拖曳
+        }).addTo(drawnItems);
+        
+        marker.customData = { username: owner, id: layerId, type: 'mil' };
+
+        // 綁定彈跳視窗
+        marker.bindPopup(`
+            <div class="popup-info">部署者: ${owner}</div>
+            ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : `<div style="color:red; font-size:10px; text-align:center;">無修改權限</div>`}
+        `);
+
+        // 如果是本地建立的，監聽拖曳結束事件並廣播新位置
+        if (isLocal) {
+            marker.on('dragend', function(e) {
+                socket.emit('client_action', { 
+                    room: myRoomID, action: 'move', id: layerId, data: { latlng: marker.getLatLng() }
+                });
+            });
+        }
+        return marker;
+    }
+
+    // 繪製幾何圖形 (接收遠端資料時使用)
+    function renderShape(type, data, owner, layerId, isLocal) {
+        let layer;
+        if (type === 'circle') layer = L.circle(data.latlng, { radius: data.radius });
+        else if (type === 'rectangle') layer = L.rectangle(data.latlngs);
+        else if (type === 'polygon') layer = L.polygon(data.latlngs);
+        else if (type === 'polyline') layer = L.polyline(data.latlngs);
+
+        if (layer) {
+            layer.customData = { username: owner, id: layerId, type: type };
+            drawnItems.addLayer(layer);
+            
+            // 綁定彈跳視窗
+            layer.bindPopup(`
+                <div class="popup-info">繪製者: ${owner}</div>
+                ${isLocal ? `<button class="btn btn-clear" style="width:100%;" onclick="deleteLayer('${layerId}')">🗑️ 刪除</button>` : `<div style="color:red; font-size:10px; text-align:center;">無修改權限</div>`}
+            `);
+
+            // ★ 權限控管：只有本地繪製的圖形才能開啟 Leaflet.Draw 的編輯模式
+            if (isLocal && layer.editing) {
+                layer.editing.enable();
+            }
+        }
+    }
+
+    // ==========================================
+    // 2. 本地端按鈕操作與畫圖事件
     // ==========================================
     window.setMode = function(mode) {
         Object.values(drawTools).forEach(t => t.disable());
@@ -317,125 +218,139 @@
             map.once('click', function(e) {
                 const branch = document.querySelector('#mil-branch-select').value; 
                 const size = document.querySelector('#mil-size-select').value;     
-                
                 const affMap = { 'mil-friend':'F', 'mil-hostile':'H', 'mil-neutral':'N', 'mil-unknown':'U' };
-                const aff = affMap[mode] || 'U';
-                
-                // 終極標準 SIDC 組合
-                const sidc = `S${aff}GP${branch}-${size}---`;
-                
-                try {
-                    const symbol = new ms.Symbol(sidc, { size: 35 });
-                    const marker = L.marker(e.latlng, {
-                        icon: L.divIcon({ 
-                            html: symbol.asSVG(), 
-                            className: 'mil-icon', 
-                            iconSize: [40, 40],
-                            iconAnchor: [20, 20]
-                        }),
-                        draggable: true
-                    }).addTo(drawnItems);
-                    marker.customData = { username: myCallsign, type: 'mil' };
-                } catch (err) {
-                    console.error("兵符繪製錯誤:", err);
-                }
+                const sidc = `S${affMap[mode] || 'U'}GP${branch}-${size}---`;
+                const layerId = generateId();
+
+                // 1. 畫在自己螢幕上 (isLocal = true)
+                renderMilSymbol(e.latlng, sidc, myCallsign, layerId, true);
+
+                // 2. 廣播給其他人
+                socket.emit('client_action', {
+                    room: myRoomID, action: 'draw', username: myCallsign, id: layerId, type: 'mil',
+                    data: { latlng: e.latlng, sidc: sidc }
+                });
             });
         } else if (drawTools[mode]) {
             drawTools[mode].enable();
         }
     };
 
-    // ==========================================
-    // 4 & 5. 繪圖與刪除邏輯 (維持原樣)
-    // ==========================================
+    // 監聽圖形繪製完成 (Leaflet Draw 工具)
     map.on(L.Draw.Event.CREATED, function (e) {
-        const layer = e.layer;
-        layer.customData = { username: myCallsign };
-        drawnItems.addLayer(layer);
-        layer.bindPopup(`
-            <div class="props-form">
-                <input type="text" id="edit-name" placeholder="名稱">
-                <button class="btn" onclick="saveEdit(this)">儲存</button>
-                <button class="btn btn-clear" onclick="deleteLayer(this)">刪除</button>
-            </div>
-        `);
-        layer.editing.enable();
+        const layerType = e.layerType; 
+        const layerId = generateId();
+        
+        // 解析圖形座標資料
+        let drawData = {};
+        if (layerType === 'circle') drawData = { latlng: e.layer.getLatLng(), radius: e.layer.getRadius() };
+        else drawData = { latlngs: e.layer.getLatLngs() };
+
+        // 1. 畫在自己螢幕上 (isLocal = true)
+        renderShape(layerType, drawData, myCallsign, layerId, true);
+
+        // 2. 廣播給其他人
+        socket.emit('client_action', {
+            room: myRoomID, action: 'draw', username: myCallsign, id: layerId, type: layerType, data: drawData
+        });
     });
 
-    window.deleteLayer = function(btn) {
-        const layer = map.eachLayer(l => l.getPopup()?.isOpen() ? l : null).find(l => l);
-        if (layer && layer.customData.username === myCallsign) {
-            drawnItems.removeLayer(layer);
-        } else {
-            alert("你沒有權限刪除此項目！");
-        }
+    // 監聽本地圖形編輯完成 (廣播新頂點或半徑)
+    map.on('draw:edited', function (e) {
+        e.layers.eachLayer(function (layer) {
+            if (layer.customData && layer.customData.username === myCallsign) {
+                let updatedData = {};
+                if (layer.customData.type === 'circle') updatedData = { latlng: layer.getLatLng(), radius: layer.getRadius() };
+                else updatedData = { latlngs: layer.getLatLngs() };
+
+                socket.emit('client_action', { 
+                    room: myRoomID, action: 'move', id: layer.customData.id, data: updatedData 
+                });
+            }
+        });
+    });
+
+    // ==========================================
+    // 3. 刪除與 UI 控制
+    // ==========================================
+    window.deleteLayer = function(targetId) {
+        drawnItems.eachLayer(layer => {
+            if (layer.customData && layer.customData.id === targetId) {
+                if (layer.customData.username === myCallsign) {
+                    drawnItems.removeLayer(layer);
+                    // 廣播刪除指令
+                    socket.emit('client_action', { room: myRoomID, action: 'delete', id: targetId });
+                } else {
+                    alert("⚠️ 權限不足：您無法刪除其他隊員的標記！");
+                }
+            }
+        });
     };
 
-    // ==========================================
-    // 6. UI 控制功能 (維持原樣)
-    // ==========================================
-    window.saveEdit = (btn) => { btn.parentElement.parentElement._popup.closePopup(); };
+    window.toggleCustomRoomInput = () => {
+        const select = document.getElementById('room-type-select');
+        document.getElementById('custom-room-id').style.display = (select.value === 'CUSTOM') ? 'block' : 'none';
+    };
     window.togglePanel = (btn) => btn.parentElement.classList.toggle('panel-collapsed');
     window.toggleSection = (el, id) => { document.getElementById(id).classList.toggle('collapsed'); el.classList.toggle('collapsed'); };
-    window.broadcastClear = () => { if(confirm("確定刪除所有圖層？")) drawnItems.clearLayers(); };
-    window.toggleMapStyle = () => alert("功能待實作");
 
     // ==========================================
-    // 7. 【全新加入的 Socket.io 登入與名單驗證邏輯】
+    // 4. Socket.io 登入與多人即時接收邏輯
     // ==========================================
     window.joinTacticalNetwork = () => {
         const callsignInput = document.getElementById('user-callsign').value.trim();
         const roomSelect = document.getElementById('room-type-select').value;
         const customRoom = document.getElementById('custom-room-id').value.trim();
         
-        if (!callsignInput) {
-            alert("⚠️ 錯誤：請輸入有效的作戰呼號 (Callsign)！");
-            return;
-        }
-
+        if (!callsignInput) return alert("⚠️ 請輸入有效的作戰呼號！");
         const targetRoom = (roomSelect === 'CUSTOM') ? customRoom : roomSelect;
-        if (roomSelect === 'CUSTOM' && !targetRoom) {
-            alert("⚠️ 錯誤：請輸入自訂房間代碼！");
-            return;
-        }
+        if (roomSelect === 'CUSTOM' && !targetRoom) return alert("⚠️ 請輸入自訂房間代碼！");
 
-        // 將資料發送給伺服器進行驗證
         socket.emit('request_join', { callsign: callsignInput, room: targetRoom });
     };
 
-    // --- 接收伺服器回傳結果 ---
-
-    // 1. 登入失敗 (例如：呼號重複)
-    socket.on('join_failed', (errorMessage) => {
-        alert(`❌ 登入失敗：\n${errorMessage}`);
-        // 登入框保持顯示，讓使用者重試
-    });
-
-    // 2. 登入成功
+    socket.on('join_failed', (msg) => alert(`❌ 登入失敗：\n${msg}`));
+    
     socket.on('join_success', (data) => {
         myCallsign = data.callsign;
         myRoomID = data.room;
-
-        // 隱藏登入介面，進入地圖
         document.getElementById('login-overlay').style.display = 'none';
-        console.log(`[系統] 成功連線至房間 ${myRoomID}，呼號：${myCallsign}`);
     });
 
-    // 3. 接收線上名單更新
     socket.on('update_user_list', (users) => {
         document.getElementById('user-count').innerText = users.length;
+        document.getElementById('user-list').innerHTML = users.map(u => 
+            `<div style="color: ${u === myCallsign ? '#00ffcc' : '#ffffff'}; padding: 3px 0; font-size: 11px;">
+                📡 ${u} ${u === myCallsign ? '(本機)' : ''}
+            </div>`
+        ).join('');
+    });
+
+    // ★ 接收伺服器廣播的別人繪圖動作 ★
+    socket.on('server_action', (payload) => {
+        const { action, username, id, type, data } = payload;
         
-        // 動態生成右上角的連線名單，並把自己的呼號標示出來
-        const listHtml = users.map(u => {
-            const isMe = (u === myCallsign);
-            const color = isMe ? '#00ffcc' : '#ffffff';
-            const label = isMe ? '(本機)' : '';
-            return `<div style="color: ${color}; padding: 3px 0; font-size: 11px;">
-                        📡 ${u} ${label}
-                    </div>`;
-        }).join('');
-        
-        document.getElementById('user-list').innerHTML = listHtml;
+        // 忽略自己發送的廣播 (因為本地已經畫過了)
+        if (username === myCallsign) return;
+
+        if (action === 'draw') {
+            if (type === 'mil') renderMilSymbol(data.latlng, data.sidc, username, id, false);
+            else renderShape(type, data, username, id, false);
+        } 
+        else if (action === 'move') {
+            drawnItems.eachLayer(layer => {
+                if (layer.customData && layer.customData.id === id) {
+                    if (type === 'mil' || layer.customData.type === 'mil') layer.setLatLng(data.latlng);
+                    else if (layer.customData.type === 'circle') { layer.setLatLng(data.latlng); layer.setRadius(data.radius); }
+                    else layer.setLatLngs(data.latlngs);
+                }
+            });
+        } 
+        else if (action === 'delete') {
+            drawnItems.eachLayer(layer => {
+                if (layer.customData && layer.customData.id === id) drawnItems.removeLayer(layer);
+            });
+        }
     });
 </script>
 </body>
