@@ -326,10 +326,12 @@
 // 監聽本地圖形編輯完成 (廣播新頂點或半徑)
     map.on('draw:edited', function (e) {
         e.layers.eachLayer(function (layer) {
-            // ★ 修正：編輯完成後，強制刷新標籤位置 (關閉再重開)
+            
+            // ★ 修正：徹底解綁舊標籤，重新綁定以強制計算新中心點
             if (layer.options.layerName) {
-                layer.closeTooltip();
-                layer.openTooltip();
+                const currentName = layer.options.layerName;
+                layer.unbindTooltip();
+                layer.bindTooltip(currentName, { permanent: true, direction: 'center', className: 'name-label' }).openTooltip();
             }
 
             if (layer.customData && layer.customData.username === myCallsign) {
@@ -437,10 +439,11 @@ else if (action === 'move') {
                         layer.setLatLngs(data.latlngs);
                     }
 
-                    // ★ 修正：收到遠端移動指令後，同步刷新標籤位置
+                    // ★ 修正：收到遠端變更後，同樣徹底解綁並重新綁定標籤
                     if (layer.options.layerName) {
-                        layer.closeTooltip();
-                        layer.openTooltip();
+                        const currentName = layer.options.layerName;
+                        layer.unbindTooltip();
+                        layer.bindTooltip(currentName, { permanent: true, direction: 'center', className: 'name-label' }).openTooltip();
                     }
                 }
             });
