@@ -625,65 +625,63 @@ function addLineLayer(id, data, username, isOwner){
 //     draggable; we implement it manually.
 // ════════════════════════════════════════════════
 function enableShapeDrag(layer, id, type){
-  let dragging=false, startLatLng=null, origLatLngs=null, origCenter=null, origRadius=null;
+  let dragging = false, startLatLng = null, origLatLngs = null, origCenter = null;
 
-  layer.on('mousedown', function(e){
-    if(!e.originalEvent || e.originalEvent.button!==0) return;
+  // 統一處理拖曳開始的函式
+  const onDragStart = function(e) {
+    // 取得位置：優先獲取滑鼠位置，若無則獲取觸控位置
+    const latlng = e.latlng || (e.touches && e.touches[0] ? map.mouseEventToLatLng(e.touches[0]) : null);
+    if (!latlng) return;
+
     L.DomEvent.stopPropagation(e);
-    dragging=true;
-    startLatLng = e.latlng;
+    dragging = true;
+    startLatLng = latlng;
     document.body.classList.add('dragging-shape');
     map.dragging.disable();
 
     if(type==='circle'){
       origCenter = layer.getLatLng();
-      origRadius = layer.getRadius();
-    } else if(type==='rect'){
-      origLatLngs = layer.getLatLngs();
     } else {
       origLatLngs = layer.getLatLngs();
     }
+  };
 
-    const onMove = function(ev){
-      if(!dragging) return;
-      const cur = ev.latlng;
-      const dlat = cur.lat - startLatLng.lat;
-      const dlng = cur.lng - startLatLng.lng;
+  // 統一處理移動與結束的函式
+  const onMove = function(e){
+    if(!dragging) return;
+    // 獲取當前坐標
+    const cur = e.latlng || (e.touches && e.touches[0] ? map.mouseEventToLatLng(e.touches[0]) : null);
+    if(!cur) return;
+    
+    const dlat = cur.lat - startLatLng.lat;
+    const dlng = cur.lng - startLatLng.lng;
 
-      if(type==='circle'){
-        const nc = L.latLng(origCenter.lat+dlat, origCenter.lng+dlng);
-        layer.setLatLng(nc);
-      } else if(type==='rect'){
-        const shifted = shiftLatLngs(origLatLngs, dlat, dlng);
-        layer.setLatLngs(shifted);
-      } else {
-        const shifted = shiftLatLngs(origLatLngs, dlat, dlng);
-        layer.setLatLngs(shifted);
-      }
-      refreshTooltip(layerRegistry[id]);
-    };
+    if(type==='circle'){
+      layer.setLatLng(L.latLng(origCenter.lat+dlat, origCenter.lng+dlng));
+    } else {
+      layer.setLatLngs(shiftLatLngs(origLatLngs, dlat, dlng));
+    }
+    refreshTooltip(layerRegistry[id]);
+  };
 
-    const onUp = function(ev){
-      if(!dragging) return;
-      dragging=false;
-      document.body.classList.remove('dragging-shape');
-      map.dragging.enable();
-      map.off('mousemove', onMove);
-      map.off('mouseup', onUp);
+  const onUp = function(){
+    if(!dragging) return;
+    dragging = false;
+    document.body.classList.remove('dragging-shape');
+    map.dragging.enable();
 
-      // Broadcast new position
-      const reg = layerRegistry[id];
-      if(!reg) return;
-      let moveData={};
-      if(type==='circle') moveData={latlng:layer.getLatLng(), radius:layer.getRadius()};
-      else if(type==='rect') moveData={bounds:layer.getBounds()};
-      else moveData={latlngs:layer.getLatLngs()};
+    // 廣播更新
+    const reg = layerRegistry[id];
+    if(reg) {
+      let moveData = (type==='circle') ? {latlng:layer.getLatLng(), radius:layer.getRadius()} : {latlngs:layer.getLatLngs()};
       broadcast({action:'move', id, data:moveData});
-    };
+    }
+  };
 
-    map.on('mousemove', onMove);
-    map.on('mouseup', onUp);
-  });
+  // 綁定事件：同時處理 mouse 與 touch
+  layer.on('mousedown touchstart', onDragStart);
+  map.on('mousemove touchmove', onMove);
+  map.on('mouseup touchend', onUp);
 }
 
 // Recursively shift nested LatLng arrays
@@ -940,20 +938,10 @@ document.addEventListener('keydown',e=>{
 // 修正建議：明確放行特定的互動元素
 // 修改後的攔截邏輯
 const panels = ['action-panel', 'status-panel'];
-panels.forEach(id => {
-    const el = document.getElementById(id);
-    if(el) {
-        const handler = (e) => {
-            // 放行條件：
-            // 1. BUTTON 或 SELECT
-            // 2. 點擊的是 .section-hdr 本身或其內部的任何元素
-            const isControl = e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT';
-            const isHeader = e.target.closest('.section-hdr'); 
-            
-            if (isControl || isHeader) return;
-            
-            e.stopPropagation();
-        };
+.panel {
+    pointer-events: auto;
+    z-index: 10; /* 確保面板在地圖之上 */
+}
 
         el.addEventListener('touchstart', handler, {passive: false, capture: true});
         el.addEventListener('click', handler, {capture: true});
