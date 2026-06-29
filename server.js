@@ -53,7 +53,8 @@ if (state.users.has(callsign)) {
 
         // 回傳登入成功
         socket.emit('join_success', { callsign, room });
-
+    io.to(room).emit('update_user_list', Array.from(state.users));
+})
         // ★ 推送歷史圖層狀態給新加入的用戶
         const history = Array.from(state.layers.values());
         if (history.length > 0) {
