@@ -409,15 +409,16 @@ socket.on('join_failed', msg => {
     document.getElementById('btn-finish-draw').style.display = 'none';
 });
 
-// 2. 【新增】處理房間同步（接收歷史圖層）
+// 在你的前端 (script.js) 中加入：
 socket.on('room_state', (data) => {
-    console.log("收到歷史圖層:", data.layers);
-    
-    // 這裡呼叫您負責繪圖的函式，例如 renderLayer 或 drawShape
-    data.layers.forEach(layer => {
-        // 請確認這裡的函式名稱是否與您程式中原本畫圖用的函式一致
-        renderLayer(layer); 
-    });
+    // data.layers 就是伺服器傳來的歷史圖層陣列
+    if (data.layers) {
+        data.layers.forEach(layer => {
+            // 這裡呼叫你的繪圖函式，例如：
+            // drawSymbolOnMap(layer);
+            console.log("已同步歷史圖層:", layer);
+        });
+    }
 });
 
 socket.on('join_success', data => {
