@@ -860,15 +860,14 @@ window.joinNetwork = function(){
     if(!cs || !room){ alert('請填寫完整資訊'); return; }
 
     // 檢查是否已連線
-    if (socket.connected) {
+if (socket.connected) {
+    socket.emit('request_join', { callsign: cs, room });
+} else {
+    alert('正在連線至伺服器，請稍候...');
+    socket.once('connect', () => {
         socket.emit('request_join', { callsign: cs, room });
-    } else {
-        // 如果還沒連上，提示使用者或等待連線
-        alert('正在連線至伺服器，請稍候...');
-        socket.once('connect', () => {
-            socket.emit('request_join', { callsign: cs, room });
-        });
-    }
+    });
+}
 };
 
 window.clearMyLayers = function(){
