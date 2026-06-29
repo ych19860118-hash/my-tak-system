@@ -14,7 +14,16 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monospace;background:#000;}
 #map{width:100%;height:100%;position:absolute;top:0;left:0;z-index:1;}
-
+/* 2. 登入遮罩 (這裡就是你問的這一區) */
+    #login-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(4,10,16,.97);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 /* ── LOGIN ── */
 #login-overlay{position:fixed;inset:0;background:rgba(4,10,16,.97);z-index:9999;display:flex;align-items:center;justify-content:center;}
 .login-box{background:rgba(10,22,34,.95);border:2px solid #00ffcc;box-shadow:0 0 30px rgba(0,255,204,.45),inset 0 0 20px rgba(0,255,204,.04);padding:32px 28px;border-radius:6px;width:340px;text-align:center;color:#00ffcc;}
