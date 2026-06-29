@@ -45,10 +45,10 @@ io.on('connection', (socket) => {
         socket.emit('join_success', { callsign, room });
 
         // 推送歷史圖層
-        const history = Array.from(state.layers.values());
-        if (history.length > 0) {
-            socket.emit('room_state', { layers: history });
-        }
+const history = Array.from(state.layers.values());
+if (history.length > 0) {
+    socket.emit('room_sync', history); // 直接傳送陣列即可
+}
 
         io.to(room).emit('update_user_list', Array.from(state.users));
     });
