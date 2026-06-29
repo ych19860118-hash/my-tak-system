@@ -40,9 +40,10 @@ io.on('connection', (socket) => {
         const state = ensureRoom(room);
 
         // 檢查呼號是否重複
-        if (state.users.has(callsign)) {
-            return socket.emit('join_failed', `呼號 "${callsign}" 已在房間中，請換一個！`);
-        }
+if (state.users.has(callsign)) {
+        console.log(`[REJECT] ${callsign} 嘗試重複登入房間: ${room}`);
+        return socket.emit('join_failed', `呼號 "${callsign}" 已在房間中，請換一個！`);
+    }
 
         // 加入 Socket.io 房間
         socket.join(room);
