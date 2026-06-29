@@ -900,14 +900,21 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ cancelCurrentDraw(); currentMode=null; updateModeButtons(null); map.getContainer().style.cursor=''; }
 });
 // 確保面板不會把點擊事件傳遞給下方的地圖
+// 修正手機點擊漂移問題
 const panels = ['action-panel', 'status-panel', 'login-overlay'];
 panels.forEach(id => {
     const el = document.getElementById(id);
     if(el) {
-        el.addEventListener('touchstart', (e) => e.stopPropagation(), {passive: true});
-        el.addEventListener('click', (e) => e.stopPropagation());
+        // 使用 capture: true 在捕捉階段就攔截，防止事件傳遞給地圖
+        el.addEventListener('touchstart', (e) => {
+            e.stopPropagation(); 
+        }, {passive: false, capture: true});
+        
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+        }, {capture: true});
     }
-});    
+});   
 </script>
 </body>
 </html>
