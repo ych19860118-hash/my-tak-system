@@ -402,11 +402,14 @@ function genId(){ return Date.now().toString(36)+Math.random().toString(36).subs
 const socket = io();
 
 socket.on('join_failed', msg => { 
-    // 顯示錯誤訊息
     alert('LOGIN FAILED:\n' + msg); 
     
-    // 關鍵修正：確保登入視窗保持開啟，強制顯示以便使用者重新輸入
-    document.getElementById('login-overlay').style.display = 'flex';
+    // 確保登入遮罩顯示，並重置其顯示狀態
+    const overlay = document.getElementById('login-overlay');
+    overlay.style.display = 'flex';
+    
+    // 如果因為先前邏輯隱藏了按鈕，這裡一併處理
+    document.getElementById('btn-finish-draw').style.display = 'none';
 });
 
 socket.on('join_success', data => {
@@ -842,14 +845,22 @@ window.onRoomPresetChange = function(){
 };
 
 window.joinNetwork = function(){
-  const cs=document.getElementById('inp-callsign').value.trim();
-  if(!cs){ alert('Please enter a callsign'); return; }
-  const preset=document.getElementById('inp-room-preset').value;
-  let room = preset==='CUSTOM'
-    ? document.getElementById('inp-room-custom').value.trim()
-    : preset;
-  if(!room){ alert('Please enter a room code'); return; }
-  socket.emit('request_join',{callsign:cs, room});
+    const cs = document.getElementById('inp-callsign').value.trim();
+    if(!cs){ alert('Please enter a callsign'); return; }
+    
+    const preset = document.getElementById('inp-room-preset').value;
+    let room = (preset === 'CUSTOM') 
+        ? document.getElementById('inp-room-custom').value.trim() 
+        : preset;
+        
+    if(!room){ alert('Please enter a room code'); return; }
+
+    // 【重要】發送連線請求前，先確保 Socket 是開啟的
+    if (socket.disconnected) {
+        socket.connect();
+    }
+    
+    socket.emit('request_join', { callsign: cs, room });
 };
 
 window.clearMyLayers = function(){
@@ -908,20 +919,16 @@ document.addEventListener('keydown',e=>{
 });
 // 確保面板不會把點擊事件傳遞給下方的地圖
 // 修正手機點擊漂移問題
-const panels = ['action-panel', 'status-panel', 'login-overlay'];
+// 只攔截面板內容，不要攔截整個 login-overlay 本身
+// 修改這一段：
+const panels = ['action-panel', 'status-panel']; // 移除 login-overlay
 panels.forEach(id => {
     const el = document.getElementById(id);
     if(el) {
-        // 使用 capture: true 在捕捉階段就攔截，防止事件傳遞給地圖
-        el.addEventListener('touchstart', (e) => {
-            e.stopPropagation(); 
-        }, {passive: false, capture: true});
-        
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-        }, {capture: true});
+        el.addEventListener('touchstart', (e) => { e.stopPropagation(); }, {passive: false, capture: true});
+        el.addEventListener('click', (e) => { e.stopPropagation(); }, {capture: true});
     }
-});   
+});
 </script>
 </body>
 </html>
