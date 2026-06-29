@@ -425,31 +425,22 @@ socket.on('join_success', data => {
     myCallsign = data.callsign; 
     myRoomID = data.room;
     
-    // 登入成功後才隱藏視窗
     document.getElementById('login-overlay').style.display = 'none';
     notify('CONNECTED — ROOM: ' + myRoomID);
-
+});
     // 【新增這行】請求伺服器同步目前該房間的所有圖層資料
 // 接收伺服器傳來的歷史紀錄
-socket.on('room_sync', (historyList) => {
-    // historyList 就是包含過去所有繪圖動作的陣列
-    historyList.forEach((action) => {
-        // 呼叫你原本用來「畫圖」的函式 (例如 drawSymbol 或 renderAction)
-        // 假設你的函式叫做 drawOnCanvas
-        drawOnCanvas(action); 
-    });
+socket.on('room_sync', (layers) => {
+    // 遍歷歷史圖層並渲染
+    layers.forEach(entry => applyAction(entry, false));
 });
-socket.on('update_user_list', users=>{
-  document.getElementById('user-count').innerText=users.length;
-  document.getElementById('user-list').innerHTML = users.map(u=>`
-    <div class="user-entry${u===myCallsign?' me':''}">
-      <span class="dot online"></span>
-      <span>${u}${u===myCallsign?' (YOU)':''}</span>
-    </div>`).join('');
-});
-socket.on('room_sync', layers => {
-  // 將伺服器傳來的舊資料逐一繪製出來
-  layers.forEach(entry => applyAction(entry, false));
+socket.on('update_user_list', users => {
+    document.getElementById('user-count').innerText = users.length;
+    document.getElementById('user-list').innerHTML = users.map(u => `
+        <div class="user-entry${u === myCallsign ? ' me' : ''}">
+            <span class="dot online"></span>
+            <span>${u}${u === myCallsign ? ' (YOU)' : ''}</span>
+        </div>`).join('');
 });
 socket.on('server_action', payload => applyAction(payload, false));
 
