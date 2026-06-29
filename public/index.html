@@ -206,6 +206,15 @@ body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monos
 <div id="notif"></div>
 
 <script>
+    // 【新增】完成繪圖的輔助函式
+window.finishDraw = function() {
+    // 呼叫原本的雙擊結束邏輯
+    polyDblClickHandler({ originalEvent: { stopPropagation: ()=>{} } });
+    // 隱藏按鈕
+    document.getElementById('btn-finish-draw').style.display = 'none';
+    // 恢復地圖拖曳
+    map.dragging.enable();
+};
 // ════════════════════════════════════════════════
 //  0. MAP INIT
 // ════════════════════════════════════════════════
@@ -654,7 +663,10 @@ window.setMode = function(mode){
   cancelCurrentDraw();
   currentMode = mode;
   updateModeButtons(mode);
-
+if(mode === 'poly' || mode === 'line'){
+        document.getElementById('btn-finish-draw').style.display = 'block';
+        map.dragging.disable(); 
+    }
   if(mode==='mil'){
     map.getContainer().style.cursor='crosshair';
     map.once('click', function(e){
