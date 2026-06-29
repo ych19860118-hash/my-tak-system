@@ -82,6 +82,18 @@ body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monos
 
 .name-tooltip{background:rgba(0,0,0,.7)!important;border:1px solid #00ffcc66!important;color:#00ffcc!important;font-size:11px!important;padding:2px 6px!important;border-radius:2px!important;box-shadow:none!important;}
 .name-tooltip::before{display:none!important;}
+/* --- 手機優化 --- */
+@media (max-width: 600px) {
+    /* 讓登入框與面板在小螢幕佔滿寬度 */
+    .login-box { width: 95% !important; margin: 0 auto; }
+    #action-panel { width: 95% !important; left: 50% !important; transform: translateX(-50%); }
+    
+    /* 放大所有按鈕與下拉選單，利於手指點擊 */
+    .btn, .sel, .lbtn, .linput { 
+        height: 48px !important; 
+        font-size: 14px !important; 
+    }
+}
 </style>
 </head>
 <body>
@@ -99,6 +111,10 @@ body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monos
       <option value="PUBLIC_02">公開房間 BRAVO</option>
       <option value="CUSTOM">自訂私人房間...</option>
     </select>
+    <button class="btn btn-full active" id="btn-place-mil" onclick="setMode('mil')">PLACE SYMBOL</button>
+
+<!-- 【新增這行】 -->
+<button id="btn-finish-draw" class="btn btn-full" style="display:none; background:#009977; margin-top:5px;" onclick="finishDraw()">完成繪圖</button>
     <input type="text" id="inp-room-custom" class="linput" placeholder="輸入房間代碼" style="display:none;margin-top:8px;">
     <button class="lbtn" onclick="joinNetwork()">CONNECT</button>
   </div>
