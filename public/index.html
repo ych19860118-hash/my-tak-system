@@ -399,8 +399,15 @@ function genId(){ return Date.now().toString(36)+Math.random().toString(36).subs
 // ════════════════════════════════════════════════
 //  3. SOCKET.IO
 // ════════════════════════════════════════════════
-const socket = io();
+const socket = io(window.location.origin);
+socket.on('connect', () => {
+    console.log('Socket 已連線成功，ID:', socket.id);
+});
 
+socket.on('connect_error', (err) => {
+    console.error('Socket 連線失敗:', err.message);
+    alert('無法連接至伺服器，請檢查後端是否正常運作。');
+});
 // 1. 處理連線失敗
 socket.on('join_failed', msg => { 
     alert('LOGIN FAILED:\n' + msg); 
