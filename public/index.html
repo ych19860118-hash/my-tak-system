@@ -833,12 +833,12 @@ window.selectAff = function(btn){
 };
 
 window.toggleSection = function(id, hdr){
-  const body=document.getElementById(id);
-  body.classList.toggle('closed');
-  const arr=hdr.querySelector('span');
-  if(arr) arr.innerText=body.classList.contains('closed')?'▶':'▼';
+    console.log("Toggling:", id); // 看看點擊時控制台有沒有跳出這行
+    const body = document.getElementById(id);
+    body.classList.toggle('closed');
+    const arr = hdr.querySelector('span');
+    if(arr) arr.innerText = body.classList.contains('closed') ? '▶' : '▼';
 };
-
 window.onRoomPresetChange = function(){
   const v=document.getElementById('inp-room-preset').value;
   document.getElementById('inp-room-custom').style.display=(v==='CUSTOM')?'block':'none';
@@ -907,7 +907,13 @@ document.querySelectorAll('.panel .panel-hdr').forEach(hdr=>{
 });
 
 // Prevent map click when clicking panels
-document.getElementById('action-panel').addEventListener('click',e=>e.stopPropagation());
+document.getElementById('action-panel').addEventListener('click', e => {
+    // 如果點擊的是收折標題或選單內的元素，不要阻止傳播，讓它們能觸發自己的 onclick
+    if (e.target.closest('.section-hdr') || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') {
+        return; 
+    }
+    e.stopPropagation();
+}, { capture: true });
 document.getElementById('status-panel').addEventListener('click',e=>e.stopPropagation());
 
 // Disable map double-click zoom (we use dblclick for poly/line finish)
