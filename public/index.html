@@ -419,6 +419,9 @@ socket.on('join_success', data => {
     // 登入成功後才隱藏視窗
     document.getElementById('login-overlay').style.display = 'none';
     notify('CONNECTED — ROOM: ' + myRoomID);
+
+    // 【新增這行】請求伺服器同步目前該房間的所有圖層資料
+    socket.emit('request_sync', { room: myRoomID });
 });
 socket.on('update_user_list', users=>{
   document.getElementById('user-count').innerText=users.length;
