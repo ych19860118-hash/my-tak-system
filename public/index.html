@@ -83,15 +83,37 @@ body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monos
 .name-tooltip{background:rgba(0,0,0,.7)!important;border:1px solid #00ffcc66!important;color:#00ffcc!important;font-size:11px!important;padding:2px 6px!important;border-radius:2px!important;box-shadow:none!important;}
 .name-tooltip::before{display:none!important;}
 /* --- 手機優化 --- */
+/* --- 手機優化 --- */
 @media (max-width: 600px) {
     /* 讓登入框與面板在小螢幕佔滿寬度 */
     .login-box { width: 95% !important; margin: 0 auto; }
-    #action-panel { width: 95% !important; left: 50% !important; transform: translateX(-50%); }
+    #action-panel { 
+        width: 95% !important; 
+        left: 50% !important; 
+        transform: translateX(-50%); 
+        top: 10px !important; 
+    }
     
+    /* 【新增】限制面板高度並允許捲動，防止溢出螢幕 */
+    #action-panel .panel-body {
+        max-height: 70vh; 
+        overflow-y: auto;
+    }
+    
+    /* 將 grid2 改為單欄 */
+    .grid2 {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
     /* 放大所有按鈕與下拉選單，利於手指點擊 */
-    .btn, .sel, .lbtn, .linput { 
-        height: 48px !important; 
-        font-size: 14px !important; 
+.btn, .sel, .lbtn, .linput { 
+        height: 50px !important; 
+        font-size: 16px !important; /* 手機字體放大更好讀 */
+        line-height: 50px;
+    /* 調整控制面板標題區，避免佔用太多空間 */
+    .panel-body { padding: 5px !important; }
+    .section-hdr { font-size: 12px !important; padding: 12px 0 !important; }
+}
     }
 }
 </style>
