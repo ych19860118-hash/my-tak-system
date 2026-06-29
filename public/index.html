@@ -401,15 +401,23 @@ function genId(){ return Date.now().toString(36)+Math.random().toString(36).subs
 // ════════════════════════════════════════════════
 const socket = io();
 
+// 1. 處理連線失敗
 socket.on('join_failed', msg => { 
     alert('LOGIN FAILED:\n' + msg); 
-    
-    // 確保登入遮罩顯示，並重置其顯示狀態
     const overlay = document.getElementById('login-overlay');
     overlay.style.display = 'flex';
-    
-    // 如果因為先前邏輯隱藏了按鈕，這裡一併處理
     document.getElementById('btn-finish-draw').style.display = 'none';
+});
+
+// 2. 【新增】處理房間同步（接收歷史圖層）
+socket.on('room_state', (data) => {
+    console.log("收到歷史圖層:", data.layers);
+    
+    // 這裡呼叫您負責繪圖的函式，例如 renderLayer 或 drawShape
+    data.layers.forEach(layer => {
+        // 請確認這裡的函式名稱是否與您程式中原本畫圖用的函式一致
+        renderLayer(layer); 
+    });
 });
 
 socket.on('join_success', data => {
