@@ -339,12 +339,22 @@ function genId(){ return Date.now().toString(36)+Math.random().toString(36).subs
 // ════════════════════════════════════════════════
 const socket = io();
 
-socket.on('join_failed', msg=>{ alert('LOGIN FAILED:\n'+msg); });
-socket.on('join_success', data=>{
-  myCallsign=data.callsign; myRoomID=data.room;
-  document.getElementById('login-overlay').style.display='none';
-  notify('CONNECTED — ROOM: '+myRoomID);
+socket.on('join_failed', msg => { 
+    // 顯示錯誤訊息
+    alert('LOGIN FAILED:\n' + msg); 
+    
+    // 關鍵修正：確保登入視窗保持開啟，強制顯示以便使用者重新輸入
+    document.getElementById('login-overlay').style.display = 'flex';
 });
+
+socket.on('join_success', data => {
+    myCallsign = data.callsign; 
+    myRoomID = data.room;
+    
+    // 登入成功後才隱藏視窗
+    document.getElementById('login-overlay').style.display = 'none';
+    notify('CONNECTED — ROOM: ' + myRoomID);
+})
 socket.on('update_user_list', users=>{
   document.getElementById('user-count').innerText=users.length;
   document.getElementById('user-list').innerHTML = users.map(u=>`
