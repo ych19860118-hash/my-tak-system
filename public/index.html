@@ -429,7 +429,14 @@ socket.on('join_success', data => {
     notify('CONNECTED — ROOM: ' + myRoomID);
 
     // 【新增這行】請求伺服器同步目前該房間的所有圖層資料
-    socket.emit('request_sync', { room: myRoomID });
+// 接收伺服器傳來的歷史紀錄
+socket.on('room_sync', (historyList) => {
+    // historyList 就是包含過去所有繪圖動作的陣列
+    historyList.forEach((action) => {
+        // 呼叫你原本用來「畫圖」的函式 (例如 drawSymbol 或 renderAction)
+        // 假設你的函式叫做 drawOnCanvas
+        drawOnCanvas(action); 
+    });
 });
 socket.on('update_user_list', users=>{
   document.getElementById('user-count').innerText=users.length;
