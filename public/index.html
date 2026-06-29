@@ -938,21 +938,25 @@ document.addEventListener('keydown',e=>{
 // 只攔截面板內容，不要攔截整個 login-overlay 本身
 // 修改這一段：
 // 修正建議：明確放行特定的互動元素
+// 修改後的攔截邏輯
 const panels = ['action-panel', 'status-panel'];
 panels.forEach(id => {
     const el = document.getElementById(id);
     if(el) {
-        el.addEventListener('touchstart', (e) => {
-            // 如果點擊的是按鈕或選單，就不要 stopPropagation
-            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+        const handler = (e) => {
+            // 放行條件：
+            // 1. BUTTON 或 SELECT
+            // 2. 點擊的是 .section-hdr 本身或其內部的任何元素
+            const isControl = e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT';
+            const isHeader = e.target.closest('.section-hdr'); 
+            
+            if (isControl || isHeader) return;
+            
             e.stopPropagation();
-        }, {passive: false, capture: true});
-        
-        el.addEventListener('click', (e) => {
-            // 同樣放行按鈕與選單
-            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
-            e.stopPropagation();
-        }, {capture: true});
+        };
+
+        el.addEventListener('touchstart', handler, {passive: false, capture: true});
+        el.addEventListener('click', handler, {capture: true});
     }
 });
 </script>
