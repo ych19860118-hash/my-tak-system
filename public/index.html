@@ -854,21 +854,21 @@ window.onRoomPresetChange = function(){
 
 window.joinNetwork = function(){
     const cs = document.getElementById('inp-callsign').value.trim();
-    if(!cs){ alert('Please enter a callsign'); return; }
-    
     const preset = document.getElementById('inp-room-preset').value;
-    let room = (preset === 'CUSTOM') 
-        ? document.getElementById('inp-room-custom').value.trim() 
-        : preset;
+    let room = (preset === 'CUSTOM') ? document.getElementById('inp-room-custom').value.trim() : preset;
         
-    if(!room){ alert('Please enter a room code'); return; }
+    if(!cs || !room){ alert('請填寫完整資訊'); return; }
 
-    // 【重要】發送連線請求前，先確保 Socket 是開啟的
-    if (socket.disconnected) {
-        socket.connect();
+    // 檢查是否已連線
+    if (socket.connected) {
+        socket.emit('request_join', { callsign: cs, room });
+    } else {
+        // 如果還沒連上，提示使用者或等待連線
+        alert('正在連線至伺服器，請稍候...');
+        socket.once('connect', () => {
+            socket.emit('request_join', { callsign: cs, room });
+        });
     }
-    
-    socket.emit('request_join', { callsign: cs, room });
 };
 
 window.clearMyLayers = function(){
