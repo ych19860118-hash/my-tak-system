@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+    <!-- 引入繪圖工具與軍事符號庫 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/milsymbol/2.0.0/milsymbol.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web-TAK 數位地圖協作</title>
@@ -41,6 +45,27 @@
             document.getElementById('status').innerText = '與伺服器斷開連線...';
             document.getElementById('status').style.color = 'red';
         });
+       // 建立繪圖圖層
+const drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
+// 加入繪圖選單
+const drawControl = new L.Control.Draw({
+    edit: { featureGroup: drawnItems },
+    draw: {
+        polygon: true,
+        polyline: true,
+        circle: true,
+        rectangle: true,
+        marker: false
+    }
+});
+map.addControl(drawControl);
+
+// 繪圖結束時存入地圖
+map.on(L.Draw.Event.CREATED, (e) => {
+    drawnItems.addLayer(e.layer);
+}); 
     </script>
 </body>
 </html>
