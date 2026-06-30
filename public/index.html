@@ -1,303 +1,46 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <link rel="icon" href="data:,">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>WEB-TAK 共同作戰圖像平台</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-<style>
-    button, .btn, .lbtn, .map-btn {
-    touch-action: manipulation; /* 告訴瀏覽器這個元素是用來按的，不需要延遲判斷 */
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monospace;background:#000;}
-#map{width:100%;height:100%;position:absolute;top:0;left:0;z-index:1;}
-/* 2. 登入遮罩 (這裡就是你問的這一區) */
-    #login-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(4,10,16,.97);
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-/* ── LOGIN ── */
-#login-overlay{position:fixed;inset:0;background:rgba(4,10,16,.97);z-index:9999;display:flex;align-items:center;justify-content:center;}
-.login-box{background:rgba(10,22,34,.95);border:2px solid #00ffcc;box-shadow:0 0 30px rgba(0,255,204,.45),inset 0 0 20px rgba(0,255,204,.04);padding:32px 28px;border-radius:6px;width:340px;text-align:center;color:#00ffcc;}
-.login-box h2{letter-spacing:3px;font-size:18px;margin-bottom:6px;}
-.login-box p{font-size:10px;color:#336655;letter-spacing:1px;margin-bottom:24px;}
-.lbl{display:block;font-size:10px;color:#557766;text-align:left;margin:10px 0 4px;}
-.linput{width:100%;height:36px;background:#071218;border:1px solid #00ffcc44;color:#fff;padding:0 10px;border-radius:4px;font-family:inherit;font-size:13px;transition:border .2s;}
-.linput:focus{outline:none;border-color:#00ffcc;}
-.lbtn{width:100%;height:40px;background:linear-gradient(135deg,#00ccaa,#009977);border:none;color:#000;font-weight:bold;cursor:pointer;border-radius:4px;font-size:14px;letter-spacing:2px;margin-top:20px;transition:all .2s;}
-.lbtn:hover{background:linear-gradient(135deg,#00ffcc,#00bbaa);box-shadow:0 0 14px rgba(0,255,204,.7);}
-
-/* ── PANELS ── */
-.panel{position:absolute;z-index:10;background:rgba(3,14,20,.92);border:1px solid #00ffcc33;backdrop-filter:blur(4px);}
-.panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #00ffcc22;cursor:move;user-select:none;}
-.panel-hdr span{font-size:11px;color:#00ffcc;letter-spacing:2px;font-weight:bold;}
-.panel-body{padding:10px;}
-
-/* Status panel */
-#status-panel{top:18px;right:18px;width:220px;border-radius:6px;}
-.user-entry{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11px;color:#aaa;border-bottom:1px solid #00ffcc0f;}
-.user-entry.me{color:#00ffcc;}
-.dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;}
-.dot.online{background:#00ffcc;box-shadow:0 0 6px #00ffcc;}
-
-/* Action panel */
-#action-panel{top:18px;left:18px;width:210px;border-radius:6px;}
-.section-hdr{font-size:10px;color:#557766;letter-spacing:1px;padding:8px 0 5px;border-top:1px solid #00ffcc11;margin-top:4px;cursor:pointer;display:flex;justify-content:space-between;}
-.section-hdr:first-child{border-top:none;padding-top:2px;}
-.section-body{overflow:hidden;transition:max-height .25s ease,opacity .25s;max-height:400px;opacity:1;}
-.section-body.closed{max-height:0;opacity:0;pointer-events:none;}
-.sel{width:100%;height:30px;background:#071218;border:1px solid #00ffcc33;color:#ccc;padding:0 6px;border-radius:3px;font-size:11px;margin-bottom:6px;cursor:pointer;}
-.sel:focus{outline:none;border-color:#00ffcc88;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px;}
-.btn{height:30px;background:rgba(0,255,204,.07);border:1px solid #00ffcc33;color:#aaccaa;font-size:10px;border-radius:3px;cursor:pointer;transition:all .15s;letter-spacing:.5px;}
-.btn:hover{background:rgba(0,255,204,.18);color:#00ffcc;border-color:#00ffcc88;}
-.btn.active{background:rgba(0,255,204,.25);color:#00ffcc;border-color:#00ffcc;box-shadow:0 0 8px rgba(0,255,204,.3);}
-.btn-full{grid-column:1/-1;}
-.btn-danger{background:rgba(180,20,20,.2);border-color:#e74c3c44;color:#ff8888;}
-.btn-danger:hover{background:rgba(200,30,30,.35);border-color:#e74c3c;color:#ffaaaa;}
-
-/* Map toggle */
-#map-toggle-bar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:6px;}
-.map-btn{height:28px;padding:0 14px;background:rgba(3,14,20,.9);border:1px solid #00ffcc33;color:#557766;font-size:10px;letter-spacing:1px;border-radius:14px;cursor:pointer;transition:all .2s;}
-.map-btn.active{border-color:#00ffcc;color:#00ffcc;box-shadow:0 0 10px rgba(0,255,204,.3);}
-
-/* Notifications */
-#notif{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);z-index:20;pointer-events:none;}
-.notif-item{background:rgba(0,255,204,.12);border:1px solid #00ffcc44;color:#00ffcc;font-size:11px;padding:6px 16px;border-radius:20px;margin-top:6px;animation:fadeUp .3s ease,fadeOut .4s ease 2.6s forwards;white-space:nowrap;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeOut{to{opacity:0;transform:translateY(-6px)}}
-
-/* Mil icon wrapper */
-.mil-icon-wrapper{pointer-events:none;}
-.mil-icon-wrapper svg{overflow:visible;}
-
-/* Popup */
-.lf-popup{font-family:'Courier New',monospace;font-size:12px;min-width:180px;}
-.lf-popup .pop-owner{color:#557766;font-size:10px;margin-bottom:8px;letter-spacing:1px;}
-.lf-popup label{display:block;font-size:10px;color:#556;margin:6px 0 2px;}
-.lf-popup input[type=text]{width:100%;height:26px;background:#f8fff8;border:1px solid #aaa;padding:0 6px;border-radius:3px;font-size:11px;}
-.lf-popup input[type=color]{width:100%;height:26px;padding:1px;border:1px solid #aaa;border-radius:3px;cursor:pointer;}
-.lf-popup .pop-btn{width:100%;height:28px;margin-top:8px;background:#c0392b;border:none;color:#fff;border-radius:3px;cursor:pointer;font-size:11px;letter-spacing:1px;}
-.lf-popup .pop-btn:hover{background:#e74c3c;}
-.lf-popup .no-perm{text-align:center;color:#c0392b;font-size:10px;margin-top:8px;padding:4px;border:1px dashed #c0392b33;border-radius:3px;}
-
-/* Drag cursor */
-.dragging-shape{cursor:grabbing!important;}
-
-.name-tooltip{background:rgba(0,0,0,.7)!important;border:1px solid #00ffcc66!important;color:#00ffcc!important;font-size:11px!important;padding:2px 6px!important;border-radius:2px!important;box-shadow:none!important;}
-.name-tooltip::before{display:none!important;}
-/* --- 手機優化 --- */
-@media (max-width: 600px) {
-    /* 讓登入框與面板在小螢幕佔滿寬度 */
-    .login-box { width: 95% !important; margin: 0 auto; }
-    
-    #action-panel { 
-        width: 95% !important; 
-        left: 50% !important; 
-        transform: translateX(-50%); 
-        top: 10px !important; 
-        max-height: 85vh !important; /* 強制面板最高佔螢幕 85% */
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* 關鍵：讓面板內部內容可以滾動 */
-    #action-panel .panel-body {
-        overflow-y: auto !important;
-        flex: 1;
-        -webkit-overflow-scrolling: touch; /* 讓 iOS 滑動更順暢 */
-    }
-    
-    /* 將 grid2 改為單欄 */
-    .grid2 {
-        grid-template-columns: 1fr !important;
-        gap: 8px !important;
-    }
-
-    /* 放大所有按鈕與下拉選單，利於手指點擊 */
-    .btn, .sel, .lbtn, .linput { 
-        height: 50px !important; 
-        font-size: 16px !important; 
-        line-height: 50px;
-    }
-
-    /* 調整間距與標題 */
-    .panel-body { padding: 10px !important; }
-    .section-hdr { font-size: 14px !important; padding: 15px 0 !important; }
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web-TAK 數位地圖協作</title>
+    <!-- 引入 Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
+        #map { height: 100%; width: 100%; }
+        #status { position: absolute; top: 10px; left: 50px; z-index: 1000; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-family: sans-serif; }
+    </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="login-overlay">
-  <div class="login-box">
-    <h2>WEB-TAK</h2>
-    <p>COMMON OPERATING PICTURE SYSTEM</p>
-    <label class="lbl">CALLSIGN (作戰呼號)</label>
-    <input type="text" id="inp-callsign" class="linput" value="ALPHA-01" maxlength="20">
-    <label class="lbl">ROOM (作戰房間)</label>
-    <select id="inp-room-preset" class="linput sel" style="height:36px;" onchange="onRoomPresetChange()">
-      <option value="PUBLIC_01">公開房間 ALPHA</option>
-      <option value="PUBLIC_02">公開房間 BRAVO</option>
-      <option value="CUSTOM">自訂私人房間...</option>
-    </select>
-<!-- 【新增這行】 -->
-<button id="btn-finish-draw" class="btn btn-full" style="display:none; background:#009977; margin-top:5px;" onclick="finishDraw()">完成繪圖</button>
-    <input type="text" id="inp-room-custom" class="linput" placeholder="輸入房間代碼" style="display:none;margin-top:8px;">
-    <button class="lbtn" onclick="joinNetwork()">CONNECT</button>
-  </div>
-</div>
+    <div id="status">Web-TAK 伺服器連線中...</div>
+    <div id="map"></div>
 
-<div id="map"></div>
+    <!-- 引入 Leaflet 與 Socket.io 前端 JS -->
+    <script src="https://unpkg.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // 1. 初始化地圖 (預設定位在台灣中心附近)
+        const map = L.map('map').setView([23.6978, 120.9605], 8);
 
-<!-- STATUS PANEL -->
-<div class="panel" id="status-panel">
-  <div class="panel-hdr"><span>ONLINE UNITS</span><span id="user-count" style="color:#557766;">0</span></div>
-  <div class="panel-body" id="user-list"></div>
-</div>
+        // 2. 載入 OpenStreetMap 地圖層
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-<!-- ACTION PANEL -->
-<div class="panel" id="action-panel">
-  <div class="panel-hdr"><span>CONTROL PANEL</span></div>
-  <div class="panel-body">
+        // 3. 連線到後端 Socket.io
+        const socket = io();
 
-    <div class="section-hdr" onclick="toggleSection('sec-mil',this)">
-      ROC MILITARY SYMBOLS <span>▼</span>
-    </div>
-    <div class="section-body" id="sec-mil">
-      <label style="font-size:10px;color:#557766;display:block;margin-bottom:3px;">AFFILIATION</label>
-      <div class="grid2" id="aff-btns">
-        <button class="btn active" data-aff="F" onclick="selectAff(this)">FRIENDLY</button>
-        <button class="btn" data-aff="H" onclick="selectAff(this)">HOSTILE</button>
-        <button class="btn" data-aff="N" onclick="selectAff(this)">NEUTRAL</button>
-        <button class="btn" data-aff="U" onclick="selectAff(this)">UNKNOWN</button>
-      </div>
-      <label style="font-size:10px;color:#557766;display:block;margin:6px 0 3px;">BRANCH (兵科)</label>
-      <select class="sel" id="sel-branch">
-        <option value="INF">步兵 Infantry</option>
-        <option value="ARM">裝甲 Armor</option>
-        <option value="ART">砲兵 Artillery</option>
-        <option value="ENG">工兵 Engineer</option>
-        <option value="SIG">通信 Signal</option>
-        <option value="MED">醫療 Medical</option>
-        <option value="AVN">航空 Aviation</option>
-        <option value="MP">憲兵 Military Police</option>
-        <option value="AD">防空 Air Defense</option>
-        <option value="HQ">指揮部 HQ</option>
-      </select>
-      <label style="font-size:10px;color:#557766;display:block;margin-bottom:3px;">ECHELON (層級)</label>
-      <select class="sel" id="sel-echelon">
-        <option value="TEAM">組/小組</option>
-        <option value="SQUAD">班</option>
-        <option value="PLATOON">排</option>
-        <option value="COMPANY" selected>連</option>
-        <option value="BATTALION">營</option>
-        <option value="REGIMENT">聯隊/旅</option>
-        <option value="DIVISION">師</option>
-      </select>
-      <button class="btn btn-full active" id="btn-place-mil" onclick="setMode('mil')" style="margin-top:2px;">
-        PLACE SYMBOL
-      </button>
-    </div>
+        socket.on('connect', () => {
+            document.getElementById('status').innerText = '伺服器連線成功！';
+            document.getElementById('status').style.color = 'green';
+        });
 
-    <div class="section-hdr" onclick="toggleSection('sec-draw',this)">
-      DRAW TOOLS <span>▼</span>
-    </div>
-    <div class="section-body" id="sec-draw">
-      <div class="grid2">
-        <button class="btn" id="btn-circle" onclick="setMode('circle')">CIRCLE</button>
-        <button class="btn" id="btn-rect" onclick="setMode('rect')">RECTANGLE</button>
-        <button class="btn" id="btn-poly" onclick="setMode('poly')">POLYGON</button>
-        <button class="btn" id="btn-line" onclick="setMode('line')">POLYLINE</button>
-      </div>
-      <div style="font-size:9px;color:#334;margin-top:4px;line-height:1.5;">
-        POLY/LINE: click to add pts<br>double-click to finish
-      </div>
-    </div>
-
-    <div class="section-hdr" onclick="toggleSection('sec-misc',this)">
-      MISC <span>▼</span>
-    </div>
-    <div class="section-body" id="sec-misc">
-      <button class="btn btn-full btn-danger" onclick="clearMyLayers()">CLEAR MY LAYERS</button>
-    </div>
-  </div>
-</div>
-
-<!-- MAP STYLE TOGGLE -->
-<div id="map-toggle-bar">
-  <button class="map-btn active" id="mb-osm" onclick="switchMap('osm')">OSM</button>
-  <button class="map-btn" id="mb-sat" onclick="switchMap('sat')">SATELLITE</button>
-  <button class="map-btn" id="mb-topo" onclick="switchMap('topo')">TOPO</button>
-</div>
-
-<div id="notif"></div>
-
-<script>
-    // 1. 全域變數宣告
-    let socket = io(window.location.origin);
-    let myCallsign = '', myRoomID = '';
-    let currentMode = null;
-    let selectedAff = 'F';
-    let layerRegistry = {};
-    let tempPolyMarkers = [], tempPolyPoints = [], tempPolyline = null;
-    let drawingPoly = false, drawingLine = false;
-
-    // 2. 修正：確保 joinNetwork 在全域且邏輯明確
-    window.joinNetwork = function() {
-        const cs = document.getElementById('inp-callsign').value.trim();
-        const preset = document.getElementById('inp-room-preset').value;
-        let room = (preset === 'CUSTOM') ? document.getElementById('inp-room-custom').value.trim() : preset;
-            
-        if(!cs || !room){ alert('請填寫完整資訊'); return; }
-
-        // 發送連線請求
-        socket.emit('request_join', { callsign: cs, room });
-    };
-
-    // 3. Socket 事件處理 (加入除錯訊息)
-    socket.on('connect', () => console.log('Socket 連線建立'));
-    
-    socket.on('join_success', data => {
-        myCallsign = data.callsign; 
-        myRoomID = data.room;
-        // 隱藏登入介面
-        document.getElementById('login-overlay').style.display = 'none';
-        console.log('成功加入房間');
-    });
-
-    socket.on('join_failed', msg => {
-        alert('連線失敗: ' + msg);
-    });
-
-    // 4. 地圖初始化
-    const map = L.map('map',{zoomControl:false,attributionControl:false}).setView([24.9443,121.2154],13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-
-    // 5. 防止面板遮擋地圖點擊
-    const panels = ['action-panel', 'status-panel'];
-    panels.forEach(id => {
-        const el = document.getElementById(id);
-        if(el) {
-            el.addEventListener('click', e => e.stopPropagation(), { capture: true });
-        }
-    });
-
-    // 6. 其他輔助函式 (onRoomPresetChange 等)
-    window.onRoomPresetChange = function(){
-        const v = document.getElementById('inp-room-preset').value;
-        document.getElementById('inp-room-custom').style.display = (v === 'CUSTOM') ? 'block' : 'none';
-    };
-</script>
+        socket.on('disconnect', () => {
+            document.getElementById('status').innerText = '與伺服器斷開連線...';
+            document.getElementById('status').style.color = 'red';
+        });
+    </script>
 </body>
 </html>
