@@ -244,42 +244,51 @@ body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monos
 <div id="notif"></div>
 
 <script>
-    const socket = io(window.location.origin);
-    // 【新增】完成繪圖的輔助函式
-window.finishDraw = function() {
-    // 呼叫原本的雙擊結束邏輯
-    polyDblClickHandler({ originalEvent: { stopPropagation: ()=>{} } });
-    // 隱藏按鈕
-    document.getElementById('btn-finish-draw').style.display = 'none';
-    // 恢復地圖拖曳
-    map.dragging.enable();
-};
-// ════════════════════════════════════════════════
-//  0. MAP INIT
-// ════════════════════════════════════════════════
-const map = L.map('map',{zoomControl:false,attributionControl:false}).setView([24.9443,121.2154],13);
+    // 1. 全域變數宣告 (只宣告一次)
+    let socket = io(window.location.origin);
+    let myCallsign = '', myRoomID = '';
+    let currentMode = null;
+    let selectedAff = 'F';
+    let layerRegistry = {};
+    let tempPolyMarkers = [], tempPolyPoints = [], tempPolyline = null;
+    let drawingPoly = false, drawingLine = false;
 
-const TILE_LAYERS = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}),
-  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}),
-  topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17})
-};
-let activeTile = TILE_LAYERS.osm.addTo(map);
+    // 2. 確保 joinNetwork 在全域範圍，並檢查 Socket 狀態
+    window.joinNetwork = function() {
+        const cs = document.getElementById('inp-callsign').value.trim();
+        const preset = document.getElementById('inp-room-preset').value;
+        let room = (preset === 'CUSTOM') ? document.getElementById('inp-room-custom').value.trim() : preset;
+            
+        if(!cs || !room){ alert('請填寫完整資訊'); return; }
 
-window.switchMap = function(key){
-  map.removeLayer(activeTile);
-  activeTile = TILE_LAYERS[key].addTo(map);
-  document.querySelectorAll('.map-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('mb-'+key).classList.add('active');
-};
+        if (socket.connected) {
+            socket.emit('request_join', { callsign: cs, room });
+        } else {
+            alert('正在連線至伺服器，請稍候...');
+            socket.once('connect', () => {
+                socket.emit('request_join', { callsign: cs, room });
+            });
+        }
+    };
 
-L.control.zoom({position:'bottomright'}).addTo(map);
-const drawnItems = new L.FeatureGroup().addTo(map);
+    // 3. 地圖初始化
+    const map = L.map('map',{zoomControl:false,attributionControl:false}).setView([24.9443,121.2154],13);
+    const TILE_LAYERS = {
+      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}),
+      sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}),
+      topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17})
+    };
+    let activeTile = TILE_LAYERS.osm.addTo(map);
 
-// ════════════════════════════════════════════════
-//  1. ROC MILITARY SYMBOL ENGINE
-//  Based on ROC Army APP-6 / MIL-STD-2525 adapted
-// ════════════════════════════════════════════════
+    window.switchMap = function(key){
+      map.removeLayer(activeTile);
+      activeTile = TILE_LAYERS[key].addTo(map);
+      document.querySelectorAll('.map-btn').forEach(b=>b.classList.remove('active'));
+      document.getElementById('mb-'+key).classList.add('active');
+    };
+
+    L.control.zoom({position:'bottomright'}).addTo(map);
+    const drawnItems = new L.FeatureGroup().addTo(map);
 
 // Affiliation color scheme (ROC standard)
 const AFF_STYLE = {
