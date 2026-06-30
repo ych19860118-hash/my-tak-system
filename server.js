@@ -79,13 +79,19 @@ if (history.length > 0) {
         io.to(room).emit('server_action', { ...payload, username: socket.callsign });
     });
 
-    // ── 斷線處理 ──
-    socket.on('disconnect', () => {
-        if (!socket.callsign || !socket.room || !roomState[socket.room]) return;
+socket.on('disconnect', () => {
+    if (!socket.callsign || !socket.room || !roomState[socket.room]) return;
 
-        roomState[socket.room].users.delete(socket.callsign);
-        io.to(socket.room).emit('update_user_list', Array.from(roomState[socket.room].users));
-    });
+    const state = roomState[socket.room];
+    state.users.delete(socket.callsign);
+    
+    // 如果房間沒人了，直接刪除房間物件以釋放記憶體
+    if (state.users.size === 0) {
+        delete roomState[socket.room];
+    } else {
+        io.to(socket.room).emit('update_user_list', Array.from(state.users));
+    }
+});
 });
 
 const PORT = process.env.PORT || 3000;
