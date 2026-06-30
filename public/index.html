@@ -944,13 +944,7 @@ document.addEventListener('keydown',e=>{
 // 修正建議：明確放行特定的互動元素
 // 修改後的攔截邏輯
 const panels = ['action-panel', 'status-panel'];
-.panel {
-    pointer-events: auto;
-    z-index: 10; /* 確保面板在地圖之上 */
-}
 
-        el.addEventListener('touchstart', handler, {passive: false, capture: true});
-        el.addEventListener('click', handler, {capture: true});
     }
 });
 </script>
