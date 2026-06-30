@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+    <link rel="icon" href="data:,">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>WEB-TAK 共同作戰圖像平台</title>
@@ -243,6 +244,7 @@ body,html{width:100%;height:100%;overflow:hidden;font-family:'Courier New',monos
 <div id="notif"></div>
 
 <script>
+    const socket = io(window.location.origin);
     // 【新增】完成繪圖的輔助函式
 window.finishDraw = function() {
     // 呼叫原本的雙擊結束邏輯
@@ -937,15 +939,23 @@ map.doubleClickZoom.disable();
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ cancelCurrentDraw(); currentMode=null; updateModeButtons(null); map.getContainer().style.cursor=''; }
 });
+JavaScript
 // 確保面板不會把點擊事件傳遞給下方的地圖
-// 修正手機點擊漂移問題
-// 只攔截面板內容，不要攔截整個 login-overlay 本身
-// 修改這一段：
-// 修正建議：明確放行特定的互動元素
-// 修改後的攔截邏輯
-const panels = ['action-panel', 'status-panel'];
-
+document.getElementById('action-panel').addEventListener('click', e => {
+    if (e.target.closest('.section-hdr') || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') {
+        return; 
     }
+    e.stopPropagation();
+}, { capture: true });
+
+document.getElementById('status-panel').addEventListener('click', e => e.stopPropagation());
+
+// Disable map double-click zoom
+map.doubleClickZoom.disable();
+
+// Keyboard ESC to cancel draw
+document.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){ cancelCurrentDraw(); currentMode = null; updateModeButtons(null); map.getContainer().style.cursor = ''; }
 });
 </script>
 </body>
