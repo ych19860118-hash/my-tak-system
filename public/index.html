@@ -24,42 +24,58 @@
     const drawnItems = new L.FeatureGroup().addTo(map);
     const socket = io();
     
-    // 登入邏輯：連線後才執行
+    // 1. 登入機制
     const username = prompt("請輸入您的名稱:");
-    const room = prompt("請輸入房間號碼:");
+    const room = prompt("請輸入房間號碼 (例如: room1):");
 
     socket.on('connect', () => {
       socket.emit('join', { username, room });
     });
 
-    // 繪圖控制
+    // 2. 繪圖工具列
     const drawControl = new L.Control.Draw({
       edit: { featureGroup: drawnItems },
       draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
     });
     map.addControl(drawControl);
 
-    // 當畫完圖形
+    // 3. 繪製完成處理
     map.on(L.Draw.Event.CREATED, function (e) {
       const layer = e.layer;
-      const id = Date.now().toString(); // 簡單 ID
+      const name = prompt("請命名此物件:", "新物件");
+      const color = prompt("請輸入顏色 (例如: #FF0000):", "#3388ff");
       
-      const shapeData = {
-        id: id,
-        type: e.layerType,
-        // 抓取座標與屬性
-        data: layer.toGeoJSON().geometry, 
-        radius: layer.getRadius ? layer.getRadius() : null
-      };
-
+      layer.setStyle({ color: color });
+      layer.bindPopup("名稱: " + name);
       drawnItems.addLayer(layer);
-      socket.emit('shape:add', shapeData); // 發送到新 server.js
+
+      const shapeData = {
+        id: Date.now().toString(),
+        type: e.layerType,
+        data: layer.toGeoJSON().geometry,
+        radius: layer.getRadius ? layer.getRadius() : null,
+        properties: { name, color }
+      };
+      socket.emit('shape:add', shapeData);
     });
 
-    // 接收來自伺服器的圖形
-    socket.on('shape:added', (shape) => {
-      renderShape(shape);
+    // 4. 編輯後同步處理
+    map.on('draw:edited', function (e) {
+      e.layers.eachLayer(function (layer) {
+        socket.emit('shape:update', {
+          id: layer.options.id, // 這需要與 server 對應
+          data: layer.toGeoJSON().geometry,
+          radius: layer.getRadius ? layer.getRadius() : null
+        });
+      });
     });
+
+    // 5. 接收伺服器同步的圖形
+    socket.on('init-shapes', (shapes) => {
+      shapes.forEach(renderShape);
+    });
+
+    socket.on('shape:added', renderShape);
 
     function renderShape(shape) {
       let layer;
@@ -70,7 +86,13 @@
       } else if (shape.type === 'marker') {
         layer = L.marker(shape.data.coordinates.reverse());
       }
-      if (layer) layer.addTo(drawnItems);
+      
+      if (layer) {
+        layer.options.id = shape.id;
+        layer.setStyle({ color: shape.properties.color });
+        layer.bindPopup("名稱: " + shape.properties.name);
+        layer.addTo(drawnItems);
+      }
     }
   </script>
 </body>
