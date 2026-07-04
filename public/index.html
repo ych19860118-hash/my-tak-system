@@ -56,29 +56,32 @@
       });
       map.addControl(drawControl);
 
-    function bindLayerInteraction(layer, shape) {
-      layer.options.id = shape.id;
-      layer.setStyle({ color: shape.properties.color });
+function bindLayerInteraction(layer, shape) {
+      // 1. 啟用拖曳移動 (Marker/Circle/Polygon)
+      // 注意：多邊形/矩形預設不支援直接拖曳，這裡我們加上 enableEdit 支援
+      if (layer.dragging) layer.dragging.enable();
+      
+      // 監聽拖曳結束 -> 同步位置
+      layer.on('dragend', function() {
+        const newLatLng = layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter();
+        shape.data.coordinates = [newLatLng.lng, newLatLng.lat];
+        socket.emit('shape:update', shape);
+      });
 
-      // 【關鍵修正】若是標記(marker)，直接啟用拖曳
-      if (layer instanceof L.Marker) {
-        layer.dragging.enable();
-        layer.on('dragend', function() {
-          shape.data.coordinates = [layer.getLatLng().lng, layer.getLatLng().lat];
-          socket.emit('shape:update', shape);
-        });
-      }
-
-      layer.on('click', function() {
+      // 2. 左鍵點選出現編輯視窗
+      layer.on('click', function(e) {
+        L.DomEvent.stopPropagation(e); // 防止觸發地圖點擊
+        
         const panel = document.createElement('div');
         panel.className = 'action-panel';
         panel.innerHTML = `
           <strong>${shape.properties.name}</strong>
           <input type="text" id="ipt-name" value="${shape.properties.name}">
           <input type="color" id="ipt-color" value="${shape.properties.color}">
-          <button class="btn-edit" id="btn-save">更新屬性</button>
-          <button class="btn-del" id="btn-del">刪除圖形</button>
+          <button class="btn-edit" id="btn-save">更新</button>
+          <button class="btn-del" id="btn-del">刪除</button>
         `;
+
         layer.bindPopup(panel).openPopup();
 
         panel.querySelector('#btn-save').onclick = () => {
@@ -115,12 +118,23 @@
       socket.on('shape:added', renderShape);
       socket.on('shape:removed', (id) => drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); }));
 
-      function renderShape(shape) {
-        let layer;
-        if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
-        else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
-        else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
-        if (layer) { bindLayerInteraction(layer, shape); layer.addTo(drawnItems); }
+// 強化版的渲染與互動邏輯
+    function renderShape(shape) {
+      let layer;
+      
+      // 根據類型建立圖層
+      if (shape.type === 'circle') {
+        layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius, draggable: true });
+      } else if (shape.type === 'rectangle' || shape.type === 'polygon') {
+        layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
+      } else if (shape.type === 'marker') {
+        layer = L.marker(shape.data.coordinates.reverse(), { draggable: true });
+      }
+
+      if (layer) {
+        layer.options.id = shape.id;
+        layer.addTo(drawnItems);
+        bindLayerInteraction(layer, shape);
       }
     }
   </script>
