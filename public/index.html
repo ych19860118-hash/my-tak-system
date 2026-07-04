@@ -2,46 +2,86 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人共同即時地圖</title>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com" />
-    <!-- Leaflet Draw CSS -->
+    
+    <!-- 修正關鍵 1：必須最先載入 Leaflet 的地圖樣式 CSS -->
+    <link rel="stylesheet" href="https://unpkg.com" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- 載入 Leaflet 畫圖工具的樣式 CSS -->
     <link rel="stylesheet" href="https://cloudflare.com" />
+    
     <style>
-        #map { height: 100vh; width: 100%; }
-        body { margin: 0; padding: 0; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        /* 房間提示標籤 */
+        .room-info {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            z-index: 1000;
+            background: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
+    <!-- 顯示當前房間名稱 -->
+    <div class="room-info">當前房間：<span id="room-name">預設房間</span></div>
+
+    <!-- 地圖容器 -->
     <div id="map"></div>
 
-    <!-- Socket.io & Leaflet JS -->
+    <!-- 修正關鍵 2：必須先載入 Socket.io，再載入 Leaflet JS，最後載入 Draw 工具 -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cloudflare.com"></script>
 
     <script>
+        // 1. 連線至 Render 伺服器
         const socket = io();
 
-        // 1. 初始化 OpenStreetMap 地圖
-        const map = L.map('map').setView([25.0339, 121.5644], 13); // 預設台北
+        // 自動取得網址上的房間參數（例如 ?room=123），若無則預設為 'lobby'
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentRoom = urlParams.get('room') || 'lobby';
+        document.getElementById('room-name').innerText = currentRoom;
+
+        // 2. 初始化 Leaflet 地圖 (預設定位在台灣中心附近)
+        const map = L.map('map').setView([23.6978, 120.9605], 8);
+        
+        // 載入 OpenStreetMap 地圖磚
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 2. 建立一個圖層來放置大家畫的圖形
+        // 3. 建立儲存所有圖形的圖層與本機對照表
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
+        const localShapes = {}; // 用來追蹤地圖上的物件項目
 
-        // 3. 配置 Leaflet.draw 工具列（圓形、方形、多邊形、線條）
+        // 4. 設定並開啟畫圖工具列
         const drawControl = new L.Control.Draw({
             draw: {
                 polyline: true,
                 polygon: true,
                 rectangle: true,
                 circle: true,
-                marker: false, // 關閉單點標記，專注在幾何圖形
+                marker: false,
                 circlemarker: false
             },
             edit: {
@@ -51,53 +91,129 @@
         });
         map.addControl(drawControl);
 
-        // 4. 當本機使用者「完成繪圖」時觸發
+        // 5. 告訴伺服器我們要加入哪個房間
+        socket.emit('join', { room: currentRoom });
+
+        // 6. 監聽：接收房間內現有的所有圖形歷史紀錄
+        socket.on('init-shapes', (shapesList) => {
+            shapesList.forEach(shapeData => {
+                drawRemoteShape(shapeData);
+            });
+        });
+
+        // 7. 當使用者在網頁上畫完一個新圖形時
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
             const type = e.layerType;
+            
+            // 隨機產生一個隨機 ID 給這個圖形
+            const shapeId = 'shape_' + Math.random().toString(36).substr(2, 9);
+            layer.shapeId = shapeId;
             drawnItems.addLayer(layer);
 
-            // 將圖形轉化成 JSON 數據
-            const geoJsonData = layer.toGeoJSON();
-            
-            // 由於 Leaflet.toGeoJSON() 不包含圓形的半徑，如果是圓形需特別處理
-            const extraData = {
+            // 包裝要送給後端的資料結構
+            const shapePayload = {
+                id: shapeId,
                 type: type,
-                geometry: geoJsonData.geometry,
                 properties: {}
             };
+
+            // 針對不同的圖形結構儲存座標點
             if (type === 'circle') {
-                extraData.radius = layer.getRadius();
-                extraData.latlng = layer.getLatLng();
+                shapePayload.latlng = layer.getLatLng();
+                shapePayload.radius = layer.getRadius();
+            } else if (type === 'rectangle' || type === 'polygon' || type === 'polyline') {
+                shapePayload.latlngs = layer.getLatLngs();
             }
 
-            // 發送到後端伺服器
-            socket.emit('draw-shape', extraData);
+            localShapes[shapeId] = layer;
+
+            // 送出給伺服器廣播
+            socket.emit('shape:add', shapePayload);
         });
 
-        // 5. 接收伺服器發來的「歷史圖形」或「其他人新畫的圖形」
-        function renderShape(shapeData) {
+        // 8. 當使用者修改、拖曳現有圖形時
+        map.on(L.Draw.Event.EDITED, function (e) {
+            const layers = e.layers;
+            layers.eachLayer(function (layer) {
+                const shapeId = layer.shapeId;
+                if (!shapeId) return;
+
+                const shapePayload = { id: shapeId };
+                // 更新最新的位置資料
+                if (layer instanceof L.Circle) {
+                    shapePayload.latlng = layer.getLatLng();
+                    shapePayload.radius = layer.getRadius();
+                } else {
+                    shapePayload.latlngs = layer.getLatLngs();
+                }
+
+                socket.emit('shape:update', shapePayload);
+            });
+        });
+
+        // 9. 當使用者刪除圖形時
+        map.on(L.Draw.Event.DELETED, function (e) {
+            const layers = e.layers;
+            layers.eachLayer(function (layer) {
+                const shapeId = layer.shapeId;
+                if (shapeId) {
+                    socket.emit('shape:remove', shapeId);
+                }
+            });
+        });
+
+        // 10. 監聽伺服器廣播：其他人新增了圖形
+        socket.on('shape:added', (shapeData) => {
+            if (localShapes[shapeData.id]) return; // 如果是自己畫的就跳過
+            drawRemoteShape(shapeData);
+        });
+
+        // 11. 監聽伺服器廣播：其他人修改了圖形
+        socket.on('shape:updated', (shapeData) => {
+            const layer = localShapes[shapeData.id];
+            if (layer) {
+                if (shapeData.type === 'circle') {
+                    layer.setLatLng(shapeData.latlng);
+                    layer.setRadius(shapeData.radius);
+                } else {
+                    layer.setLatLngs(shapeData.latlngs);
+                }
+                layer.redraw();
+            }
+        });
+
+        // 12. 監聽伺服器廣播：其他人刪除了圖形
+        socket.on('shape:removed', (id) => {
+            const layer = localShapes[id];
+            if (layer) {
+                drawnItems.removeLayer(layer);
+                delete localShapes[id];
+            }
+        });
+
+        // 輔助函式：將接收到的數據繪製到地圖上
+        function drawRemoteShape(shapeData) {
             let remoteLayer;
+            
             if (shapeData.type === 'circle') {
                 remoteLayer = L.circle(shapeData.latlng, { radius: shapeData.radius });
-            } else {
-                remoteLayer = L.geoJSON(shapeData.geometry);
+            } else if (shapeData.type === 'rectangle') {
+                remoteLayer = L.rectangle(shapeData.latlngs);
+            } else if (shapeData.type === 'polygon') {
+                remoteLayer = L.polygon(shapeData.latlngs);
+            } else if (shapeData.type === 'polyline') {
+                remoteLayer = L.polyline(shapeData.latlngs);
             }
-            remoteLayer.setStyle({ color: '#ff4455', weight: 4 }); // 區分他人畫的顏色
-            drawnItems.addLayer(remoteLayer);
+
+            if (remoteLayer) {
+                remoteLayer.shapeId = shapeData.id;
+                // 設定其他人畫的圖形顏色為紅色，以便區分
+                remoteLayer.setStyle({ color: '#e74c3c', weight: 4 });
+                drawnItems.addLayer(remoteLayer);
+                localShapes[shapeData.id] = remoteLayer;
+            }
         }
-
-        socket.on('init-shapes', (shapes) => {
-            shapes.forEach(renderShape);
-        });
-
-        socket.on('user-drew-shape', (shapeData) => {
-            renderShape(shapeData);
-        });
-
-        socket.on('map-cleared', () => {
-            drawnItems.clearLayers();
-        });
     </script>
 </body>
 </html>
