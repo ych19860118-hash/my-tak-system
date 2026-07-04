@@ -5,61 +5,84 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
-
-// 靜態檔案目錄，前端網頁會放在 public 資料夾內
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 簡易記憶體儲存：共用標記 (markers)
-// 資料結構範例： { id1: { id: 'id1', lat: ..., lng: ..., properties: {...} }, ... }
-const markers = {};
+// 資料結構： { "房間名稱": { objects: { "obj_id": { ...data } }, users: Set() } }
+const rooms = {};
 
-// 回傳目前所有 markers（可供前端初次載入使用）
-app.get('/api/markers', (req, res) => {
-  res.json(Object.values(markers));
-});
-
-// Socket.IO 連線處理
 io.on('connection', (socket) => {
-  console.log('使用者連線:', socket.id);
+  let currentRoom = null;
+  let currentUser = null;
 
-  // 當前端連線時，發送目前所有 markers 給該使用者（初始同步）
-  socket.emit('init-markers', Object.values(markers));
+  // 1. 加入房間
+  socket.on('join', ({ username, room }) => {
+    if (!rooms[room]) rooms[room] = { objects: {}, users: new Set() };
+    
+    // 檢查名稱是否重複
+    if (rooms[room].users.has(username)) {
+      return socket.emit('error', '該名稱在房間內已被使用');
+    }
 
-  // 新增標記
-  socket.on('marker:add', (marker) => {
-    if (!marker || !marker.id) return;
-    markers[marker.id] = marker;
-    // 廣播給其他使用者（不包含發送者）
-    socket.broadcast.emit('marker:added', marker);
-    console.log(`marker added: ${marker.id}`);
+    currentRoom = room;
+    currentUser = username;
+    socket.join(room);
+    rooms[room].users.add(username);
+
+    // 回傳該房間目前的所有物件
+    socket.emit('init-shapes', Object.values(rooms[room].objects));
+    console.log(`${username} 加入了房間: ${room}`);
   });
 
-  // 更新標記（例如拖曳、編輯位置或屬性）
-  socket.on('marker:update', (marker) => {
-    if (!marker || !marker.id) return;
-    markers[marker.id] = marker;
-    socket.broadcast.emit('marker:updated', marker);
-    console.log(`marker updated: ${marker.id}`);
+  // 2. 新增圖形 (包含圓形、方形、多邊形等)
+  socket.on('shape:add', (shape) => {
+    if (!currentRoom || !rooms[currentRoom]) return;
+    
+    // 標記是誰建立的
+    shape.creator = currentUser;
+    rooms[currentRoom].objects[shape.id] = shape;
+    
+    io.to(currentRoom).emit('shape:added', shape);
   });
 
-  // 刪除標記
-  socket.on('marker:remove', (id) => {
-    if (!id) return;
-    delete markers[id];
-    socket.broadcast.emit('marker:removed', id);
-    console.log(`marker removed: ${id}`);
+  // 3. 更新圖形 (權限檢查)
+  socket.on('shape:update', (shape) => {
+    if (!currentRoom || !rooms[currentRoom]) return;
+    const existing = rooms[currentRoom].objects[shape.id];
+    
+    // 檢查權限：只有建立者能修改
+    if (existing && existing.creator === currentUser) {
+      rooms[currentRoom].objects[shape.id] = shape;
+      socket.to(currentRoom).emit('shape:updated', shape);
+    }
   });
 
+  // 4. 刪除圖形 (權限檢查)
+  socket.on('shape:remove', (id) => {
+    if (!currentRoom || !rooms[currentRoom]) return;
+    const existing = rooms[currentRoom].objects[id];
+    
+    if (existing && existing.creator === currentUser) {
+      delete rooms[currentRoom].objects[id];
+      io.to(currentRoom).emit('shape:removed', id);
+    }
+  });
+
+  // 5. 斷線與自動清理
   socket.on('disconnect', () => {
-    console.log('使用者斷線:', socket.id);
+    if (currentRoom && rooms[currentRoom]) {
+      rooms[currentRoom].users.delete(currentUser);
+      // 如果房間沒人了，自動刪除房間資料
+      if (rooms[currentRoom].users.size === 0) {
+        delete rooms[currentRoom];
+        console.log(`房間 ${currentRoom} 已清空並刪除`);
+      }
+    }
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`伺服器正在運行於 port ${PORT}`);
+  console.log(`伺服器啟動於 port ${PORT}`);
 });
