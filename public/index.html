@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Web-TAK 數位地圖協作</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <link rel="stylesheet" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://cloudflare.com" />
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
     #map { height: 100%; width: 100%; }
@@ -28,8 +28,8 @@
 
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="https://unpkg.com"></script>
+  <script src="https://cloudflare.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 
   <script>
@@ -54,54 +54,119 @@
       });
       map.addControl(drawControl);
 
+      // 將互動與彈出視窗綁定到圖層
       function bindLayerInteraction(layer, shape) {
         layer.options.id = shape.id;
-        layer.setStyle({ color: shape.properties.color });
+        layer.options.shapeType = shape.type; // 記住類型以供後續編輯使用
+        layer.options.properties = { ...shape.properties }; // 複寫屬性到圖層中
+
+        if (layer.setStyle) {
+          layer.setStyle({ color: shape.properties.color });
+        }
+
         layer.on('click', function() {
           const panel = document.createElement('div');
           panel.className = 'action-panel';
           panel.innerHTML = `
-            <strong>${shape.properties.name}</strong>
-            <input type="text" id="ipt-name" value="${shape.properties.name}">
-            <input type="color" id="ipt-color" value="${shape.properties.color}">
+            <strong>${layer.options.properties.name}</strong>
+            <input type="text" id="ipt-name" value="${layer.options.properties.name}">
+            <input type="color" id="ipt-color" value="${layer.options.properties.color || '#3388ff'}">
             <button class="btn-edit" id="btn-save">更新</button>
             <button class="btn-del" id="btn-del">刪除</button>
           `;
           layer.bindPopup(panel).openPopup();
+
           panel.querySelector('#btn-save').onclick = () => {
-            shape.properties.name = panel.querySelector('#ipt-name').value;
-            shape.properties.color = panel.querySelector('#ipt-color').value;
-            layer.setStyle({ color: shape.properties.color });
+            const newName = panel.querySelector('#ipt-name').value;
+            const newColor = panel.querySelector('#ipt-color').value;
+            
+            // 同步更新前端畫面的暫存資料
+            layer.options.properties.name = newName;
+            layer.options.properties.color = newColor;
+            if (layer.setStyle) layer.setStyle({ color: newColor });
             layer.closePopup();
-            socket.emit('shape:update', shape);
+
+            // 發送更新事件給後端（包含完整的幾何與屬性資料）
+            socket.emit('shape:update', {
+              id: layer.options.id,
+              type: layer.options.shapeType,
+              data: layer.toGeoJSON().geometry,
+              radius: layer.getRadius ? layer.getRadius() : null,
+              properties: layer.options.properties
+            });
           };
+
           panel.querySelector('#btn-del').onclick = () => {
-            socket.emit('shape:remove', shape.id);
+            socket.emit('shape:remove', layer.options.id);
           };
         });
       }
 
+      // 監聽：新畫好的圖形
       map.on(L.Draw.Event.CREATED, (e) => {
         const id = Date.now().toString();
-        const shapeData = { id, type: e.layerType, data: e.layer.toGeoJSON().geometry, radius: e.layer.getRadius ? e.layer.getRadius() : null, properties: { name: "新物件", color: "#3388ff" } };
+        const shapeData = { 
+          id, 
+          type: e.layerType, 
+          data: e.layer.toGeoJSON().geometry, 
+          radius: e.layer.getRadius ? e.layer.getRadius() : null, 
+          properties: { name: "新物件", color: "#3388ff" } 
+        };
         socket.emit('shape:add', shapeData);
       });
 
+      // 監聽：拖曳或調整圖形大小後的儲存
       map.on('draw:edited', (e) => {
-        e.layers.eachLayer(l => socket.emit('shape:update', { id: l.options.id, data: l.toGeoJSON().geometry, radius: l.getRadius ? l.getRadius() : null }));
+        e.layers.eachLayer(l => {
+          socket.emit('shape:update', { 
+            id: l.options.id, 
+            type: l.options.shapeType,
+            data: l.toGeoJSON().geometry, 
+            radius: l.getRadius ? l.getRadius() : null,
+            properties: l.options.properties // 確保顏色和名稱不會遺失
+          });
+        });
       });
 
+      // Socket 協作事件監聽
       socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
       socket.on('shape:added', renderShape);
-      socket.on('shape:updated', (s) => { drawnItems.eachLayer(l => { if(l.options.id === s.id) drawnItems.removeLayer(l); }); renderShape(s); });
-      socket.on('shape:removed', (id) => drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); }));
+      
+      socket.on('shape:updated', (s) => { 
+        drawnItems.eachLayer(l => { if(l.options.id === s.id) drawnItems.removeLayer(l); }); 
+        renderShape(s); 
+      });
+      
+      socket.on('shape:removed', (id) => {
+        drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); });
+      });
 
+      // 渲染圖形核心邏輯（不污染原始物件）
       function renderShape(shape) {
         let layer;
-        if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
-        else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
-        else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
-        if (layer) { bindLayerInteraction(layer, shape); layer.addTo(drawnItems); }
+        // 安全反轉座標：使用新陣列，避免直接修改 shape.data 造成資料錯亂
+        if (shape.type === 'circle') {
+          const latLng = [shape.data.coordinates[1], shape.data.coordinates[0]];
+          layer = L.circle(latLng, { radius: shape.radius });
+        } 
+        else if (shape.type === 'marker') {
+          const latLng = [shape.data.coordinates[1], shape.data.coordinates[0]];
+          layer = L.marker(latLng);
+        }
+        else if (shape.type === 'rectangle' || shape.type === 'polygon') {
+          // GeoJSON 多邊形結構是巢狀陣列 [[[lng, lat], [lng, lat], ...]]
+          const latLngs = shape.data.coordinates[0].map(c => [c[1], c[0]]);
+          layer = L.polygon(latLngs);
+        }
+        else if (shape.type === 'polyline') {
+          const latLngs = shape.data.coordinates.map(c => [c[1], c[0]]);
+          layer = L.polyline(latLngs);
+        }
+
+        if (layer) { 
+          bindLayerInteraction(layer, shape); 
+          layer.addTo(drawnItems); 
+        }
       }
     }
   </script>
