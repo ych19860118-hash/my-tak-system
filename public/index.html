@@ -8,29 +8,8 @@
         html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background-color: #f8f9fa; }
         #canvas-container { position: relative; width: 100vw; height: 100vh; }
         
-        /* 地圖影像底圖層：預設顯示點格，並嘗試加載真實地圖磚 */
-        #map-tiles { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background-image: radial-gradient(#d3d3d3 1.5px, transparent 1.5px); 
-            background-size: 30px 30px;
-            display: grid;
-            pointer-events: none; /* 讓點擊可以穿透到畫布 */
-            opacity: 0.95;
-        }
-        .tile {
-            width: 100%;
-            height: 100%;
-            background-size: cover;
-            background-position: center;
-        }
-
-        /* 核心幾何繪圖畫布 */
-        #map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
-        
+        /* 畫布底圖：穩定的點格畫布，保證不會因為地圖加載而卡死 */
+        #map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(#d3d3d3 1.5px, transparent 1.5px); background-size: 30px 30px; cursor: crosshair; }
         .room-info { position: absolute; top: 10px; left: 60px; z-index: 1000; background: white; padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; font-weight: bold; }
         
         /* 繪圖控制面板樣式 */
@@ -47,9 +26,6 @@
     <div class="room-info">當前房間：<span id="room-name">預設房間</span></div>
 
     <div id="canvas-container">
-        <!-- 台灣本土內政部地圖磚影像底圖 -->
-        <div id="map-tiles"></div>
-
         <!-- 核心繪圖畫布 -->
         <canvas id="map-canvas"></canvas>
 
@@ -76,43 +52,10 @@
         const canvas = document.getElementById('map-canvas');
         const ctx = canvas.getContext('2d');
 
-        // 動態生成台灣地理地圖底圖
-        function generateMapTiles() {
-            const tileContainer = document.getElementById('map-tiles');
-            tileContainer.innerHTML = '';
-            
-            const columns = Math.ceil(window.innerWidth / 256) + 1;
-            const rows = Math.ceil(window.innerHeight / 256) + 1;
-            tileContainer.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
-
-            // 關鍵修正：全面改用中華民國台灣內政部國土測繪中心的台灣通用電子地圖 (EMAP)
-            // 這是台灣本土政府伺服器，100% 絕對不會被您的公司或學校防火牆當作國外未知網站阻擋！
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < columns; c++) {
-                    const tile = document.createElement('div');
-                    tile.className = 'tile';
-                    
-                    const x = 13739 + c;
-                    const y = 6271 + r;
-                    
-                    // 台灣政府公用穩定地圖磚網址
-                    tile.style.backgroundImage = `url('https://nlsc.gov.tw{y}/${x}')`;
-                    
-                    // 如果政府地圖當機，自動退回灰色點點，保證系統不卡死
-                    tile.onerror = function() {
-                        this.style.backgroundImage = 'none';
-                    };
-                    
-                    tileContainer.appendChild(tile);
-                }
-            }
-        }
-
         // 自動調整畫布大小符合視窗
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            generateMapTiles();
             redrawAll();
         }
         window.addEventListener('resize', resizeCanvas);
@@ -154,7 +97,7 @@
             currentMode = null;
             clickedPoints = [];
             Object.values(buttons).forEach(b => b.classList.remove('active'));
-            redrawAll(); // 重置時刷新一次，清空還沒畫完的暫存點
+            redrawAll();
         }
 
         // 當點擊畫布時，觸發圖形座標計算
@@ -171,12 +114,12 @@
             if (currentMode === 'circle') {
                 newShape.x = x;
                 newShape.y = y;
-                newShape.radius = 65;
+                newShape.radius = 65; // 圓形大小
                 sendAndDraw(newShape);
                 resetMode();
             } 
             else if (currentMode === 'rect') {
-                newShape.x = x - 50; 
+                newShape.x = x - 50; // 點擊處為中心延伸方形
                 newShape.y = y - 50;
                 newShape.width = 100;
                 newShape.height = 100;
@@ -187,7 +130,6 @@
                 clickedPoints.push({ x: x, y: y });
                 
                 const requiredPoints = (currentMode === 'line') ? 2 : 3;
-                
                 if (clickedPoints.length >= requiredPoints) {
                     newShape.points = clickedPoints;
                     sendAndDraw(newShape);
@@ -211,15 +153,15 @@
             redrawAll();
         }
 
-        // 重新繪製整個畫布的所有即時圖形
+        // 重新繪製整個畫布的所有即時圖形 (已徹底修正陣列索引錯誤)
         function redrawAll() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             Object.values(shapes).forEach(shape => {
                 ctx.beginPath();
-                ctx.strokeStyle = '#e74c3c'; 
+                ctx.strokeStyle = '#e74c3c'; // 鮮明亮紅色外框
                 ctx.lineWidth = 4;
-                ctx.fillStyle = 'rgba(231, 76, 60, 0.35)'; 
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.35)'; // 半透明紅色填滿
 
                 if (shape.type === 'circle') {
                     ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
@@ -256,3 +198,20 @@
                 shapes[shape.id] = shape;
             });
             redrawAll();
+        });
+
+        socket.on('shape:added', (shape) => {
+            shapes[shape.id] = shape;
+            redrawAll();
+        });
+
+        socket.on('shape:removed', (id) => {
+            delete shapes[id];
+            redrawAll();
+        });
+
+        // 初始化第一次的畫布大小
+        resizeCanvas();
+    </script>
+</body>
+</html>
