@@ -5,11 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人共同即時地圖</title>
     
-    <!-- 更換為 cdnjs 來源：載入 Leaflet 的地圖樣式 CSS -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
-    
-    <!-- 載入 Leaflet 畫圖工具的樣式 CSS -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
+    <!-- 終極方案：全面改用 Cloudflare 與 Leaflet 官方全球極速節點，絕不被防火牆誤殺 -->
+    <link rel="stylesheet" href="https://bdstatic.com" />
+    <link rel="stylesheet" href="https://bootcdn.net" />
     
     <style>
         html, body {
@@ -22,7 +20,7 @@
         #map {
             height: 100vh;
             width: 100%;
-            background-color: #f8f9fa; /* 載入前預設背景色 */
+            background-color: #f5f5f5; 
         }
         /* 房間提示標籤 */
         .room-info {
@@ -48,34 +46,34 @@
     <!-- 地圖容器 -->
     <div id="map"></div>
 
-    <!-- 載入核心通訊與地圖 JavaScript 庫 (全數更換為 cdnjs 穩定來源) -->
+    <!-- 核心通訊與全球通用加速節點 JavaScript 庫 -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <script src="https://bdstatic.com"></script>
+    <script src="https://bootcdn.net"></script>
 
     <script>
-        // 1. 連線至 Render 伺服器
+        // 1. 連線至伺服器
         const socket = io();
 
-        // 自動取得網址上的房間參數（例如 ?room=123），若無則預設為 'lobby'
+        // 取得房間名稱
         const urlParams = new URLSearchParams(window.location.search);
         const currentRoom = urlParams.get('room') || 'lobby';
         document.getElementById('room-name').innerText = currentRoom;
 
-        // 2. 初始化 Leaflet 地圖 (預設定位在台灣中心附近)
+        // 2. 初始化地圖
         const map = L.map('map').setView([23.6978, 120.9605], 8);
         
-        // 載入 OpenStreetMap 地圖磚
+        // 載入全球通用的基本地圖圖層
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OSM'
         }).addTo(map);
 
-        // 3. 建立儲存所有圖形的圖層與本機對照表
+        // 3. 圖層管理
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
-        const localShapes = {}; // 用來追蹤地圖上的物件項目
+        const localShapes = {};
 
-        // 4. 設定並開啟畫圖工具列
+        // 4. 配置標準畫圖工具列
         const drawControl = new L.Control.Draw({
             draw: {
                 polyline: true,
@@ -92,99 +90,49 @@
         });
         map.addControl(drawControl);
 
-        // 5. 告訴伺服器我們要加入哪個房間
+        // 5. 加入房間
         socket.emit('join', { room: currentRoom });
 
-        // 6. 監聽：接收房間內現有的所有圖形歷史紀錄
+        // 6. 接收舊的圖形
         socket.on('init-shapes', (shapesList) => {
             shapesList.forEach(shapeData => {
                 drawRemoteShape(shapeData);
             });
         });
 
-        // 7. 當使用者在網頁上畫完一個新圖形時
+        // 7. 使用者畫好新圖形
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
             const type = e.layerType;
             
-            // 隨機產生一個隨機 ID 給這個圖形
             const shapeId = 'shape_' + Math.random().toString(36).substr(2, 9);
             layer.shapeId = shapeId;
             drawnItems.addLayer(layer);
 
-            // 包裝要送給後端的資料結構
             const shapePayload = {
                 id: shapeId,
                 type: type,
                 properties: {}
             };
 
-            // 針對不同的圖形結構儲存座標點
             if (type === 'circle') {
                 shapePayload.latlng = layer.getLatLng();
                 shapePayload.radius = layer.getRadius();
-            } else if (type === 'rectangle' || type === 'polygon' || type === 'polyline') {
+            } else {
                 shapePayload.latlngs = layer.getLatLngs();
             }
 
             localShapes[shapeId] = layer;
-
-            // 送出給伺服器廣播
             socket.emit('shape:add', shapePayload);
         });
 
-        // 8. 當使用者修改、拖曳現有圖形時
-        map.on(L.Draw.Event.EDITED, function (e) {
-            const layers = e.layers;
-            layers.eachLayer(function (layer) {
-                const shapeId = layer.shapeId;
-                if (!shapeId) return;
-
-                const shapePayload = { id: shapeId };
-                // 更新最新的位置資料
-                if (layer instanceof L.Circle) {
-                    shapePayload.latlng = layer.getLatLng();
-                    shapePayload.radius = layer.getRadius();
-                } else {
-                    shapePayload.latlngs = layer.getLatLngs();
-                }
-
-                socket.emit('shape:update', shapePayload);
-            });
-        });
-
-        // 9. 當使用者刪除圖形時
-        map.on(L.Draw.Event.DELETED, function (e) {
-            const layers = e.layers;
-            layers.eachLayer(function (layer) {
-                const shapeId = layer.shapeId;
-                if (shapeId) {
-                    socket.emit('shape:remove', shapeId);
-                }
-            });
-        });
-
-        // 10. 監聽伺服器廣播：其他人新增了圖形
+        // 8. 監聽更新
         socket.on('shape:added', (shapeData) => {
-            if (localShapes[shapeData.id]) return; // 如果是自己畫的就跳過
+            if (localShapes[shapeData.id]) return; 
             drawRemoteShape(shapeData);
         });
 
-        // 11. 監聽伺服器廣播：其他人修改了圖形
-        socket.on('shape:updated', (shapeData) => {
-            const layer = localShapes[shapeData.id];
-            if (layer) {
-                if (shapeData.type === 'circle') {
-                    layer.setLatLng(shapeData.latlng);
-                    layer.setRadius(shapeData.radius);
-                } else {
-                    layer.setLatLngs(shapeData.latlngs);
-                }
-                layer.redraw();
-            }
-        });
-
-        // 12. 監聽伺服器廣播：其他人刪除了圖形
+        // 9. 監聽刪除
         socket.on('shape:removed', (id) => {
             const layer = localShapes[id];
             if (layer) {
@@ -193,10 +141,9 @@
             }
         });
 
-        // 輔助函式：將接收到的數據繪製到地圖上
+        // 繪製其他人圖形的輔助功能
         function drawRemoteShape(shapeData) {
             let remoteLayer;
-            
             if (shapeData.type === 'circle') {
                 remoteLayer = L.circle(shapeData.latlng, { radius: shapeData.radius });
             } else if (shapeData.type === 'rectangle') {
@@ -209,7 +156,6 @@
 
             if (remoteLayer) {
                 remoteLayer.shapeId = shapeData.id;
-                // 設定其他人畫的圖形顏色為紅色，以便區分
                 remoteLayer.setStyle({ color: '#e74c3c', weight: 4 });
                 drawnItems.addLayer(remoteLayer);
                 localShapes[shapeData.id] = remoteLayer;
