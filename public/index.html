@@ -2,186 +2,76 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Web-TAK 數位地圖協作</title>
-
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Leaflet.draw CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
     #map { height: 100%; width: 100%; }
-    #status { position: absolute; top: 10px; left: 50px; z-index: 1000; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-family: sans-serif; }
   </style>
 </head>
 <body>
-  <div id="status">Web-TAK 伺服器連線中...</div>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Leaflet.draw JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-  <!-- milsymbol (如需軍事符號) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/milsymbol/2.0.0/milsymbol.js"></script>
-  <!-- socket.io client（由 server 提供路徑 /socket.io/socket.io.js） -->
   <script src="/socket.io/socket.io.js"></script>
 
   <script>
-    // 建立地圖
-    const map = L.map('map').setView([25.0330, 121.5654], 13); // 預設台北市中心
+    const map = L.map('map').setView([25.0330, 121.5654], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 加入 OSM 磁磚
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    // Leaflet.draw 控制器
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-
-// 1. 擴充繪圖工具
-const drawControl = new L.Control.Draw({
-  edit: { featureGroup: drawnItems },
-  draw: {
-    marker: true,
-    polyline: true,    // 線條
-    polygon: true,     // 多邊形
-    circle: true,      // 圓形
-    rectangle: true    // 方形
-  }
-});
-map.addControl(drawControl);
-
-// 2. 登入機制 (在頁面載入時觸發)
-// 建議加一個簡單的 prompt 或 modal 視窗
-const userName = prompt("請輸入您的名稱:");
-const roomName = prompt("請輸入房間號碼 (共同頻道請輸入 room1 或 room2):");
-
-// 3. 傳送時加入 "創建者" 資訊
-// 當偵測到 draw:created 時，資料格式改為：
-const shapeData = {
-  id: genId(),
-  type: e.layerType, // 'circle', 'rectangle' 等
-  latlngs: layer.getLatLngs ? layer.getLatLngs() : layer.getLatLng(),
-  creator: userName, // 紀錄這是誰畫的
-  properties: { color: '#3388ff', name: '新物件' }
-};
-socket.emit('shape:add', { room: roomName, data: shapeData });
-
-    // Socket.IO 連線
-    const socket = io(); // 使用相同 origin 連線
-
-    const statusEl = document.getElementById('status');
-    function setStatus(text) { statusEl.textContent = text; }
+    const drawnItems = new L.FeatureGroup().addTo(map);
+    const socket = io();
+    
+    // 登入邏輯：連線後才執行
+    const username = prompt("請輸入您的名稱:");
+    const room = prompt("請輸入房間號碼:");
 
     socket.on('connect', () => {
-      setStatus('已連線，ID: ' + socket.id);
-    });
-    socket.on('disconnect', () => setStatus('已斷線'));
-    socket.on('connect_error', (err) => setStatus('連線錯誤'));
-
-    // 本地維護的 markers map: id -> layer
-    const localMarkers = {};
-
-    // helper: 建立 Leaflet marker 並綁事件
-    function createMarkerFromData(data, emitEvents = false) {
-      const { id, lat, lng, properties } = data;
-      const m = L.marker([lat, lng], { draggable: true });
-      m.addTo(drawnItems);
-
-      m.on('dragend', () => {
-        const pos = m.getLatLng();
-        const updated = { id, lat: pos.lat, lng: pos.lng, properties: properties || {} };
-        // 更新本地資料
-        localMarkers[id] = m;
-        // 向 server 廣播更新
-        socket.emit('marker:update', updated);
-      });
-
-      // 若需要點擊顯示屬性
-      m.on('click', () => {
-        const p = properties || {};
-        const html = '<div><strong>ID:</strong> ' + id + '</div>' +
-                     (p.label ? ('<div><strong>Label:</strong> ' + p.label + '</div>') : '');
-        m.bindPopup(html).openPopup();
-      });
-
-      localMarkers[id] = m;
-      return m;
-    }
-
-    // 產生唯一 id（簡易）
-    function genId() {
-      return 'm_' + Date.now().toString(36) + '_' + Math.floor(Math.random()*10000).toString(36);
-    }
-
-    // 處理 draw:created 事件（當使用者畫完圖形時）
-map.on(L.Draw.Event.CREATED, function (e) {
-  const layer = e.layer;
-  const type = e.layerType;
-  const id = genId(); // 使用您原有的 ID 生成函式
-
-  // [關鍵步驟 1]：將圖形確實加入到地圖的圖層組中
-  drawnItems.addLayer(layer);
-
-  // [關鍵步驟 2]：準備資料並發送給伺服器（讓別人也能看到）
-  const shapeData = {
-    id: id,
-    type: type,
-    // 根據形狀抓取座標數據
-    latlngs: layer.getLatLngs ? layer.getLatLngs() : layer.getLatLng(),
-    radius: layer.getRadius ? layer.getRadius() : null,
-    properties: { label: 'user' }
-  };
-
-  // 發送給 server 存起來
-  socket.emit('shape:add', shapeData);
-});
-
-    // 初始拿取 server 上所有 markers（備援 API）
-    fetch('/api/markers').then(r => r.json()).then(list => {
-      list.forEach(m => {
-        // 避免重複建立（若 socket 也會送 init）
-        if (!localMarkers[m.id]) createMarkerFromData(m);
-      });
-    }).catch(()=>{ /* 忽略 fetch 錯誤 */ });
-
-    // Socket event handlers：server 廣播來的變更
-    socket.on('init-markers', (list) => {
-      // 先清空現有（不移除使用者建立中的 layer）
-      Object.keys(localMarkers).forEach(k => {
-        try { drawnItems.removeLayer(localMarkers[k]); } catch(e){}
-      });
-      Object.keys(localMarkers).forEach(k => delete localMarkers[k]);
-
-      (list || []).forEach(m => {
-        if (!localMarkers[m.id]) createMarkerFromData(m);
-      });
+      socket.emit('join', { username, room });
     });
 
-    socket.on('marker:added', (m) => {
-      if (!localMarkers[m.id]) createMarkerFromData(m);
+    // 繪圖控制
+    const drawControl = new L.Control.Draw({
+      edit: { featureGroup: drawnItems },
+      draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
+    });
+    map.addControl(drawControl);
+
+    // 當畫完圖形
+    map.on(L.Draw.Event.CREATED, function (e) {
+      const layer = e.layer;
+      const id = Date.now().toString(); // 簡單 ID
+      
+      const shapeData = {
+        id: id,
+        type: e.layerType,
+        // 抓取座標與屬性
+        data: layer.toGeoJSON().geometry, 
+        radius: layer.getRadius ? layer.getRadius() : null
+      };
+
+      drawnItems.addLayer(layer);
+      socket.emit('shape:add', shapeData); // 發送到新 server.js
     });
 
-    socket.on('marker:updated', (m) => {
-      const layer = localMarkers[m.id];
-      if (layer) {
-        layer.setLatLng([m.lat, m.lng]);
-      } else {
-        createMarkerFromData(m);
+    // 接收來自伺服器的圖形
+    socket.on('shape:added', (shape) => {
+      renderShape(shape);
+    });
+
+    function renderShape(shape) {
+      let layer;
+      if (shape.type === 'circle') {
+        layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
+      } else if (shape.type === 'rectangle' || shape.type === 'polygon') {
+        layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
+      } else if (shape.type === 'marker') {
+        layer = L.marker(shape.data.coordinates.reverse());
       }
-    });
-
-    socket.on('marker:removed', (id) => {
-      const layer = localMarkers[id];
-      if (layer) {
-        drawnItems.removeLayer(layer);
-        delete localMarkers[id];
-      }
-    });
+      if (layer) layer.addTo(drawnItems);
+    }
   </script>
 </body>
 </html>
