@@ -3,6 +3,7 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 
+// 靜態檔案目錄，指向您專案中的網頁檔案
 app.use(express.static(__dirname));
 
 // 儲存地圖物件資料結構：{ [id]: shapeObject }
@@ -59,4 +60,9 @@ io.on('connection', (socket) => {
   });
 });
 
-http.listen(3000, () => console.log('伺服器執行於 http://localhost:3000'));
+// 關鍵修正：相容 Render 雲端平台的動態連接埠設定
+const PORT = process.env.PORT || 3000;
+
+http.listen(PORT, () => {
+  console.log(`伺服器執行於連接埠 ${PORT}`);
+});
