@@ -118,20 +118,28 @@ socket.emit('shape:add', { room: roomName, data: shapeData });
       return 'm_' + Date.now().toString(36) + '_' + Math.floor(Math.random()*10000).toString(36);
     }
 
-    // 處理 draw:created 事件（使用者新增標記）
-    map.on(L.Draw.Event.CREATED, function (e) {
-      const layer = e.layer;
-      if (e.layerType === 'marker') {
-        const latlng = layer.getLatLng();
-        const id = genId();
-        const markerData = { id, lat: latlng.lat, lng: latlng.lng, properties: { label: 'user' } };
-        // 把 layer 轉到我們的 drawnItems 管理與本地 map
-        layer.remove();
-        createMarkerFromData(markerData);
-        // 發送給 server
-        socket.emit('marker:add', markerData);
-      }
-    });
+    // 處理 draw:created 事件（當使用者畫完圖形時）
+map.on(L.Draw.Event.CREATED, function (e) {
+  const layer = e.layer;
+  const type = e.layerType;
+  const id = genId(); // 使用您原有的 ID 生成函式
+
+  // [關鍵步驟 1]：將圖形確實加入到地圖的圖層組中
+  drawnItems.addLayer(layer);
+
+  // [關鍵步驟 2]：準備資料並發送給伺服器（讓別人也能看到）
+  const shapeData = {
+    id: id,
+    type: type,
+    // 根據形狀抓取座標數據
+    latlngs: layer.getLatLngs ? layer.getLatLngs() : layer.getLatLng(),
+    radius: layer.getRadius ? layer.getRadius() : null,
+    properties: { label: 'user' }
+  };
+
+  // 發送給 server 存起來
+  socket.emit('shape:add', shapeData);
+});
 
     // 初始拿取 server 上所有 markers（備援 API）
     fetch('/api/markers').then(r => r.json()).then(list => {
