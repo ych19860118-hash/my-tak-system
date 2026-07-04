@@ -1,183 +1,103 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>Web-TAK 數位地圖協作</title>
-  <link rel="stylesheet" href="https://unpkg.com" />
-  <link rel="stylesheet" href="https://cloudflare.com" />
-  <style>
-    body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
-    #map { height: 100%; width: 100%; }
-    #login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; display:flex; justify-content:center; align-items:center; color:white; }
-    .login-box { background: #333; padding: 20px; border-radius: 8px; text-align: center; }
-    .action-panel { display: flex; flex-direction: column; gap: 8px; min-width: 150px; color: #333; }
-    .btn-del { color: white; background: #ff4d4f; border: none; padding: 5px; cursor: pointer; border-radius: 4px; }
-    .btn-edit { color: white; background: #1890ff; border: none; padding: 5px; cursor: pointer; border-radius: 4px; }
-    input[type="text"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
-  </style>
+    <meta charset="UTF-8">
+    <title>多人共同即時地圖</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <!-- Leaflet Draw CSS -->
+    <link rel="stylesheet" href="https://cloudflare.com" />
+    <style>
+        #map { height: 100vh; width: 100%; }
+        body { margin: 0; padding: 0; }
+    </style>
 </head>
 <body>
 
-  <div id="login-overlay">
-    <div class="login-box">
-      <h2>Web-TAK 登入</h2>
-      <input type="text" id="username" placeholder="暱稱"><br><br>
-      <input type="text" id="room" placeholder="房間號碼"><br><br>
-      <button onclick="login()">進入地圖</button>
-    </div>
-  </div>
+    <div id="map"></div>
 
-  <div id="map"></div>
+    <!-- Socket.io & Leaflet JS -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com"></script>
+    <script src="https://cloudflare.com"></script>
 
-  <script src="https://unpkg.com"></script>
-  <script src="https://cloudflare.com"></script>
-  <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
 
-  <script>
-    function login() {
-      const username = document.getElementById('username').value;
-      const room = document.getElementById('room').value;
-      if(!username || !room) return alert('請輸入資訊');
-      document.getElementById('login-overlay').style.display = 'none';
-      initApp(username, room);
-    }
+        // 1. 初始化 OpenStreetMap 地圖
+        const map = L.map('map').setView([25.0339, 121.5644], 13); // 預設台北
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-    function initApp(username, room) {
-      const map = L.map('map').setView([25.0330, 121.5654], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      const drawnItems = new L.FeatureGroup().addTo(map);
-      const socket = io();
-      
-      socket.emit('join', { username, room });
+        // 2. 建立一個圖層來放置大家畫的圖形
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
 
-      const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
-      });
-      map.addControl(drawControl);
+        // 3. 配置 Leaflet.draw 工具列（圓形、方形、多邊形、線條）
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polyline: true,
+                polygon: true,
+                rectangle: true,
+                circle: true,
+                marker: false, // 關閉單點標記，專注在幾何圖形
+                circlemarker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
 
-      // 互動面板與屬性綁定
-      function bindLayerInteraction(layer, shape) {
-        layer.options.id = shape.id;
-        layer.options.shapeType = shape.type;
-        layer.options.properties = { ...shape.properties };
+        // 4. 當本機使用者「完成繪圖」時觸發
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            const type = e.layerType;
+            drawnItems.addLayer(layer);
 
-        if (layer.setStyle && shape.properties.color) {
-          layer.setStyle({ color: shape.properties.color });
-        }
-
-        layer.on('click', function() {
-          const panel = document.createElement('div');
-          panel.className = 'action-panel';
-          panel.innerHTML = `
-            <strong>${layer.options.properties.name}</strong>
-            <input type="text" id="ipt-name" value="${layer.options.properties.name}">
-            <input type="color" id="ipt-color" value="${layer.options.properties.color || '#3388ff'}">
-            <button class="btn-edit" id="btn-save">更新</button>
-            <button class="btn-del" id="btn-del">刪除</button>
-          `;
-          layer.bindPopup(panel).openPopup();
-
-          panel.querySelector('#btn-save').onclick = () => {
-            const newName = panel.querySelector('#ipt-name').value;
-            const newColor = panel.querySelector('#ipt-color').value;
+            // 將圖形轉化成 JSON 數據
+            const geoJsonData = layer.toGeoJSON();
             
-            layer.options.properties.name = newName;
-            layer.options.properties.color = newColor;
-            if (layer.setStyle) layer.setStyle({ color: newColor });
-            layer.closePopup();
+            // 由於 Leaflet.toGeoJSON() 不包含圓形的半徑，如果是圓形需特別處理
+            const extraData = {
+                type: type,
+                geometry: geoJsonData.geometry,
+                properties: {}
+            };
+            if (type === 'circle') {
+                extraData.radius = layer.getRadius();
+                extraData.latlng = layer.getLatLng();
+            }
 
-            socket.emit('shape:update', {
-              id: layer.options.id,
-              type: layer.options.shapeType,
-              data: layer.toGeoJSON().geometry,
-              radius: layer.getRadius ? layer.getRadius() : null,
-              properties: layer.options.properties
-            });
-          };
-
-          panel.querySelector('#btn-del').onclick = () => {
-            socket.emit('shape:remove', layer.options.id);
-          };
+            // 發送到後端伺服器
+            socket.emit('draw-shape', extraData);
         });
-      }
 
-      // 監聽：新畫好的圖形
-      map.on(L.Draw.Event.CREATED, (e) => {
-        const id = Date.now().toString();
-        const shapeData = { 
-          id, 
-          type: e.layerType, 
-          data: e.layer.toGeoJSON().geometry, 
-          radius: e.layer.getRadius ? e.layer.getRadius() : null, 
-          properties: { name: "新物件", color: "#3388ff" } 
-        };
-        socket.emit('shape:add', shapeData);
-      });
+        // 5. 接收伺服器發來的「歷史圖形」或「其他人新畫的圖形」
+        function renderShape(shapeData) {
+            let remoteLayer;
+            if (shapeData.type === 'circle') {
+                remoteLayer = L.circle(shapeData.latlng, { radius: shapeData.radius });
+            } else {
+                remoteLayer = L.geoJSON(shapeData.geometry);
+            }
+            remoteLayer.setStyle({ color: '#ff4455', weight: 4 }); // 區分他人畫的顏色
+            drawnItems.addLayer(remoteLayer);
+        }
 
-      // 監聽：拖曳或調整圖形大小後的儲存
-      map.on('draw:edited', (e) => {
-        e.layers.eachLayer(l => {
-          socket.emit('shape:update', { 
-            id: l.options.id, 
-            type: l.options.shapeType,
-            data: l.toGeoJSON().geometry, 
-            radius: l.getRadius ? l.getRadius() : null,
-            properties: l.options.properties
-          });
+        socket.on('init-shapes', (shapes) => {
+            shapes.forEach(renderShape);
         });
-      });
 
-      // 監聽：圖形被工具列刪除
-      map.on('draw:deleted', (e) => {
-        e.layers.eachLayer(l => {
-          socket.emit('shape:remove', l.options.id);
+        socket.on('user-drew-shape', (shapeData) => {
+            renderShape(shapeData);
         });
-      });
 
-      // Socket 協作同步事件
-      socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
-      
-      socket.on('shape:added', renderShape);
-      
-      socket.on('shape:updated', (s) => { 
-        drawnItems.eachLayer(l => { if(l.options.id === s.id) drawnItems.removeLayer(l); }); 
-        renderShape(s); 
-      });
-      
-      socket.on('shape:removed', (id) => {
-        drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); });
-      });
-
-      // 核心渲染邏輯（非破壞性讀取座標）
-      function renderShape(shape) {
-        let layer;
-        const coords = shape.data.coordinates;
-
-        // 安全處理 GeoJSON [Lng, Lat] 轉 Leaflet [Lat, Lng]，不污染原始變數
-        if (shape.type === 'circle') {
-          layer = L.circle([coords[1], coords[0]], { radius: shape.radius });
-        } 
-        else if (shape.type === 'marker') {
-          layer = L.marker([coords[1], coords[0]]);
-        }
-        else if (shape.type === 'rectangle' || shape.type === 'polygon') {
-          // 多邊形結構通常為 [[[lng, lat], [lng, lat], ...]]
-          const latLngs = coords[0].map(pt => [pt[1], pt[0]]);
-          layer = L.polygon(latLngs);
-        }
-        else if (shape.type === 'polyline') {
-          // 線段結構為 [[lng, lat], [lng, lat], ...]
-          const latLngs = coords.map(pt => [pt[1], pt[0]]);
-          layer = L.polyline(latLngs);
-        }
-
-        if (layer) { 
-          bindLayerInteraction(layer, shape); 
-          layer.addTo(drawnItems); 
-        }
-      }
-    }
-  </script>
+        socket.on('map-cleared', () => {
+            drawnItems.clearLayers();
+        });
+    </script>
 </body>
 </html>
