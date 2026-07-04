@@ -1,4 +1,7 @@
-')(http);
+const express = require('express');
+const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
 
 app.use(express.static(__dirname));
 
@@ -23,18 +26,26 @@ io.on('connection', (socket) => {
     io.to(userRoom).emit('shape:added', shape);
   });
 
-  // 更新圖形（拖曳、調整大小、修改屬性）
+  // 更新圖形（拖曳、調整大小、修改屬性）安全保護版
   socket.on('shape:update', (updatedShape) => {
+    if (!updatedShape || !updatedShape.id) return;
+
     if (shapes[updatedShape.id]) {
-      // 合併新舊資料，確保屬性、類型與房間資訊完整
+      // 1. 先取得原本儲存的屬性
+      const oldProperties = shapes[updatedShape.id].properties || {};
+      // 2. 取得前端傳過來的屬性（若無則給空物件，防止展開時噴錯）
+      const newProperties = updatedShape.properties || {};
+
+      // 3. 安全合併資料
       shapes[updatedShape.id] = { 
         ...shapes[updatedShape.id], 
         ...updatedShape,
         properties: {
-          ...shapes[updatedShape.id].properties,
-          ...updatedShape.properties
+          ...oldProperties,
+          ...newProperties
         }
       };
+      
       io.to(userRoom).emit('shape:updated', shapes[updatedShape.id]);
     }
   });
