@@ -8,12 +8,23 @@
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
     #map { height: 100%; width: 100%; }
-    .action-panel { display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
-    .btn-del { color: white; background: #ff4d4f; border: none; padding: 5px; cursor: pointer; }
-    .btn-edit { color: white; background: #1890ff; border: none; padding: 5px; cursor: pointer; }
+    /* 登入視窗樣式 */
+    #login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; display:flex; justify-content:center; align-items:center; color:white; }
+    .login-box { background: #333; padding: 20px; border-radius: 8px; text-align: center; }
   </style>
 </head>
 <body>
+
+  <!-- 登入視窗 -->
+  <div id="login-overlay">
+    <div class="login-box">
+      <h2>Web-TAK 登入</h2>
+      <input type="text" id="username" placeholder="輸入您的暱稱"><br><br>
+      <input type="text" id="room" placeholder="輸入房間號碼"><br><br>
+      <button onclick="login()">進入地圖</button>
+    </div>
+  </div>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -21,99 +32,60 @@
   <script src="/socket.io/socket.io.js"></script>
 
   <script>
-    const map = L.map('map').setView([25.0330, 121.5654], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let map, drawnItems, socket;
 
-    const drawnItems = new L.FeatureGroup().addTo(map);
-    const socket = io();
-    
-    // 登入
-    const username = prompt("請輸入名稱:");
-    const room = prompt("請輸入房間號碼:");
-    socket.on('connect', () => socket.emit('join', { username, room }));
-
-    // 繪圖工具
-    const drawControl = new L.Control.Draw({
-      edit: { featureGroup: drawnItems },
-      draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
-    });
-    map.addControl(drawControl);
-
-    // 繪製完成處理
-    map.on(L.Draw.Event.CREATED, function (e) {
-      const layer = e.layer;
-      const shapeData = {
-        id: Date.now().toString(),
-        type: e.layerType,
-        data: layer.toGeoJSON().geometry,
-        radius: layer.getRadius ? layer.getRadius() : null,
-        properties: { name: "新物件", color: "#3388ff" }
-      };
-      bindLayerInteraction(layer, shapeData);
-      drawnItems.addLayer(layer);
-      socket.emit('shape:add', shapeData);
-    });
-
-    // 核心互動邏輯：整合編輯與刪除
-    function bindLayerInteraction(layer, shape) {
-      layer.options.id = shape.id;
-      layer.setStyle({ color: shape.properties.color });
-
-      layer.on('click', function() {
-        const panel = document.createElement('div');
-        panel.className = 'action-panel';
-        panel.innerHTML = `
-          <strong>${shape.properties.name}</strong>
-          <input type="text" id="ipt-name" value="${shape.properties.name}">
-          <input type="color" id="ipt-color" value="${shape.properties.color}">
-          <button class="btn-edit" id="btn-save">更新屬性</button>
-          <button class="btn-del" id="btn-del">刪除圖形</button>
-        `;
-
-        layer.bindPopup(panel).openPopup();
-
-        // 儲存更新
-        panel.querySelector('#btn-save').onclick = () => {
-          shape.properties.name = panel.querySelector('#ipt-name').value;
-          shape.properties.color = panel.querySelector('#ipt-color').value;
-          layer.setStyle({ color: shape.properties.color });
-          layer.closePopup();
-          socket.emit('shape:update', shape);
-        };
-
-        // 刪除邏輯
-        panel.querySelector('#btn-del').onclick = () => {
-          if (confirm("確定要刪除這個圖形嗎？")) {
-            drawnItems.removeLayer(layer);
-            socket.emit('shape:remove', shape.id);
-          }
-        };
-      });
+    function login() {
+      const username = document.getElementById('username').value;
+      const room = document.getElementById('room').value;
+      if(!username || !room) return alert('請輸入完整資訊');
+      
+      document.getElementById('login-overlay').style.display = 'none';
+      initApp(username, room);
     }
 
-    // 編輯同步
-    map.on('draw:edited', (e) => {
-      e.layers.eachLayer(layer => {
-        socket.emit('shape:update', { id: layer.options.id, data: layer.toGeoJSON().geometry, radius: layer.getRadius ? layer.getRadius() : null });
+    function initApp(username, room) {
+      map = L.map('map').setView([25.0330, 121.5654], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      drawnItems = new L.FeatureGroup().addTo(map);
+      socket = io();
+
+      socket.emit('join', { username, room });
+
+      // 繪圖工具
+      const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems }, // 這裡開啟了編輯模式
+        draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
       });
-    });
+      map.addControl(drawControl);
 
-    // 接收同步 (新增、更新、刪除)
-    socket.on('shape:added', renderShape);
-    socket.on('shape:removed', (id) => {
-      drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); });
-    });
+      // 當編輯完成後，觸發同步
+      map.on('draw:edited', function (e) {
+        e.layers.eachLayer(function (layer) {
+          socket.emit('shape:update', {
+            id: layer.options.id,
+            data: layer.toGeoJSON().geometry,
+            radius: layer.getRadius ? layer.getRadius() : null
+          });
+        });
+      });
 
-    function renderShape(shape) {
-      let layer;
-      if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
-      else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
-      else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
-      
-      if (layer) {
-        bindLayerInteraction(layer, shape);
-        layer.addTo(drawnItems);
-      }
+      // 繪圖完成
+      map.on(L.Draw.Event.CREATED, function (e) {
+        const layer = e.layer;
+        const id = Date.now().toString();
+        layer.options.id = id; // 設定 ID
+        
+        const shapeData = {
+          id: id,
+          type: e.layerType,
+          data: layer.toGeoJSON().geometry,
+          radius: layer.getRadius ? layer.getRadius() : null,
+          properties: { name: "新物件", color: "#3388ff" }
+        };
+        
+        drawnItems.addLayer(layer);
+        socket.emit('shape:add', shapeData);
+      });
     }
   </script>
 </body>
