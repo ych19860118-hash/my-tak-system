@@ -42,18 +42,34 @@
     const drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
 
-    const drawControl = new L.Control.Draw({
-      edit: { featureGroup: drawnItems },
-      draw: {
-        marker: true,
-        polyline: false,
-        polygon: false,
-        circle: false,
-        rectangle: false,
-        circlemarker: false
-      }
-    });
-    map.addControl(drawControl);
+// 1. 擴充繪圖工具
+const drawControl = new L.Control.Draw({
+  edit: { featureGroup: drawnItems },
+  draw: {
+    marker: true,
+    polyline: true,    // 線條
+    polygon: true,     // 多邊形
+    circle: true,      // 圓形
+    rectangle: true    // 方形
+  }
+});
+map.addControl(drawControl);
+
+// 2. 登入機制 (在頁面載入時觸發)
+// 建議加一個簡單的 prompt 或 modal 視窗
+const userName = prompt("請輸入您的名稱:");
+const roomName = prompt("請輸入房間號碼 (共同頻道請輸入 room1 或 room2):");
+
+// 3. 傳送時加入 "創建者" 資訊
+// 當偵測到 draw:created 時，資料格式改為：
+const shapeData = {
+  id: genId(),
+  type: e.layerType, // 'circle', 'rectangle' 等
+  latlngs: layer.getLatLngs ? layer.getLatLngs() : layer.getLatLng(),
+  creator: userName, // 紀錄這是誰畫的
+  properties: { color: '#3388ff', name: '新物件' }
+};
+socket.emit('shape:add', { room: roomName, data: shapeData });
 
     // Socket.IO 連線
     const socket = io(); // 使用相同 origin 連線
