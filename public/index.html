@@ -10,6 +10,9 @@
     #map { height: 100%; width: 100%; }
     #login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; display:flex; justify-content:center; align-items:center; color:white; }
     .login-box { background: #333; padding: 20px; border-radius: 8px; text-align: center; }
+    .action-panel { display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
+    .btn-del { color: white; background: #ff4d4f; border: none; padding: 5px; cursor: pointer; }
+    .btn-edit { color: white; background: #1890ff; border: none; padding: 5px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -36,7 +39,6 @@
       const username = document.getElementById('username').value;
       const room = document.getElementById('room').value;
       if(!username || !room) return alert('請輸入完整資訊');
-      
       document.getElementById('login-overlay').style.display = 'none';
       initApp(username, room);
     }
@@ -44,50 +46,71 @@
     function initApp(username, room) {
       map = L.map('map').setView([25.0330, 121.5654], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      
-      // 確保 drawnItems 被定義且加入地圖
       drawnItems = new L.FeatureGroup().addTo(map);
       socket = io();
-
       socket.emit('join', { username, room });
 
-      // 繪圖工具：關鍵在於 featureGroup 必須是上面那個 drawnItems
       const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems }, 
+        edit: { featureGroup: drawnItems },
         draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
       });
       map.addControl(drawControl);
 
-      // 當圖形繪製完成
+      // 互動邏輯：點擊圖形出現視窗
+      function bindLayerInteraction(layer, shape) {
+        layer.options.id = shape.id;
+        layer.setStyle({ color: shape.properties.color });
+        layer.on('click', function() {
+          const panel = document.createElement('div');
+          panel.className = 'action-panel';
+          panel.innerHTML = `
+            <strong>${shape.properties.name}</strong>
+            <input type="text" id="ipt-name" value="${shape.properties.name}">
+            <input type="color" id="ipt-color" value="${shape.properties.color}">
+            <button class="btn-edit" id="btn-save">更新屬性</button>
+            <button class="btn-del" id="btn-del">刪除圖形</button>
+          `;
+          layer.bindPopup(panel).openPopup();
+          panel.querySelector('#btn-save').onclick = () => {
+            shape.properties.name = panel.querySelector('#ipt-name').value;
+            shape.properties.color = panel.querySelector('#ipt-color').value;
+            layer.setStyle({ color: shape.properties.color });
+            layer.closePopup();
+            socket.emit('shape:update', shape);
+          };
+          panel.querySelector('#btn-del').onclick = () => {
+            drawnItems.removeLayer(layer);
+            socket.emit('shape:remove', shape.id);
+          };
+        });
+      }
+
       map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         const id = Date.now().toString();
-        layer.options.id = id;
-        
-        // 【關鍵】將圖層加入 drawnItems，編輯器才能偵測到它
+        const shapeData = { id, type: e.layerType, data: layer.toGeoJSON().geometry, radius: layer.getRadius ? layer.getRadius() : null, properties: { name: "新物件", color: "#3388ff" } };
         drawnItems.addLayer(layer);
-        
-        const shapeData = {
-          id: id,
-          type: e.layerType,
-          data: layer.toGeoJSON().geometry,
-          radius: layer.getRadius ? layer.getRadius() : null,
-          properties: { name: "新物件", color: "#3388ff" }
-        };
-        
+        bindLayerInteraction(layer, shapeData);
         socket.emit('shape:add', shapeData);
       });
 
-      // 編輯完成後的同步
-      map.on('draw:edited', function (e) {
-        e.layers.eachLayer(function (layer) {
-          socket.emit('shape:update', {
-            id: layer.options.id,
-            data: layer.toGeoJSON().geometry,
-            radius: layer.getRadius ? layer.getRadius() : null
-          });
+      map.on('draw:edited', (e) => {
+        e.layers.eachLayer(layer => {
+          socket.emit('shape:update', { id: layer.options.id, data: layer.toGeoJSON().geometry, radius: layer.getRadius ? layer.getRadius() : null });
         });
       });
+
+      socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
+      socket.on('shape:added', renderShape);
+      socket.on('shape:removed', (id) => drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); }));
+
+      function renderShape(shape) {
+        let layer;
+        if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
+        else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
+        else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
+        if (layer) { bindLayerInteraction(layer, shape); layer.addTo(drawnItems); }
+      }
     }
   </script>
 </body>
