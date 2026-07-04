@@ -8,6 +8,7 @@
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
     #map { height: 100%; width: 100%; }
+    .edit-form { display: flex; flex-direction: column; gap: 5px; }
   </style>
 </head>
 <body>
@@ -25,7 +26,7 @@
     const socket = io();
     
     // 1. 登入
-    const username = prompt("請輸入您的名稱:");
+    const username = prompt("請輸入名稱:");
     const room = prompt("請輸入房間號碼:");
     socket.on('connect', () => socket.emit('join', { username, room }));
 
@@ -36,7 +37,7 @@
     });
     map.addControl(drawControl);
 
-    // 3. 繪製完成：建立物件並綁定右鍵功能
+    // 3. 繪製完成：建立物件並綁定點擊功能
     map.on(L.Draw.Event.CREATED, function (e) {
       const layer = e.layer;
       const shapeData = {
@@ -47,35 +48,40 @@
         properties: { name: "新物件", color: "#3388ff" }
       };
       
-      bindLayerEvents(layer, shapeData);
+      bindLayerInteraction(layer, shapeData);
       drawnItems.addLayer(layer);
       socket.emit('shape:add', shapeData);
     });
 
-    // 4. 綁定右鍵事件與彈出視窗
-    function bindLayerEvents(layer, shape) {
+    // 4. 點擊互動邏輯 (使用 HTML 表單建立調色盤)
+    function bindLayerInteraction(layer, shape) {
       layer.options.id = shape.id;
       layer.setStyle({ color: shape.properties.color });
-      
-      // 右鍵點擊事件
-      layer.on('contextmenu', function(e) {
-        const newName = prompt("修改名稱:", shape.properties.name || "");
-        const newColor = prompt("修改顏色 (例如: #FF0000):", shape.properties.color || "#3388ff");
-        
-        if (newName !== null && newColor !== null) {
-          shape.properties.name = newName;
-          shape.properties.color = newColor;
-          layer.setStyle({ color: newColor });
-          layer.bindPopup("名稱: " + newName).openPopup();
-          
-          socket.emit('shape:update', shape); // 通知伺服器同步
-        }
+
+      layer.on('click', function() {
+        const popupContent = document.createElement('div');
+        popupContent.className = 'edit-form';
+        popupContent.innerHTML = `
+          <strong>修改屬性</strong>
+          <input type="text" id="edit-name" value="${shape.properties.name}" placeholder="名稱">
+          <input type="color" id="edit-color" value="${shape.properties.color}">
+          <button id="save-btn">儲存</button>
+        `;
+
+        layer.bindPopup(popupContent).openPopup();
+
+        // 儲存按鈕邏輯
+        popupContent.querySelector('#save-btn').onclick = () => {
+          shape.properties.name = document.getElementById('edit-name').value;
+          shape.properties.color = document.getElementById('edit-color').value;
+          layer.setStyle({ color: shape.properties.color });
+          layer.closePopup();
+          socket.emit('shape:update', shape);
+        };
       });
-      
-      layer.bindPopup("名稱: " + shape.properties.name);
     }
 
-    // 5. 編輯同步 (位置/大小修改)
+    // 5. 編輯同步 (移動/改變大小)
     map.on('draw:edited', function (e) {
       e.layers.eachLayer(function (layer) {
         socket.emit('shape:update', {
@@ -87,9 +93,8 @@
     });
 
     // 6. 接收同步
-    socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
-    socket.on('shape:added', renderShape);
-
+    socket.on('shape:added', (shape) => renderShape(shape));
+    
     function renderShape(shape) {
       let layer;
       if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
@@ -97,7 +102,117 @@
       else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
       
       if (layer) {
-        bindLayerEvents(layer, shape);
+        bindLayerInteraction(layer, shape);
+        layer.addTo(drawnItems);
+      }
+    }
+  </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>Web-TAK 數位地圖協作</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
+    #map { height: 100%; width: 100%; }
+    .edit-form { display: flex; flex-direction: column; gap: 5px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    const map = L.map('map').setView([25.0330, 121.5654], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    const drawnItems = new L.FeatureGroup().addTo(map);
+    const socket = io();
+    
+    // 1. 登入
+    const username = prompt("請輸入名稱:");
+    const room = prompt("請輸入房間號碼:");
+    socket.on('connect', () => socket.emit('join', { username, room }));
+
+    // 2. 繪圖工具
+    const drawControl = new L.Control.Draw({
+      edit: { featureGroup: drawnItems },
+      draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
+    });
+    map.addControl(drawControl);
+
+    // 3. 繪製完成：建立物件並綁定點擊功能
+    map.on(L.Draw.Event.CREATED, function (e) {
+      const layer = e.layer;
+      const shapeData = {
+        id: Date.now().toString(),
+        type: e.layerType,
+        data: layer.toGeoJSON().geometry,
+        radius: layer.getRadius ? layer.getRadius() : null,
+        properties: { name: "新物件", color: "#3388ff" }
+      };
+      
+      bindLayerInteraction(layer, shapeData);
+      drawnItems.addLayer(layer);
+      socket.emit('shape:add', shapeData);
+    });
+
+    // 4. 點擊互動邏輯 (使用 HTML 表單建立調色盤)
+    function bindLayerInteraction(layer, shape) {
+      layer.options.id = shape.id;
+      layer.setStyle({ color: shape.properties.color });
+
+      layer.on('click', function() {
+        const popupContent = document.createElement('div');
+        popupContent.className = 'edit-form';
+        popupContent.innerHTML = `
+          <strong>修改屬性</strong>
+          <input type="text" id="edit-name" value="${shape.properties.name}" placeholder="名稱">
+          <input type="color" id="edit-color" value="${shape.properties.color}">
+          <button id="save-btn">儲存</button>
+        `;
+
+        layer.bindPopup(popupContent).openPopup();
+
+        // 儲存按鈕邏輯
+        popupContent.querySelector('#save-btn').onclick = () => {
+          shape.properties.name = document.getElementById('edit-name').value;
+          shape.properties.color = document.getElementById('edit-color').value;
+          layer.setStyle({ color: shape.properties.color });
+          layer.closePopup();
+          socket.emit('shape:update', shape);
+        };
+      });
+    }
+
+    // 5. 編輯同步 (移動/改變大小)
+    map.on('draw:edited', function (e) {
+      e.layers.eachLayer(function (layer) {
+        socket.emit('shape:update', {
+          id: layer.options.id,
+          data: layer.toGeoJSON().geometry,
+          radius: layer.getRadius ? layer.getRadius() : null
+        });
+      });
+    });
+
+    // 6. 接收同步
+    socket.on('shape:added', (shape) => renderShape(shape));
+    
+    function renderShape(shape) {
+      let layer;
+      if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
+      else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
+      else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
+      
+      if (layer) {
+        bindLayerInteraction(layer, shape);
         layer.addTo(drawnItems);
       }
     }
