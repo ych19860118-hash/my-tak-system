@@ -56,34 +56,45 @@
       });
       map.addControl(drawControl);
 
-      // 互動邏輯：點擊圖形出現視窗
-      function bindLayerInteraction(layer, shape) {
-        layer.options.id = shape.id;
-        layer.setStyle({ color: shape.properties.color });
-        layer.on('click', function() {
-          const panel = document.createElement('div');
-          panel.className = 'action-panel';
-          panel.innerHTML = `
-            <strong>${shape.properties.name}</strong>
-            <input type="text" id="ipt-name" value="${shape.properties.name}">
-            <input type="color" id="ipt-color" value="${shape.properties.color}">
-            <button class="btn-edit" id="btn-save">更新屬性</button>
-            <button class="btn-del" id="btn-del">刪除圖形</button>
-          `;
-          layer.bindPopup(panel).openPopup();
-          panel.querySelector('#btn-save').onclick = () => {
-            shape.properties.name = panel.querySelector('#ipt-name').value;
-            shape.properties.color = panel.querySelector('#ipt-color').value;
-            layer.setStyle({ color: shape.properties.color });
-            layer.closePopup();
-            socket.emit('shape:update', shape);
-          };
-          panel.querySelector('#btn-del').onclick = () => {
-            drawnItems.removeLayer(layer);
-            socket.emit('shape:remove', shape.id);
-          };
+    function bindLayerInteraction(layer, shape) {
+      layer.options.id = shape.id;
+      layer.setStyle({ color: shape.properties.color });
+
+      // 【關鍵修正】若是標記(marker)，直接啟用拖曳
+      if (layer instanceof L.Marker) {
+        layer.dragging.enable();
+        layer.on('dragend', function() {
+          shape.data.coordinates = [layer.getLatLng().lng, layer.getLatLng().lat];
+          socket.emit('shape:update', shape);
         });
       }
+
+      layer.on('click', function() {
+        const panel = document.createElement('div');
+        panel.className = 'action-panel';
+        panel.innerHTML = `
+          <strong>${shape.properties.name}</strong>
+          <input type="text" id="ipt-name" value="${shape.properties.name}">
+          <input type="color" id="ipt-color" value="${shape.properties.color}">
+          <button class="btn-edit" id="btn-save">更新屬性</button>
+          <button class="btn-del" id="btn-del">刪除圖形</button>
+        `;
+        layer.bindPopup(panel).openPopup();
+
+        panel.querySelector('#btn-save').onclick = () => {
+          shape.properties.name = panel.querySelector('#ipt-name').value;
+          shape.properties.color = panel.querySelector('#ipt-color').value;
+          layer.setStyle({ color: shape.properties.color });
+          layer.closePopup();
+          socket.emit('shape:update', shape);
+        };
+
+        panel.querySelector('#btn-del').onclick = () => {
+          drawnItems.removeLayer(layer);
+          socket.emit('shape:remove', shape.id);
+        };
+      });
+    }
 
       map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
