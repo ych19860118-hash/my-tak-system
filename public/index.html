@@ -5,72 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人共同即時地圖</title>
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
-        #map { height: 100vh; width: 100%; background-color: #f5f5f5; }
-        .room-info { position: absolute; top: 10px; left: 60px; z-index: 1000; background: white; padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-family: sans-serif; font-size: 14px; font-weight: bold; }
+        html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background-color: #f8f9fa; }
+        #canvas-container { position: relative; width: 100vw; height: 100vh; }
+        /* 畫布底圖：使用安全的本地端格線 */
+        #map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(#d3d3d3 1.5px, transparent 1.5px); background-size: 30px 30px; cursor: crosshair; }
+        .room-info { position: absolute; top: 10px; left: 60px; z-index: 1000; background: white; padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; font-weight: bold; }
         /* 繪圖控制面板樣式 */
-        .map-tools { position: absolute; top: 60px; left: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 5px; font-family: sans-serif; }
-        .map-tools button { padding: 8px 12px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-weight: bold; text-align: left; }
+        .map-tools { position: absolute; top: 60px; left: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; font-family: sans-serif; }
+        .map-tools button { padding: 10px 14px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-weight: bold; text-align: left; transition: all 0.2s; }
         .map-tools button:hover { background: #f0f0f0; }
         .map-tools button.active { background: #007bff; color: white; border-color: #0056b3; }
         .map-tools .clear-btn { color: #dc3545; border-color: #dc3545; margin-top: 10px; text-align: center; }
         .map-tools .clear-btn:hover { background: #dc3545; color: white; }
-    </style>
-    <!-- 終極方案：內建極簡地圖樣式，100% 繞過防火牆限制 -->
-    <style>
-        .leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-layer, .leaflet-overlay-pane svg { position: absolute; left: 0; top: 0; }
-        .leaflet-container { overflow: hidden; -ms-touch-action: none; touch-action: none; cursor: grab; }
-        .leaflet-tile-container { pointer-events: none; }
-        .leaflet-tile { filter: inherit; visibility: hidden; }
-        .leaflet-tile-loaded { visibility: inherit; }
-        .leaflet-pane { z-index: 400; }
-        .leaflet-tile-pane { z-index: 200; }
-        .leaflet-overlay-pane { z-index: 400; }
-        .leaflet-overlay-pane svg { pointer-events: none; }
-        .leaflet-overlay-pane path { pointer-events: auto; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="room-info">當前房間：<span id="room-name">預設房間</span></div>
 
-    <!-- 操作面板 -->
-    <div class="map-tools">
-        <button id="draw-circle">⭕ 畫圓形區域</button>
-        <button id="draw-rect">⏹️ 畫方形區域</button>
-        <button id="draw-poly">⬡ 畫多邊形</button>
-        <button id="draw-line">↗️ 畫線條路徑</button>
-        <button id="clear-all" class="clear-btn">🗑️ 清除當前地圖</button>
-    </div>
+    <div id="canvas-container">
+        <!-- 核心繪圖畫布 -->
+        <canvas id="map-canvas"></canvas>
 
-    <!-- 終極底圖背景畫布：防止國外地圖磚網址再次被封鎖，自備一塊優雅的多功能動態格線系統 -->
-    <div id="map" style="background-image: radial-gradient(#ccc 1px, transparent 1px); background-size: 20px 20px;"></div>
+        <!-- 操作面板 -->
+        <div class="map-tools">
+            <button id="draw-circle">⭕ 畫圓形區域</button>
+            <button id="draw-rect">⏹️ 畫方形區域</button>
+            <button id="draw-poly">⬡ 畫多邊形</button>
+            <button id="draw-line">↗️ 畫線條路徑</button>
+            <button id="clear-all" class="clear-btn">🗑️ 清除當前地圖</button>
+        </div>
+    </div>
 
     <!-- 引用您自己後端伺服器的即時通訊庫 -->
     <script src="/socket.io/socket.io.js"></script>
 
-    <!-- 核心突破：直接將免網、去依賴、高壓縮的精簡版地圖引擎程式碼直接注入，防火牆完全拿它沒辦法 -->
     <script>
-        !function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"function"==typeof define&&define.amd?define(["exports"],e):e((t="undefined"!=typeof globalThis?globalThis:t||self).L={})}(this,(function(t){"use strict";function e(t){var e,i,n,o;for(i=1,n=arguments.length;i<n;i++)for(e in o=arguments[i])t[e]=o[e];return t}var i=Object.freeze({__proto__:null,extend:e});function n(t,e){var i=Array.prototype.slice.call(arguments,2);return t.bind?t.bind.apply(t,arguments.slice(1)):function(){return t.apply(e,i.concat(Array.prototype.slice.call(arguments)))}}function o(t){return t._leaflet_id=t._leaflet_id||++s,t._leaflet_id}var s=0;function r(t,e,i){var n,o,s,r;return r=function(){n=null,o&&(s=t.apply(i,o),o=null)},s=function(){o=arguments,n||(n=setTimeout(r,e))}}function a(t,e,i){var n=e[0],o=e[1],s=o-n;return t===o&&i?t:((t-n)%s+s)%s+n}function h(){return false}function u(t){return window.JSON?JSON.parse(t):null}function l(t){return window.JSON?JSON.stringify(t):null}var c=Object.freeze({__proto__:null,extend:e,bind:n,stamp:o,throttle:r,wrapNum:a,falseFn:h,parseJson:u,stringifyJson:l});function d(){}d.extend=function(t){var i=function(){this.initialize&&this.initialize.apply(this,arguments)},n=function(){};n.prototype=this.prototype;var o=new n;o.constructor=i,i.prototype=o;for(var s in this)this.hasOwnProperty(s)&&"prototype"!==s&&"extend"!==s&&(i[s]=this[s]);return e(o,t),i.prototype.initialize=o.initialize,i.__super__=this.prototype,i};var _=d.extend({initialize:function(t,e){this._map=t,this._layers={}},addLayer:function(t){var e=o(t);this._layers[e]=t},removeLayer:function(t){var e=o(t);delete this._layers[e]},setStyle:function(t){for(var e in this._layers)this._layers[e].setStyle&&this._layers[e].setStyle(t)},clearLayers:function(){this._layers={}}});function p(t,e){this.lat=parseFloat(t),this.lng=parseFloat(e)}p.prototype={equals:function(t,e){return!!t&&(t=m(t),Math.max(Math.abs(this.lat-t.lat),Math.abs(this.lng-t.lng))<=(void 0===e?.000001:e))},toString:function(t){return"LatLng("+this.lat+", "+this.lng+")"}};function m(t,e){return t instanceof p?t:Array.isArray(t)&&"object"!=typeof t[0]?2===t.length||3===t.length?new p(t[0],t[1]):null:null==t?t:"object"==typeof t&&"lat"in t?new p(t.lat,"lng"in t?t.lng:t.lon):"object"==typeof t&&"lng"in t?new p(t.lat,t.lng):null}function f(t){return Array.isArray(t)?t.map((function(t){return f(t)})):m(t)}var g=d.extend({initialize:function(t,i){this.options=e({},this.options,i),this._container=document.getElementById(t),this._panes={},this._initPanes(),this._initEvents(),this.setView(t,i)},setView:function(t){return this},addLayer:function(t){var e=o(t);return t._map=this,this._panes.overlayPane.appendChild(t._el),this},removeLayer:function(t){var e=o(t);return t._el&&t._el.parentNode&&t._el.parentNode.removeChild(t._el),delete t._map,this},_initPanes:function(){var t=document.createElement("div");t.className="leaflet-pane",this._container.appendChild(t);var e=document.createElement("div");e.className="leaflet-overlayPane",t.appendChild(e);var i=document.createElementNS("http://w3.org","svg");e.appendChild(i),this._panes.overlayPane=i},_initEvents:function(){var t=this;this._container.addEventListener("click",(function(e){if(t._onClick){var i=t._container.getBoundingClientRect(),n=e.clientX-i.left,o=e.clientY-i.top;t._onClick({latlng:new p(o,n),layerPoint:{x:n,y:o},containerPoint:{x:n,y:o}})}}))},on:function(t,e){return"click"===t&&(this._onClick=e),this}});var v=d.extend({initialize:function(t){this.options=e({color:"#3388ff",weight:3,fillColor:"#3388ff",fillOpacity:.2},t)},setStyle:function(t){return e(this.options,t),this._update(),this},_update:function(){if(this._el){this._el.setAttribute("stroke",this.options.color),this._el.setAttribute("stroke-width",this.options.weight),this._el.setAttribute("fill",this.options.fillColor),this._el.setAttribute("fill-opacity",this.options.fillOpacity)}}});var y=v.extend({initialize:function(t,i){v.prototype.initialize.call(this,i),this._latlng=m(t),this._radius=i&&i.radius?i.radius:50,this._el=document.createElementNS("http://w3.org","circle")},setLatLng:function(t){this._latlng=m(t),this._draw()},setRadius:function(t){this._radius=t,this._draw()},_draw:function(){this._el.setAttribute("cx",this._latlng.lng),this._el.setAttribute("cy",this._latlng.lat),this._el.setAttribute("r",this._radius/50),this._update()}});var x=v.extend({initialize:function(t,i){v.prototype.initialize.call(this,i),this._latlngs=f(t),this._el=document.createElementNS("http://w3.org",this._getType())},_getType:function(){return"polyline"},setLatLngs:function(t){this._latlngs=f(t),this._draw()},_draw:function(){var t=this,e="";this._latlngs.forEach((function(i,n){e+=(0===n?"M":"L")+i.lng+" "+i.lat})),this._el.setAttribute("d",e),this._update()}});var w=x.extend({_getType:function(){return"polygon"},_draw:function(){x.prototype._draw.call(this);var t=this._el.getAttribute("d");t&&(t+="Z",this._el.setAttribute("d",t))}});var k=w.extend({initialize:function(t,e){var i=f(t);w.prototype.initialize.call(this,[i[0],[i[0].lat,i[1].lng],i[1],[i[1].lat,i[0].lng]],e)}});t.map=function(t,e){return new g(t,e)},t.tileLayer=function(){return{addTo:function(){}}},t.FeatureGroup=function(){return new _},t.circle=function(t,e){var i=new y(t,e);return i._draw(),i},t.polyline=function(t,e){var i=new x(t,e);return i._draw(),i},t.polygon=function(t,e){var i=new w(t,e);return i._draw(),i},t.rectangle=function(t,e){var i=new k(t,e);return i._draw(),i},t.LatLng=p,t.latLng=m,Object.defineProperty(t,"__esModule",{value:!0})}));
-    </script>
-
-    <script>
-        // 初始化系統連線與設定
         const socket = io();
         const urlParams = new URLSearchParams(window.location.search);
         const currentRoom = urlParams.get('room') || 'lobby';
         document.getElementById('room-name').innerText = currentRoom;
 
-        // 啟動內建的無網地圖實體
-        const map = L.map('map').setView([200, 300], 8);
-        const drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
-        
-        const localShapes = {};
-        let currentMode = null;
-        let activePoints = [];
+        // 初始化 HTML5 Canvas
+        const canvas = document.getElementById('map-canvas');
+        const ctx = canvas.getContext('2d');
 
-        // 按鈕點擊綁定
+        // 自動調整畫布大小符合視窗
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            redrawAll();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // 儲存所有圖形的物件與目前的繪圖狀態
+        let shapes = {};
+        let currentMode = null;
+        let clickedPoints = [];
+
         const buttons = {
             'circle': document.getElementById('draw-circle'),
             'rect': document.getElementById('draw-rect'),
@@ -78,6 +70,7 @@
             'line': document.getElementById('draw-line')
         };
 
+        // 切換繪圖模式的按鈕邏輯
         Object.keys(buttons).forEach(mode => {
             buttons[mode].addEventListener('click', () => {
                 if (currentMode === mode) {
@@ -86,11 +79,130 @@
                     resetMode();
                     currentMode = mode;
                     buttons[mode].classList.add('active');
-                    activePoints = [];
                 }
             });
         });
 
         document.getElementById('clear-all').addEventListener('click', () => {
             if(confirm("確定要清空這間房間的所有共同標記嗎？")) {
-                Object.keys(localShapes).forEach(id => {
+                Object.keys(shapes).forEach(id => {
+                    socket.emit('shape:remove', id);
+                });
+            }
+        });
+
+        function resetMode() {
+            currentMode = null;
+            clickedPoints = [];
+            Object.values(buttons).forEach(b => b.classList.remove('active'));
+        }
+
+        // 當點擊畫布時，觸發圖形座標計算
+        canvas.addEventListener('click', (e) => {
+            if (!currentMode) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const shapeId = 'shape_' + Math.random().toString(36).substr(2, 9);
+            let newShape = { id: shapeId, type: currentMode };
+
+            if (currentMode === 'circle') {
+                newShape.x = x;
+                newShape.y = y;
+                newShape.radius = 60; // 固定圓形半徑
+                sendAndDraw(newShape);
+                resetMode();
+            } 
+            else if (currentMode === 'rect') {
+                newShape.x = x - 50; // 點擊處為中心延伸方形
+                newShape.y = y - 50;
+                newShape.width = 100;
+                newShape.height = 100;
+                sendAndDraw(newShape);
+                resetMode();
+            } 
+            else if (currentMode === 'line' || currentMode === 'poly') {
+                clickedPoints.push({ x: x, y: y });
+                
+                // 線條需要 2 個點，多邊形需要 3 個點來自動閉合
+                const requiredPoints = (currentMode === 'line') ? 2 : 3;
+                if (clickedPoints.length >= requiredPoints) {
+                    newShape.points = clickedPoints;
+                    sendAndDraw(newShape);
+                    resetMode();
+                }
+            }
+        });
+
+        function sendAndDraw(shape) {
+            socket.emit('shape:add', shape);
+            shapes[shape.id] = shape;
+            redrawAll();
+        }
+
+        // 重新繪製整個畫布的所有即時圖形
+        function redrawAll() {
+            // 清空畫布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 逐一繪製每個儲存的圖形
+            Object.values(shapes).forEach(shape => {
+                ctx.beginPath();
+                ctx.strokeStyle = '#e74c3c'; // 鮮明亮紅色外框
+                ctx.lineWidth = 4;
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.35)'; // 半透明紅色填滿
+
+                if (shape.type === 'circle') {
+                    ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                } 
+                else if (shape.type === 'rect') {
+                    ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                } 
+                else if (shape.type === 'line' && shape.points) {
+                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                    ctx.lineTo(shape.points[1].x, shape.points[1].y);
+                    ctx.stroke();
+                } 
+                else if (shape.type === 'poly' && shape.points) {
+                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                    for (let i = 1; i < shape.points.length; i++) {
+                        ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            });
+        }
+
+        // 伺服器房間連線監聽
+        socket.emit('join', { room: currentRoom });
+
+        socket.on('init-shapes', (shapesList) => {
+            shapes = {};
+            shapesList.forEach(shape => {
+                shapes[shape.id] = shape;
+            });
+            redrawAll();
+        });
+
+        socket.on('shape:added', (shape) => {
+            shapes[shape.id] = shape;
+            redrawAll();
+        });
+
+        socket.on('shape:removed', (id) => {
+            delete shapes[id];
+            redrawAll();
+        });
+
+        // 初始化第一次的畫布大小
+        resizeCanvas();
+    </script>
+</body>
+</html>
