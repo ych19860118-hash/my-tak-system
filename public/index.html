@@ -8,14 +8,12 @@
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
     #map { height: 100%; width: 100%; }
-    /* 登入視窗樣式 */
     #login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; display:flex; justify-content:center; align-items:center; color:white; }
     .login-box { background: #333; padding: 20px; border-radius: 8px; text-align: center; }
   </style>
 </head>
 <body>
 
-  <!-- 登入視窗 -->
   <div id="login-overlay">
     <div class="login-box">
       <h2>Web-TAK 登入</h2>
@@ -46,34 +44,28 @@
     function initApp(username, room) {
       map = L.map('map').setView([25.0330, 121.5654], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      
+      // 確保 drawnItems 被定義且加入地圖
       drawnItems = new L.FeatureGroup().addTo(map);
       socket = io();
 
       socket.emit('join', { username, room });
 
-      // 繪圖工具
+      // 繪圖工具：關鍵在於 featureGroup 必須是上面那個 drawnItems
       const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems }, // 這裡開啟了編輯模式
+        edit: { featureGroup: drawnItems }, 
         draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
       });
       map.addControl(drawControl);
 
-      // 當編輯完成後，觸發同步
-      map.on('draw:edited', function (e) {
-        e.layers.eachLayer(function (layer) {
-          socket.emit('shape:update', {
-            id: layer.options.id,
-            data: layer.toGeoJSON().geometry,
-            radius: layer.getRadius ? layer.getRadius() : null
-          });
-        });
-      });
-
-      // 繪圖完成
+      // 當圖形繪製完成
       map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         const id = Date.now().toString();
-        layer.options.id = id; // 設定 ID
+        layer.options.id = id;
+        
+        // 【關鍵】將圖層加入 drawnItems，編輯器才能偵測到它
+        drawnItems.addLayer(layer);
         
         const shapeData = {
           id: id,
@@ -83,8 +75,18 @@
           properties: { name: "新物件", color: "#3388ff" }
         };
         
-        drawnItems.addLayer(layer);
         socket.emit('shape:add', shapeData);
+      });
+
+      // 編輯完成後的同步
+      map.on('draw:edited', function (e) {
+        e.layers.eachLayer(function (layer) {
+          socket.emit('shape:update', {
+            id: layer.options.id,
+            data: layer.toGeoJSON().geometry,
+            radius: layer.getRadius ? layer.getRadius() : null
+          });
+        });
       });
     }
   </script>
