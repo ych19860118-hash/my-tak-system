@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人共同即時地圖</title>
     
-    <!-- 修正關鍵 1：必須最先載入 Leaflet 的地圖樣式 CSS -->
-    <link rel="stylesheet" href="https://unpkg.com" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- 更換為 cdnjs 來源：載入 Leaflet 的地圖樣式 CSS -->
+    <link rel="stylesheet" href="https://cloudflare.com" />
     
     <!-- 載入 Leaflet 畫圖工具的樣式 CSS -->
     <link rel="stylesheet" href="https://cloudflare.com" />
@@ -22,6 +22,7 @@
         #map {
             height: 100vh;
             width: 100%;
+            background-color: #f8f9fa; /* 載入前預設背景色 */
         }
         /* 房間提示標籤 */
         .room-info {
@@ -47,9 +48,9 @@
     <!-- 地圖容器 -->
     <div id="map"></div>
 
-    <!-- 修正關鍵 2：必須先載入 Socket.io，再載入 Leaflet JS，最後載入 Draw 工具 -->
+    <!-- 載入核心通訊與地圖 JavaScript 庫 (全數更換為 cdnjs 穩定來源) -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://unpkg.com" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cloudflare.com"></script>
     <script src="https://cloudflare.com"></script>
 
     <script>
