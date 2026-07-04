@@ -20,8 +20,8 @@
   <div id="login-overlay">
     <div class="login-box">
       <h2>Web-TAK 登入</h2>
-      <input type="text" id="username" placeholder="輸入您的暱稱"><br><br>
-      <input type="text" id="room" placeholder="輸入房間號碼"><br><br>
+      <input type="text" id="username" placeholder="暱稱"><br><br>
+      <input type="text" id="room" placeholder="房間號碼"><br><br>
       <button onclick="login()">進入地圖</button>
     </div>
   </div>
@@ -36,7 +36,7 @@
     function login() {
       const username = document.getElementById('username').value;
       const room = document.getElementById('room').value;
-      if(!username || !room) return alert('請輸入完整資訊');
+      if(!username || !room) return alert('請輸入資訊');
       document.getElementById('login-overlay').style.display = 'none';
       initApp(username, room);
     }
@@ -44,31 +44,28 @@
     function initApp(username, room) {
       const map = L.map('map').setView([25.0330, 121.5654], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      
       const drawnItems = new L.FeatureGroup().addTo(map);
       const socket = io();
       socket.emit('join', { username, room });
 
-      // 嚴格綁定編輯器到 drawnItems
       const drawControl = new L.Control.Draw({
         edit: { featureGroup: drawnItems },
         draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
       });
       map.addControl(drawControl);
 
-      // 互動彈窗
       function bindLayerInteraction(layer, shape) {
         layer.options.id = shape.id;
         layer.setStyle({ color: shape.properties.color });
-        layer.on('click', function(e) {
+        layer.on('click', function() {
           const panel = document.createElement('div');
           panel.className = 'action-panel';
           panel.innerHTML = `
             <strong>${shape.properties.name}</strong>
             <input type="text" id="ipt-name" value="${shape.properties.name}">
             <input type="color" id="ipt-color" value="${shape.properties.color}">
-            <button class="btn-edit" id="btn-save">更新屬性</button>
-            <button class="btn-del" id="btn-del">刪除圖形</button>
+            <button class="btn-edit" id="btn-save">更新</button>
+            <button class="btn-del" id="btn-del">刪除</button>
           `;
           layer.bindPopup(panel).openPopup();
           panel.querySelector('#btn-save').onclick = () => {
@@ -79,32 +76,25 @@
             socket.emit('shape:update', shape);
           };
           panel.querySelector('#btn-del').onclick = () => {
-            drawnItems.removeLayer(layer);
             socket.emit('shape:remove', shape.id);
           };
         });
       }
 
-      // 繪圖完成
-      map.on(L.Draw.Event.CREATED, function (e) {
-        const layer = e.layer;
+      map.on(L.Draw.Event.CREATED, (e) => {
         const id = Date.now().toString();
-        const shapeData = { id, type: e.layerType, data: layer.toGeoJSON().geometry, radius: layer.getRadius ? layer.getRadius() : null, properties: { name: "新物件", color: "#3388ff" } };
-        drawnItems.addLayer(layer);
-        bindLayerInteraction(layer, shapeData);
+        const shapeData = { id, type: e.layerType, data: e.layer.toGeoJSON().geometry, radius: e.layer.getRadius ? e.layer.getRadius() : null, properties: { name: "新物件", color: "#3388ff" } };
         socket.emit('shape:add', shapeData);
       });
 
-      // 【核心修正】僅當編輯結束且確定有更動時，才發送更新
       map.on('draw:edited', (e) => {
-        e.layers.eachLayer(layer => {
-          socket.emit('shape:update', { 
-            id: layer.options.id, 
-            data: layer.toGeoJSON().geometry, 
-            radius: layer.getRadius ? layer.getRadius() : null 
-          });
-        });
+        e.layers.eachLayer(l => socket.emit('shape:update', { id: l.options.id, data: l.toGeoJSON().geometry, radius: l.getRadius ? l.getRadius() : null }));
       });
+
+      socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
+      socket.on('shape:added', renderShape);
+      socket.on('shape:updated', (s) => { drawnItems.eachLayer(l => { if(l.options.id === s.id) drawnItems.removeLayer(l); }); renderShape(s); });
+      socket.on('shape:removed', (id) => drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); }));
 
       function renderShape(shape) {
         let layer;
@@ -113,10 +103,6 @@
         else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
         if (layer) { bindLayerInteraction(layer, shape); layer.addTo(drawnItems); }
       }
-
-      socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
-      socket.on('shape:added', renderShape);
-      socket.on('shape:removed', (id) => drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); }));
     }
   </script>
 </body>
