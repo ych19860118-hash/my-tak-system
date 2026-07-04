@@ -10,9 +10,10 @@
     #map { height: 100%; width: 100%; }
     #login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; display:flex; justify-content:center; align-items:center; color:white; }
     .login-box { background: #333; padding: 20px; border-radius: 8px; text-align: center; }
-    .action-panel { display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
-    .btn-del { color: white; background: #ff4d4f; border: none; padding: 5px; cursor: pointer; }
-    .btn-edit { color: white; background: #1890ff; border: none; padding: 5px; cursor: pointer; }
+    .action-panel { display: flex; flex-direction: column; gap: 8px; min-width: 150px; color: #333; }
+    .btn-del { color: white; background: #ff4d4f; border: none; padding: 5px; cursor: pointer; border-radius: 4px; }
+    .btn-edit { color: white; background: #1890ff; border: none; padding: 5px; cursor: pointer; border-radius: 4px; }
+    input[type="text"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -46,6 +47,7 @@
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
       const drawnItems = new L.FeatureGroup().addTo(map);
       const socket = io();
+      
       socket.emit('join', { username, room });
 
       const drawControl = new L.Control.Draw({
@@ -54,13 +56,13 @@
       });
       map.addControl(drawControl);
 
-      // 將互動與彈出視窗綁定到圖層
+      // 互動面板與屬性綁定
       function bindLayerInteraction(layer, shape) {
         layer.options.id = shape.id;
-        layer.options.shapeType = shape.type; // 記住類型以供後續編輯使用
-        layer.options.properties = { ...shape.properties }; // 複寫屬性到圖層中
+        layer.options.shapeType = shape.type;
+        layer.options.properties = { ...shape.properties };
 
-        if (layer.setStyle) {
+        if (layer.setStyle && shape.properties.color) {
           layer.setStyle({ color: shape.properties.color });
         }
 
@@ -80,13 +82,11 @@
             const newName = panel.querySelector('#ipt-name').value;
             const newColor = panel.querySelector('#ipt-color').value;
             
-            // 同步更新前端畫面的暫存資料
             layer.options.properties.name = newName;
             layer.options.properties.color = newColor;
             if (layer.setStyle) layer.setStyle({ color: newColor });
             layer.closePopup();
 
-            // 發送更新事件給後端（包含完整的幾何與屬性資料）
             socket.emit('shape:update', {
               id: layer.options.id,
               type: layer.options.shapeType,
@@ -123,13 +123,21 @@
             type: l.options.shapeType,
             data: l.toGeoJSON().geometry, 
             radius: l.getRadius ? l.getRadius() : null,
-            properties: l.options.properties // 確保顏色和名稱不會遺失
+            properties: l.options.properties
           });
         });
       });
 
-      // Socket 協作事件監聽
+      // 監聽：圖形被工具列刪除
+      map.on('draw:deleted', (e) => {
+        e.layers.eachLayer(l => {
+          socket.emit('shape:remove', l.options.id);
+        });
+      });
+
+      // Socket 協作同步事件
       socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
+      
       socket.on('shape:added', renderShape);
       
       socket.on('shape:updated', (s) => { 
@@ -141,25 +149,26 @@
         drawnItems.eachLayer(l => { if(l.options.id === id) drawnItems.removeLayer(l); });
       });
 
-      // 渲染圖形核心邏輯（不污染原始物件）
+      // 核心渲染邏輯（非破壞性讀取座標）
       function renderShape(shape) {
         let layer;
-        // 安全反轉座標：使用新陣列，避免直接修改 shape.data 造成資料錯亂
+        const coords = shape.data.coordinates;
+
+        // 安全處理 GeoJSON [Lng, Lat] 轉 Leaflet [Lat, Lng]，不污染原始變數
         if (shape.type === 'circle') {
-          const latLng = [shape.data.coordinates[1], shape.data.coordinates[0]];
-          layer = L.circle(latLng, { radius: shape.radius });
+          layer = L.circle([coords[1], coords[0]], { radius: shape.radius });
         } 
         else if (shape.type === 'marker') {
-          const latLng = [shape.data.coordinates[1], shape.data.coordinates[0]];
-          layer = L.marker(latLng);
+          layer = L.marker([coords[1], coords[0]]);
         }
         else if (shape.type === 'rectangle' || shape.type === 'polygon') {
-          // GeoJSON 多邊形結構是巢狀陣列 [[[lng, lat], [lng, lat], ...]]
-          const latLngs = shape.data.coordinates[0].map(c => [c[1], c[0]]);
+          // 多邊形結構通常為 [[[lng, lat], [lng, lat], ...]]
+          const latLngs = coords[0].map(pt => [pt[1], pt[0]]);
           layer = L.polygon(latLngs);
         }
         else if (shape.type === 'polyline') {
-          const latLngs = shape.data.coordinates.map(c => [c[1], c[0]]);
+          // 線段結構為 [[lng, lat], [lng, lat], ...]
+          const latLngs = coords.map(pt => [pt[1], pt[0]]);
           layer = L.polyline(latLngs);
         }
 
