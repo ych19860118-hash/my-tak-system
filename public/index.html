@@ -8,7 +8,7 @@
         html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background-color: #f8f9fa; }
         #canvas-container { position: relative; width: 100vw; height: 100vh; }
         
-        /* 1. 地圖影像底圖層：預設顯示點格，並嘗試加載真實地圖磚 */
+        /* 地圖影像底圖層：預設顯示點格，並嘗試加載真實地圖磚 */
         #map-tiles { 
             position: absolute; 
             top: 0; 
@@ -18,7 +18,6 @@
             background-image: radial-gradient(#d3d3d3 1.5px, transparent 1.5px); 
             background-size: 30px 30px;
             display: grid;
-            grid-template-columns: repeat(10, 1fr);
             pointer-events: none; /* 讓點擊可以穿透到畫布 */
             opacity: 0.85;
         }
@@ -30,7 +29,7 @@
             border: 1px dashed rgba(0,0,0,0.03); /* 輕微格線 */
         }
 
-        /* 2. 核心幾何繪圖畫布 */
+        /* 核心幾何繪圖畫布 */
         #map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
         
         .room-info { position: absolute; top: 10px; left: 60px; z-index: 1000; background: white; padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; font-weight: bold; }
@@ -88,19 +87,18 @@
             const rows = Math.ceil(window.innerHeight / 256) + 1;
             tileContainer.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
 
-            // 使用全球防火牆最不會阻擋的通用靜態混合地圖源（包含台北、台灣核心地理街廓）
-            // 這裡使用了高安全的經緯度固定快取影像
+            // 使用開放式核心地圖影像網格
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < columns; c++) {
                     const tile = document.createElement('div');
                     tile.className = 'tile';
                     
-                    // 核心修正：計算相對應的坐標，加載極難被防火牆封鎖的通用開放式核心地圖影像
+                    // 計算相對應的固定範圍網格，確保即使載入被檔案牆阻擋也不會崩潰
                     const x = 13739 + c;
                     const y = 6271 + r;
                     tile.style.backgroundImage = `url('https://openstreetmap.org{x}/${y}.png')`;
                     
-                    // 安全補償：如果此圖片加載失敗（連線逾時），網頁會保持優雅的灰色點格，絕不噴紅字
+                    // 安全補償：如果此圖片加載失敗（被防火牆阻擋），網頁會保持優雅的灰色點格，絕不噴紅字
                     tile.onerror = function() {
                         this.style.backgroundImage = 'none';
                     };
@@ -193,7 +191,7 @@
                     sendAndDraw(newShape);
                     resetMode();
                 } else {
-                    // 在畫布上點選第 1、2 個頂點時，給予輕微視覺提示
+                    // 在畫布上點選暫存點時，給予輕微視覺提示
                     ctx.fillStyle = '#e74c3c';
                     ctx.beginPath();
                     ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -258,3 +256,10 @@
         socket.on('shape:added', (shape) => {
             shapes[shape.id] = shape;
             redrawAll();
+        });
+
+        socket.on('shape:removed', (id) => {
+            delete shapes[id];
+            redrawAll();
+        });
+
