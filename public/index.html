@@ -44,23 +44,22 @@
     function initApp(username, room) {
       const map = L.map('map').setView([25.0330, 121.5654], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      
       const drawnItems = new L.FeatureGroup().addTo(map);
       const socket = io();
       socket.emit('join', { username, room });
 
+      // 嚴格綁定編輯器到 drawnItems
       const drawControl = new L.Control.Draw({
         edit: { featureGroup: drawnItems },
         draw: { marker: true, polyline: true, polygon: true, circle: true, rectangle: true }
       });
       map.addControl(drawControl);
 
+      // 互動彈窗
       function bindLayerInteraction(layer, shape) {
         layer.options.id = shape.id;
         layer.setStyle({ color: shape.properties.color });
-
-        // 僅 Marker 可直接拖曳
-        if (layer.dragging) layer.dragging.enable();
-
         layer.on('click', function(e) {
           const panel = document.createElement('div');
           panel.className = 'action-panel';
@@ -68,11 +67,10 @@
             <strong>${shape.properties.name}</strong>
             <input type="text" id="ipt-name" value="${shape.properties.name}">
             <input type="color" id="ipt-color" value="${shape.properties.color}">
-            <button class="btn-edit" id="btn-save">更新</button>
-            <button class="btn-del" id="btn-del">刪除</button>
+            <button class="btn-edit" id="btn-save">更新屬性</button>
+            <button class="btn-del" id="btn-del">刪除圖形</button>
           `;
           layer.bindPopup(panel).openPopup();
-          
           panel.querySelector('#btn-save').onclick = () => {
             shape.properties.name = panel.querySelector('#ipt-name').value;
             shape.properties.color = panel.querySelector('#ipt-color').value;
@@ -87,18 +85,7 @@
         });
       }
 
-      function renderShape(shape) {
-        let layer;
-        if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
-        else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
-        else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse(), { draggable: true });
-        
-        if (layer) {
-          bindLayerInteraction(layer, shape);
-          layer.addTo(drawnItems);
-        }
-      }
-
+      // 繪圖完成
       map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         const id = Date.now().toString();
@@ -107,6 +94,25 @@
         bindLayerInteraction(layer, shapeData);
         socket.emit('shape:add', shapeData);
       });
+
+      // 【核心修正】僅當編輯結束且確定有更動時，才發送更新
+      map.on('draw:edited', (e) => {
+        e.layers.eachLayer(layer => {
+          socket.emit('shape:update', { 
+            id: layer.options.id, 
+            data: layer.toGeoJSON().geometry, 
+            radius: layer.getRadius ? layer.getRadius() : null 
+          });
+        });
+      });
+
+      function renderShape(shape) {
+        let layer;
+        if (shape.type === 'circle') layer = L.circle(shape.data.coordinates.reverse(), { radius: shape.radius });
+        else if (shape.type === 'rectangle' || shape.type === 'polygon') layer = L.polygon(shape.data.coordinates[0].map(c => c.reverse()));
+        else if (shape.type === 'marker') layer = L.marker(shape.data.coordinates.reverse());
+        if (layer) { bindLayerInteraction(layer, shape); layer.addTo(drawnItems); }
+      }
 
       socket.on('init-shapes', (shapes) => shapes.forEach(renderShape));
       socket.on('shape:added', renderShape);
