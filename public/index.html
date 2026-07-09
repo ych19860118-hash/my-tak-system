@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 【關鍵修正 1】：將所有核心套件與樣式全部移到最頂端載入，確保 L 和 io 優先被定義 -->
-    <link rel="stylesheet" href="https://unpkg.com" />
-    <link rel="stylesheet" href="https://unpkg.com" />
+    <!-- 改用微軟與 Cloudflare 提供的超穩定核心庫，防止 unpkg 被瀏覽器阻擋 -->
+    <link rel="stylesheet" href="https://cloudflare.com" />
+    <link rel="stylesheet" href="https://cloudflare.com" />
     
-    <script src="https://socket.io"></script>
-    <script src="https://unpkg.com"></script>
-    <script src="https://unpkg.com"></script>
+    <!-- 關鍵：Socket.io 伺服器會自帶本身的 client JS 檔案，讀取相對路徑絕對不會失效 -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
@@ -53,51 +54,62 @@
 
         let socket;
         let currentUser = "";
-        let map;             // 【關鍵修正 2】：先宣告變數，等網頁完全載入後再初始化
+        let map;             
         let drawnItems;
 
-        // 當網頁與套件全部下載完畢後，才啟動地圖初始化
-        window.onload = function() {
+        function initMapInstance() {
+            if (map) return; // 避免重複初始化
+            
+            // 初始化地圖，設定中心點在台灣
             map = L.map('map').setView([23.6, 121], 8);
             drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
 
-            L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
+            // 換用完全無阻擋的全球標準地圖圖磚服務網址
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
-        };
+        }
 
         async function login() {
             const userIn = document.getElementById('username').value;
             const passIn = document.getElementById('password').value;
 
-            const res = await fetch(`${SERVER_URL}/api/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: userIn, password: passIn })
-            });
+            try {
+                const res = await fetch(`${SERVER_URL}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: userIn, password: passIn })
+                });
 
-            const data = await res.json();
-            if (data.success) {
-                currentUser = userIn;
-                document.getElementById('login-box').style.display = 'none';
-                document.getElementById('map').style.display = 'block';
-                document.getElementById('info-panel').style.display = 'block';
-                document.getElementById('user-display').innerText = currentUser;
-                
-                setTimeout(() => {
-                    if (map) map.invalidateSize();
-                }, 200);
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = userIn;
+                    document.getElementById('login-box').style.display = 'none';
+                    document.getElementById('map').style.display = 'block';
+                    document.getElementById('info-panel').style.display = 'block';
+                    document.getElementById('user-display').innerText = currentUser;
+                    
+                    // 登入成功後即刻建立地圖
+                    initMapInstance();
+                    
+                    setTimeout(() => {
+                        if (map) map.invalidateSize();
+                    }, 300);
 
-                initSocketAndLayers(); 
-            } else {
-                document.getElementById('login-error').innerText = data.message;
+                    initSocketAndLayers(); 
+                } else {
+                    document.getElementById('login-error').innerText = data.message;
+                }
+            } catch (err) {
+                document.getElementById('login-error').innerText = "連線後端錯誤，請確認伺服器狀態。";
+                console.error(err);
             }
         }
 
         function initSocketAndLayers() {
-            // 確保此時 io 已經存在
+            // 建立 Socket 即時通訊
             socket = io(SERVER_URL);
 
             const drawControl = new L.Control.Draw({
@@ -109,7 +121,9 @@
             fetch(`${SERVER_URL}/api/objects`)
                 .then(res => res.json())
                 .then(objects => {
-                    objects.forEach(obj => renderObjectOnMap(obj));
+                    if (Array.isArray(objects)) {
+                        objects.forEach(obj => renderObjectOnMap(obj));
+                    }
                 });
 
             map.on(L.Draw.Event.CREATED, function (e) {
