@@ -7,10 +7,9 @@
     <link rel="stylesheet" href="https://unpkg.com" />
     <link rel="stylesheet" href="https://unpkg.com" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-        #map { width: 100%; height: 100vh; display: none; } /* 登入前隱藏地圖 */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
+        #map { width: 100%; height: 100vh; display: none; background: #e5e3df; } 
         
-        /* 登入視窗樣式 */
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
@@ -27,7 +26,6 @@
 </head>
 <body>
 
-    <!-- 登入介面 -->
     <div id="login-box">
         <h2>管理員登入</h2>
         <input type="text" id="username" placeholder="管理員帳號">
@@ -36,7 +34,6 @@
         <p id="login-error" style="color:red;"></p>
     </div>
 
-    <!-- 地圖與資訊 -->
     <div id="info-panel">
         <h3>即時地圖後台</h3>
         <p>目前登入：<b id="user-display"></b></p>
@@ -44,29 +41,27 @@
     </div>
     <div id="map"></div>
 
-    <!-- 引入 Socket.io 與 地圖套件 -->
     <script src="https://socket.io"></script>
     <script src="https://unpkg.com"></script>
     <script src="https://unpkg.com"></script>
 
     <script>
-        // === 重要：更換成你未來在 Render 部署成功的後端網址 ===
         const SERVER_URL = window.location.origin; 
-        // 部署到 Render 後要改成例如: "https://onrender.com"
 
         let socket;
         let currentUser = "";
+        
+        // 先建立地圖實例
         const map = L.map('map').setView([23.6, 121], 8);
         const drawnItems = new L.FeatureGroup();
-
-// 初始化地圖外觀，改用固定的 https 連結
-L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="http://openstreetmap.org">OpenStreetMap</a>'
-}).addTo(map);
         map.addLayer(drawnItems);
 
-        // 登入功能驗證
+        // 使用安全的官方 HTTPS 圖磚來源
+        L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
         async function login() {
             const userIn = document.getElementById('username').value;
             const passIn = document.getElementById('password').value;
@@ -85,32 +80,32 @@ L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
                 document.getElementById('info-panel').style.display = 'block';
                 document.getElementById('user-display').innerText = currentUser;
                 
-                map.invalidateSize(); // 刷新地圖尺寸避免破圖
-                initSocketAndLayers(); // 啟動即時連線
+                // 給瀏覽器 100ms 反應時間將地圖顯示，然後重整尺寸
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+
+                initSocketAndLayers(); 
             } else {
                 document.getElementById('login-error').innerText = data.message;
             }
         }
 
-        // 初始化 Socket 連線與圖層監聽
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
 
-            // 啟用繪圖工具列
             const drawControl = new L.Control.Draw({
                 edit: { featureGroup: drawnItems, remove: true },
                 draw: { circle: false, circlemarker: false, marker: true, polygon: true, polyline: true, rectangle: true }
             });
             map.addControl(drawControl);
 
-            // 載入伺服器上已有的歷史物件
             fetch(`${SERVER_URL}/api/objects`)
                 .then(res => res.json())
                 .then(objects => {
                     objects.forEach(obj => renderObjectOnMap(obj));
                 });
 
-            // 監聽本地繪圖：送出到伺服器廣播
             map.on(L.Draw.Event.CREATED, function (e) {
                 const message = prompt("請輸入該地區發生的事件說明：");
                 if (message === null) return;
@@ -123,13 +118,10 @@ L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
                     creator: currentUser
                 };
 
-                // 本地先渲染
                 renderObjectOnMap(objectData);
-                // 發送給後端廣播
                 socket.emit('new_object', objectData);
             });
 
-            // 監聽本地刪除：送出到伺服器廣播
             map.on(L.Draw.Event.DELETED, function (e) {
                 e.layers.eachLayer(function (layer) {
                     if (layer.options && layer.options.obj_id) {
@@ -138,12 +130,10 @@ L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
                 });
             });
 
-            // 接收廣播：有人新增了物件
             socket.on('object_added', function (data) {
                 renderObjectOnMap(data);
             });
 
-            // 接收廣播：有人刪除了物件
             socket.on('object_deleted', function (objectId) {
                 drawnItems.eachLayer(layer => {
                     if (layer.options && layer.options.obj_id === objectId) {
@@ -153,9 +143,7 @@ L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
             });
         }
 
-        // 將物件繪製到地圖上的共用函式
         function renderObjectOnMap(data) {
-            // 避免重複繪製
             let isExist = false;
             drawnItems.eachLayer(layer => {
                 if (layer.options && layer.options.obj_id === data.id) isExist = true;
@@ -169,7 +157,7 @@ L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
             });
 
             layer.eachLayer(subLayer => {
-                subLayer.options.obj_id = data.id; // 綁定 ID 方便後續刪除
+                subLayer.options.obj_id = data.id; 
                 drawnItems.addLayer(subLayer);
             });
         }
