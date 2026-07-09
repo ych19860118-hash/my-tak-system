@@ -23,12 +23,12 @@
             position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
-                /* === 終極排版修正：強制鎖死左側繪圖工具列，保證絕對直排且不歪斜 === */
+           /* === 終極排版修正：強制破除 float 浮動，徹底鎖死左側繪圖工具列 === */
         .leaflet-draw.leaflet-control {
             margin-top: 10px !important;
             display: flex !important;
             flex-direction: column !important;
-            gap: 10px !important; /* 讓不同工具組之間維持跟放大縮小一樣的標準間距 */
+            gap: 10px !important; 
         }
         .leaflet-draw-section {
             margin: 0 !important;
@@ -40,6 +40,8 @@
             background: #fff !important;
             overflow: hidden !important;
         }
+        /* 關鍵修正：直接指定 toolbar 內部的所有 a 標籤，徹底拔除 float: left */
+        .leaflet-touch .leaflet-draw-toolbar,
         .leaflet-draw-toolbar {
             margin: 0 !important;
             padding: 0 !important;
@@ -49,33 +51,36 @@
             box-shadow: none !important;
             border-radius: 0 !important;
         }
+        /* 提升優先權，強制讓每一個按鈕單獨佔滿一行，絕對不允許並排 */
+        .leaflet-touch .leaflet-draw-toolbar a,
         .leaflet-draw-toolbar a {
             background-image: url('/leaflet-draw-images/spritesheet.png') !important; 
             background-size: 270px 30px !important;
             background-repeat: no-repeat !important;
             border-bottom: 1px solid #ccc !important; 
-            width: 34px !important; /* 精準對齊 Leaflet 官方標準按鈕寬度 */
+            width: 30px !important; 
             height: 30px !important; 
             display: block !important;
-            float: none !important; /* 徹底消滅頑固的左右浮動錯位 */
+            clear: both !important;   /* 強制清除浮動 */
+            float: none !important;   /* 徹底消滅左右浮動錯位 */
             box-sizing: border-box !important;
             margin: 0 !important;
             padding: 0 !important;
         }
+        .leaflet-touch .leaflet-draw-toolbar a:last-child,
         .leaflet-draw-toolbar a:last-child { 
             border-bottom: none !important; 
         }
-        /* 隱藏未繪圖時展開的側邊副選單，防止排版受到二度推擠錯位 */
         .leaflet-draw-actions { 
             display: none !important; 
         }
 
-        /* 彈出控制選單樣式修正 (補齊原本殘缺的右括號) */
+        /* 彈出控制選單樣式修正 */
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
- }
+
     </style>
 </head>
 <body>
