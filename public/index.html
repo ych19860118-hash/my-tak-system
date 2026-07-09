@@ -5,14 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 改用微軟與 Cloudflare 提供的超穩定核心庫，防止 unpkg 被瀏覽器阻擋 -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
-    <link rel="stylesheet" href="https://cloudflare.com" />
+    <!-- 全面改讀自己 Render 伺服器內部的檔案，100% 免疫任何外部網路或安全阻擋 -->
+    <link rel="stylesheet" href="/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/leaflet-draw/leaflet.draw.css" />
     
-    <!-- 關鍵：Socket.io 伺服器會自帶本身的 client JS 檔案，讀取相對路徑絕對不會失效 -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <script src="/leaflet/leaflet.js"></script>
+    <script src="/leaflet-draw/leaflet.draw.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
