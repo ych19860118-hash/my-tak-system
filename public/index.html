@@ -208,20 +208,24 @@
                     });
                 }
                 // 2. 如果是線、方形、圓形、多邊形 (使用 transform 外掛)
+                              // 2. 如果是線、方形、圓形、多邊形 (使用 transform 外掛)
                 if (mainLayer.transform) {
                     mainLayer.transform.enable(); // 開啟外框
                     
-                    // 黑科技補強：滑鼠指進去物件時，暫時把底圖移動關掉，讓滑鼠長按 100% 被物件抓到
-                    mainLayer.on('mouseover', function() {
-                        map.dragging.disable();
+                    // 【終極核心補強】：當滑鼠在物件上「按下左鍵」的瞬間，立刻、強制關閉地圖的拖曳功能並阻止穿透
+                    mainLayer.on('mousedown', function(e) {
+                        L.DomEvent.stopPropagation(e); // 阻止點擊事件穿透到地圖底層
+                        map.dragging.disable();        // 強制關閉地圖拖曳
                     });
-                    // 滑鼠離開後，恢復地圖正常拖曳
-                    mainLayer.on('mouseout', function() {
+
+                    // 當滑鼠「放開左鍵」時，立刻恢復地圖的正常移動功能
+                    map.on('mouseup', function() {
                         map.dragging.enable();
                     });
 
                     // 拖曳結束（放開滑鼠）時更新座標並廣播
                     mainLayer.on('transformend', () => {
+                        map.dragging.enable(); // 安全起見，變形結束時再次解鎖地圖
                         if (shapeType === "circle") {
                             data.geojson.properties.center = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                         } else if (shapeType === "rectangle") {
@@ -230,10 +234,12 @@
                         } else {
                             data.geojson = mainLayer.toGeoJSON();
                         }
-                        socket.emit('delete_object', data.id); socket.emit('new_object', data);       
+                        socket.emit('delete_object', data.id); 
+                        socket.emit('new_object', data);       
                     });
                 }
             }
+
 
             // 綁定控制選單
             let popupContent = "";
