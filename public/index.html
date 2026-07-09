@@ -5,13 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 引入原生地圖核心樣式 -->
+    <!-- 引入最穩定的原生地圖核心，拋棄所有外部拖曳外掛，改用原生錨點控制 -->
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
-    
-    <!-- 核心通訊、地圖大腦、以及圖形變形與拖曳控制專用擴充庫 -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
-    <script src="https://cloudflare.com"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
@@ -41,6 +38,9 @@
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        
+        /* 📌 拖曳錨點樣式提升優先權 */
+        .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
     </style>
 </head>
 <body>
@@ -54,10 +54,10 @@
     <div id="info-panel">
         <h3>即時地圖後台</h3>
         <p>目前使用者：<b id="user-display" style="color: #007bff;"></b></p>
-        <p style="font-size: 13px; color: #555; line-height: 1.5;">💡 <b>操作指南：</b><br>
-        1. 點擊左側 📍, ↗, ⬜, ⭕, ▰ 即可在地圖上開始作圖。<br>
-        2. 畫完之後，<b>直接用滑鼠左鍵長按任何圖形，皆可自由拖曳移動位置（地圖會自動鎖定防搶權）</b>！<br>
-        3. 單擊圖形，可直接修改名稱、變更顏色或刪除！</p>
+        <p style="font-size: 13px; color: #555; line-height: 1.5;">💡 <b>最新操作指南：</b><br>
+        1. 點擊左側工具列，即可在地圖上開始作圖。<br>
+        2. 畫完之後，圖形中央會出現 📌 錨點。<b>滑鼠左鍵按住 📌 拖曳，即可帶著整塊圖形移動位置</b>！<br>
+        3. 點擊圖形本身，可以修改名稱、變更顏色或刪除！</p>
     </div>
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
@@ -77,6 +77,7 @@
             map = L.map('map').setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+            // 監聽地圖點擊事件，進行原生繪圖
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -84,7 +85,8 @@
                     const msg = prompt("請輸入回報點說明：") || "未命名地標";
                     const data = {
                         id: 'obj_' + Date.now(),
-                        geojson: { type: "Feature", properties: { shapeType: "marker" }, geometry: { type: "Point", coordinates: [lng, lat] } },
+                        shapeType: "marker",
+                        coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff" 
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -92,28 +94,30 @@
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
                     else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵完成繪製", {permanent: true}).openTooltip();
+                    if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 2) {
-                        const bounds = [[Math.min(tempPoints[0][0], tempPoints[1][0]), Math.min(tempPoints[0][1], tempPoints[1][1])], [Math.max(tempPoints[0][0], tempPoints[1][0]), Math.max(tempPoints[0][1], tempPoints[1][1])]];
                         const msg = prompt("請輸入方形區域說明：") || "未命名方形";
                         const data = {
                             id: 'obj_' + Date.now(),
-                            geojson: { type: "Feature", properties: { shapeType: "rectangle", bounds: bounds }, geometry: { type: "Polygon", coordinates: [[[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[0][0]], [bounds[1][1], bounds[1][0]], [bounds[0][1], bounds[1][0]], [bounds[0][1], bounds[0][0]]]] } },
+                            shapeType: "rectangle",
+                            coordinates: JSON.parse(JSON.stringify(tempPoints)), // 儲存對角線兩點
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 } else if (currentTool === 'circle') {
                     tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.circle(tempPoints[0], {radius: 100, color: '#3388ff'}).addTo(map);
+                    if (tempPoints.length === 1) tempShape = L.circle(tempPoints, {radius: 100, color: '#3388ff'}).addTo(map);
                     else if (tempPoints.length === 2) {
                         const radius = map.distance(tempPoints[0], tempPoints[1]);
                         const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
                         const data = {
                             id: 'obj_' + Date.now(),
-                            geojson: { type: "Feature", properties: { shapeType: "circle", center: tempPoints[0], radius: radius }, geometry: { type: "Point", coordinates: [tempPoints[0][1], tempPoints[0][0]] } },
+                            shapeType: "circle",
+                            coordinates: [tempPoints[0][0], tempPoints[0][1]], // 圓心
+                            radius: radius,
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
                         if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -122,25 +126,27 @@
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
                     else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵完成繪製", {permanent: true}).openTooltip();
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 }
             });
 
+            // 監聽滑鼠右鍵結束線條與多邊形繪製
             map.on('contextmenu', function() {
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
                     const msg = prompt("請輸入線條說明：") || "未命名線條";
                     const data = {
                         id: 'obj_' + Date.now(),
-                        geojson: { type: "Feature", properties: { shapeType: "polyline" }, geometry: { type: "LineString", coordinates: tempPoints.map(p => [p[1], p[0]]) } },
+                        shapeType: "polyline",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
                     const msg = prompt("請輸入多邊形說明：") || "未命名多邊形";
-                    const closed = [...tempPoints, tempPoints[0]];
                     const data = {
                         id: 'obj_' + Date.now(),
-                        geojson: { type: "Feature", properties: { shapeType: "polygon" }, geometry: { type: "Polygon", coordinates: [closed.map(p => [p[1], p[0]])] } },
+                        shapeType: "polygon",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -153,6 +159,7 @@
             if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
             if (tool !== 'pan') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
         }
+
         async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('password').value;
@@ -170,78 +177,115 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
             fetch(`${SERVER_URL}/api/objects`).then(res => res.json()).then(objects => {
                 if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj));
             });
             socket.on('object_added', data => renderObjectOnMap(data));
-            socket.on('object_deleted', id => { if (allMapLayers[id]) { map.removeLayer(allMapLayers[id]); delete allMapLayers[id]; } });
+            socket.on('object_deleted', id => {
+                if (allMapLayers[id]) {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    delete allMapLayers[id];
+                }
+            });
         }
 
         function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
-            let mainLayer, isMyObject = (data.creator === currentUser), shapeType = data.geojson.properties.shapeType;
+            let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
+            const pts = data.coordinates;
 
-            // 針對不同圖形樣式植入拖曳識別標籤
-            if (shapeType === "circle") {
-                mainLayer = L.circle(data.geojson.properties.center, { radius: data.geojson.properties.radius, color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4, transform: isMyObject });
-            } else if (shapeType === "rectangle") {
-                mainLayer = L.rectangle(data.geojson.properties.bounds, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4, transform: isMyObject });
-            } else {
-                const geojsonLayer = L.geoJSON(data.geojson, {
-                    pointToLayer: (geoJsonPoint, latlng) => L.marker(latlng, { draggable: isMyObject }),
-                    style: { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4, transform: isMyObject }
-                });
-                geojsonLayer.eachLayer(layer => { mainLayer = layer; });
+            // 1. 根據純粹的自訂幾何數據，建立標準地圖圖層（再也不會發生 GeoJSON 解析失誤）
+            if (data.shapeType === "marker") {
+                mainLayer = L.marker(pts);
+                centerLatLng = L.latLng(pts[0], pts[1]);
+            } else if (data.shapeType === "polyline") {
+                mainLayer = L.polyline(pts, { color: data.color, weight: 4 });
+                centerLatLng = L.polyline(pts).getBounds().getCenter();
+            } else if (data.shapeType === "rectangle") {
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
+                centerLatLng = L.rectangle(pts).getBounds().getCenter();
+            } else if (data.shapeType === "circle") {
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
+                centerLatLng = L.latLng(pts[0], pts[1]);
+            } else if (data.shapeType === "polygon") {
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
+                centerLatLng = L.polygon(pts).getBounds().getCenter();
             }
             if (!mainLayer) return;
-            // 【核心功能】：對自己擁有的物件全面啟用滑鼠防搶權、自由拖曳移動位置
-            if (isMyObject) {
-                // 1. 如果是標準標記點 (Marker)
-                if (mainLayer.dragging) {
-                    mainLayer.dragging.enable();
-                    mainLayer.on('dragend', () => {
-                        data.geojson = mainLayer.toGeoJSON(); 
-                        socket.emit('delete_object', data.id); socket.emit('new_object', data);       
-                    });
-                }
-                // 2. 如果是線、方形、圓形、多邊形 (使用 transform 外掛)
-                              // 2. 如果是線、方形、圓形、多邊形 (使用 transform 外掛)
-                if (mainLayer.transform) {
-                    mainLayer.transform.enable(); // 開啟外框
-                    
-                    // 【終極核心補強】：當滑鼠在物件上「按下左鍵」的瞬間，立刻、強制關閉地圖的拖曳功能並阻止穿透
-                    mainLayer.on('mousedown', function(e) {
-                        L.DomEvent.stopPropagation(e); // 阻止點擊事件穿透到地圖底層
-                        map.dragging.disable();        // 強制關閉地圖拖曳
-                    });
+            mainLayer.addTo(map);
 
-                    // 當滑鼠「放開左鍵」時，立刻恢復地圖的正常移動功能
-                    map.on('mouseup', function() {
-                        map.dragging.enable();
-                    });
+            // 儲存圖層實例
+            allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-                    // 拖曳結束（放開滑鼠）時更新座標並廣播
-                    mainLayer.on('transformend', () => {
-                        map.dragging.enable(); // 安全起見，變形結束時再次解鎖地圖
-                        if (shapeType === "circle") {
-                            data.geojson.properties.center = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
-                        } else if (shapeType === "rectangle") {
-                            const b = mainLayer.getBounds();
-                            data.geojson.properties.bounds = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-                        } else {
-                            data.geojson = mainLayer.toGeoJSON();
-                        }
-                        socket.emit('delete_object', data.id); 
-                        socket.emit('new_object', data);       
-                    });
-                }
+            // 2. 【核心拖曳平移算法】如果是創作者本人，且不是標記針，就自動在中心生成一根 📌 控制針
+            if (isMyObject && data.shapeType !== "marker") {
+                const controlPin = L.marker(centerLatLng, {
+                    draggable: true,
+                    icon: L.divIcon({ html: '📌', className: 'control-pin-icon', iconSize:, iconAnchor: [10, 10] })
+                }).addTo(map);
+                allMapLayers[data.id].pin = controlPin;
+
+                // 核心黑科技：當滑鼠拖曳 📌 控制針時，計算平移量（Offset），讓底下幾何圖形毫無延遲同步移動！
+                let startLatLng = centerLatLng;
+                controlPin.on('drag', function(e) {
+                    const nextLatLng = e.latlng;
+                    const offsetLat = nextLatLng.lat - startLatLng.lat;
+                    const offsetLng = nextLatLng.lng - startLatLng.lng;
+
+                    if (data.shapeType === "circle") {
+                        mainLayer.setLatLng(nextLatLng);
+                    } else if (data.shapeType === "rectangle") {
+                        const b = mainLayer.getBounds();
+                        mainLayer.setBounds([
+                            [b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng],
+                            [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]
+                        ]);
+                    } else if (mainLayer.getLatLngs) {
+                        const movePoints = function(points) {
+                            return points.map(p => {
+                                if (Array.isArray(p)) return movePoints(p);
+                                return L.latLng(p.lat + offsetLat, p.lng + offsetLng);
+                            });
+                        };
+                        mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
+                    }
+                    startLatLng = nextLatLng; // 更新起點
+                });
+
+                // 當放開滑鼠拖曳結束時，捕捉最新數據，秒級通知全體伺服器在線同步位置！
+                controlPin.on('dragend', function() {
+                    if (data.shapeType === "circle") {
+                        data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
+                    } else if (data.shapeType === "rectangle") {
+                        const b = mainLayer.getBounds();
+                        data.coordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                    } else if (mainLayer.getLatLngs) {
+                        const dumpPoints = function(points) {
+                            return points.map(p => {
+                                if (Array.isArray(p)) return dumpPoints(p);
+                                return [p.lat, p.lng];
+                            });
+                        };
+                        data.coordinates = dumpPoints(mainLayer.getLatLngs());
+                    }
+                    // 先全體廣播刪除舊的，再廣播新增一個最新位置的，達成秒級瞬移
+                    socket.emit('delete_object', data.id);
+                    socket.emit('new_object', data);
+                });
+            } else if (isMyObject && data.shapeType === "marker") {
+                // 如果是標記針本體，直接允許拖曳移動位置
+                mainLayer.dragging.enable();
+                mainLayer.on('dragend', function() {
+                    data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
+                    socket.emit('delete_object', data.id);
+                    socket.emit('new_object', data);
+                });
             }
 
-
-            // 綁定控制選單
+            // 3. 綁定 Popup 控制選單
             let popupContent = "";
             if (isMyObject) {
                 popupContent = `
@@ -262,13 +306,16 @@
             } else {
                 popupContent = `<div class="popup-menu"><b>事件：</b>${data.message}<br><br><small style="color:gray;">回報者: ${data.creator}</small></div>`;
             }
-
-            mainLayer.bindPopup(popupContent); mainLayer.addTo(map); allMapLayers[data.id] = mainLayer;
+            mainLayer.bindPopup(popupContent);
         }
 
         function deleteObject(objectId) {
             if (confirm("確定要刪除這個地圖物件嗎？")) {
-                if (allMapLayers[objectId]) { map.removeLayer(allMapLayers[objectId]); delete allMapLayers[objectId]; }
+                if (allMapLayers[objectId]) {
+                    map.removeLayer(allMapLayers[objectId].layer);
+                    if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
+                    delete allMapLayers[objectId];
+                }
                 socket.emit('delete_object', objectId);
             }
         }
@@ -280,8 +327,12 @@
                 const found = objects.find(obj => obj.id === objectId);
                 if (found) {
                     found.message = newMsg; found.color = newColor;
-                    map.removeLayer(allMapLayers[objectId]); delete allMapLayers[objectId];
-                    renderObjectOnMap(found); socket.emit('delete_object', objectId); socket.emit('new_object', found);
+                    map.removeLayer(allMapLayers[objectId].layer);
+                    if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
+                    delete allMapLayers[objectId];
+                    renderObjectOnMap(found);
+                    socket.emit('delete_object', objectId);
+                    socket.emit('new_object', found);
                 }
             });
         }
