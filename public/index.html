@@ -393,21 +393,33 @@
             }
         }
 
+        // === 核心修正：加入舊圖層「強制拔除機制」，徹底修復變更顏色不正常的 Bug ===
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
+            
             fetch(`${SERVER_URL}/api/objects`).then(res => res.json()).then(objects => {
                 const found = objects.find(obj => obj.id === objectId);
                 if (found) {
-                    found.message = newMsg; found.color = newColor;
-                    map.removeLayer(allMapLayers[objectId].layer);
-                    if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
-                    delete allMapLayers[objectId];
+                    found.message = newMsg; 
+                    found.color = newColor; // 寫入新挑選的顏色
+                    
+                    // 💡 【終極補強】：在重新繪製前，強行把舊顏色的圖層、以及它的 📌 錨點針從地圖上徹底移除！
+                    if (allMapLayers[objectId]) {
+                        map.removeLayer(allMapLayers[objectId].layer);
+                        if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
+                        delete allMapLayers[objectId]; // 抹除舊快取
+                    }
+                    
+                    // 重新以全新顏色、全新描述畫上地圖，並秒級同步廣播給全伺服器在線人員
                     renderObjectOnMap(found);
-                    socket.emit('delete_object', objectId); socket.emit('new_object', found);
+                    
+                    socket.emit('delete_object', objectId); 
+                    socket.emit('new_object', found);
                 }
             });
         }
+
 
         function toggleStatusPanel() {
             const panel = document.getElementById('typhoon-info');
