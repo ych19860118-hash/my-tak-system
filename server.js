@@ -35,12 +35,15 @@ app.get('/', (req, res) => {
 // 2. 登入驗證 API
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    if (USERS[username] && USERS[username] === password) {
-        res.json({ success: true, token: `mock-token-${username}` });
+    
+    // 這裡的 '123' 是你們團隊的「共同通關密碼」
+    if (password === '123' && username && username.trim() !== "") {
+        res.json({ success: true, message: "登入成功", username: username.trim() });
     } else {
-        res.status(401).json({ success: false, message: "帳號或密碼錯誤" });
+        res.json({ success: false, message: "密碼錯誤，或未輸入有效暱稱！" });
     }
 });
+
 
 // 3. 取得歷史地圖物件 API（供剛登入的使用者載入已有標記）
 app.get('/api/objects', (req, res) => {
