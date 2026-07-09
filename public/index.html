@@ -4,17 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
-    
-    <!-- 引入最穩定的原生地圖核心樣式與核心 JS 庫 -->
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
-
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
         #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
-        
-        /* 🌙 全新高質感暗色系（Dark Mode）登入視窗 */
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #1e1e1e; padding: 40px 30px; border-radius: 12px; 
@@ -35,22 +30,16 @@
         }
         #login-box button:hover { background: #0056b3; }
         #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
-        
-        /* 📱 手機端大尺寸自製工具列：100% 垂直對齊、絕不歪斜、加大至 44px 方便觸控 */
         #custom-toolbar {
-            position: absolute; top: 90px; left: 12px; z-index: 1000; 
-            display: none; flex-direction: column; gap: 10px;
+            position: absolute; top: 90px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
         .tool-btn {
             width: 44px !important; height: 44px !important; background: white !important; background-image: none !important;
             border: 2px solid rgba(0,0,0,0.3) !important; border-radius: 8px !important; cursor: pointer; font-size: 20px;
-            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
-            margin: 0 !important; padding: 0 !important; touch-action: button;
+            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin: 0 !important; padding: 0 !important; touch-action: button;
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
-        
-        /* 彈出控制選單與 📌 拖曳錨點樣式控制 */
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
@@ -59,8 +48,6 @@
     </style>
 </head>
 <body>
-
-    <!-- 暗色系登入介面 -->
     <div id="login-box">
         <h2>地圖協同系統</h2>
         <input type="text" id="username" placeholder="請輸入您的用戶暱稱">
@@ -68,8 +55,6 @@
         <button onclick="login()">進入公開地圖</button>
         <p id="login-error"></p>
     </div>
-
-    <!-- 自製功能選單列 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
@@ -77,8 +62,6 @@
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
     </div>
-
-    <!-- 地圖容器 -->
     <div id="map"></div>
     <script>
         const SERVER_URL = window.location.origin; 
@@ -88,16 +71,13 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 1. 建立地圖實例並關閉雙擊放大
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-            // 2. 手機端工具列觸控防穿透攔截
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
 
-            // 3. 📱 手機端雙擊畫面自動全螢幕滿版
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
@@ -115,7 +95,6 @@
                 }
             });
 
-            // 當全螢幕狀態改變時自動重整尺寸
             const resizeEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
             resizeEvents.forEach(evt => {
                 document.addEventListener(evt, () => {
@@ -123,9 +102,7 @@
                 });
             });
 
-            // =========================================================================
-            // 💡【核心修正】地圖點擊事件監聽：此處已確保 map 變數已被指派，絕不卡死
-            // =========================================================================
+            // 地圖點擊事件監聽
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -140,7 +117,7 @@
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline') {
                     tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map);
                     else tempShape.setLatLngs(tempPoints);
                     if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 } else if (currentTool === 'rectangle') {
@@ -155,16 +132,14 @@
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
-                }               // === 修正後的圓形點擊邏輯，直接用陣列索引抓出數字，100% 根除 Invalid LatLng 錯誤 ===
-                else if (currentTool === 'circle') {
+                } else if (currentTool === 'circle') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
                         tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
                     } else if (tempPoints.length === 2) {
-                        // 關鍵修正：精準分離第一點的緯度與經度
+                        // 【圓形核心修正】：精準分拆一維座標參數，徹底修復 Invalid LatLng 錯誤
                         const centerLat = tempPoints[0][0];
                         const centerLng = tempPoints[0][1];
-                        
                         const centerPoint = L.latLng(centerLat, centerLng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
@@ -173,7 +148,7 @@
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "circle",
-                            coordinates: [centerLat, centerLng], // 只儲存一維中心點數值
+                            coordinates: [centerLat, centerLng], 
                             radius: radius,
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
@@ -182,9 +157,14 @@
                         socket.emit('new_object', data); 
                         switchTool('pan');
                     }
+                } else if (currentTool === 'polygon') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 }
+            });
 
-            // 監聽滑鼠右鍵或長按結束線條與多邊形繪製
             map.on('contextmenu', function() {
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
                     const msg = prompt("請輸入線條說明：") || "未命名線條";
@@ -257,13 +237,13 @@
             if (data.shapeType === "marker") {
                 mainLayer = L.marker(pts);
                 centerLatLng = L.latLng(pts);
-                       } else if (data.shapeType === "polyline") {
-                // 關鍵優化：加上 weight: 5 稍微加粗，並透過特殊的內建參數確保手機觸控能 100% 抓到
+            } else if (data.shapeType === "polyline") {
+                // 【手機版線條點擊優化】：加大權重至 6，並加入防穿透，確保粗手指頭一按就中
                 mainLayer = L.polyline(pts, { 
                     color: data.color, 
-                    weight: 6, 
+                    weight: 6,
                     interactive: true,
-                    bubblingMouseEvents: false // 防止點擊事件穿透回地圖底層
+                    bubblingMouseEvents: false
                 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
