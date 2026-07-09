@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 全面改讀自己 Render 伺服器內部的檔案，100% 免疫任何外部網路或安全阻擋 -->
+    <!-- 引入伺服器內部載入的核心樣式 -->
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/leaflet-draw/leaflet.draw.css" />
     
@@ -29,22 +29,28 @@
             position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
+        
+        /* 額外修正：修復 Leaflet.draw 在某些環境下工具列圖示變空白方塊的問題 */
+        .leaflet-draw-toolbar a {
+            background-image: url('https://cloudflare.com') !important;
+        }
+        .leaflet-draw-toolbar a { background-size: 270px 30px !important; }
     </style>
 </head>
 <body>
 
     <div id="login-box">
-        <h2>管理員登入</h2>
-        <input type="text" id="username" placeholder="管理員帳號">
+        <h2>地圖協同系統登入</h2>
+        <input type="text" id="username" placeholder="請輸入您的用戶暱稱">
         <input type="password" id="password" placeholder="密碼">
-        <button onclick="login()">登入系統</button>
+        <button onclick="login()">進入公開地圖</button>
         <p id="login-error" style="color:red;"></p>
     </div>
 
     <div id="info-panel">
         <h3>即時地圖後台</h3>
-        <p>目前登入：<b id="user-display"></b></p>
-        <p>使用左側工具新增標記，將即時廣播給所有在線人員。</p>
+        <p>目前使用者：<b id="user-display" style="color: #007bff;"></b></p>
+        <p style="font-size: 13px; color: #555;">💡 規則：您可以看到所有人畫的圖。但<b>只有您自己創建的物件</b>才可以被您刪除或編輯。</p>
     </div>
     <div id="map"></div>
 
@@ -54,17 +60,21 @@
         let socket;
         let currentUser = "";
         let map;             
-        let drawnItems;
+        let myDrawnItems;    // 存放「當前用戶自己畫的」圖層群組（允許編輯、刪除）
+        let othersDrawnItems;// 存放「別人畫的」圖層群組（唯讀，不允許編輯）
 
         function initMapInstance() {
-            if (map) return; // 避免重複初始化
+            if (map) return; 
             
-            // 初始化地圖，設定中心點在台灣
             map = L.map('map').setView([23.6, 121], 8);
-            drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
+            
+            // 初始化兩個分開的圖層群組
+            myDrawnItems = new L.FeatureGroup();
+            othersDrawnItems = new L.FeatureGroup();
+            
+            map.addLayer(myDrawnItems);
+            map.addLayer(othersDrawnItems);
 
-            // 換用完全無阻擋的全球標準地圖圖磚服務網址
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
@@ -72,51 +82,55 @@
         }
 
         async function login() {
-            const userIn = document.getElementById('username').value;
+            const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('password').value;
 
-            try {
-                const res = await fetch(`${SERVER_URL}/api/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: userIn, password: passIn })
-                });
+            if(!userIn) {
+                document.getElementById('login-error').innerText = "請輸入用戶暱稱";
+                return;
+            }
 
-                const data = await res.json();
-                if (data.success) {
-                    currentUser = userIn;
-                    document.getElementById('login-box').style.display = 'none';
-                    document.getElementById('map').style.display = 'block';
-                    document.getElementById('info-panel').style.display = 'block';
-                    document.getElementById('user-display').innerText = currentUser;
-                    
-                    // 登入成功後即刻建立地圖
-                    initMapInstance();
-                    
-                    setTimeout(() => {
-                        if (map) map.invalidateSize();
-                    }, 300);
+            const res = await fetch(`${SERVER_URL}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userIn, password: passIn })
+            });
 
-                    initSocketAndLayers(); 
-                } else {
-                    document.getElementById('login-error').innerText = data.message;
-                }
-            } catch (err) {
-                document.getElementById('login-error').innerText = "連線後端錯誤，請確認伺服器狀態。";
-                console.error(err);
+            const data = await res.json();
+            if (data.success) {
+                currentUser = userIn;
+                document.getElementById('login-box').style.display = 'none';
+                document.getElementById('map').style.display = 'block';
+                document.getElementById('info-panel').style.display = 'block';
+                document.getElementById('user-display').innerText = currentUser;
+                
+                initMapInstance();
+                
+                setTimeout(() => {
+                    if (map) map.invalidateSize();
+                }, 300);
+
+                initSocketAndLayers(); 
+            } else {
+                document.getElementById('login-error').innerText = data.message;
             }
         }
 
         function initSocketAndLayers() {
-            // 建立 Socket 即時通訊
             socket = io(SERVER_URL);
 
+            // 【關鍵修改】：左側的繪圖控制列，只去綁定「我自己的圖層群組（myDrawnItems）」
+            // 這樣刪除和編輯功能，就絕對碰不到別人群組（othersDrawnItems）裡的圖形！
             const drawControl = new L.Control.Draw({
-                edit: { featureGroup: drawnItems, remove: true },
+                edit: { 
+                    featureGroup: myDrawnItems, // 限制工具列只能動自己的東西
+                    remove: true 
+                },
                 draw: { circle: false, circlemarker: false, marker: true, polygon: true, polyline: true, rectangle: true }
             });
             map.addControl(drawControl);
 
+            // 載入歷史物件
             fetch(`${SERVER_URL}/api/objects`)
                 .then(res => res.json())
                 .then(objects => {
@@ -125,6 +139,7 @@
                     }
                 });
 
+            // 監聽本地創建
             map.on(L.Draw.Event.CREATED, function (e) {
                 const message = prompt("請輸入該地區發生的事件說明：");
                 if (message === null) return;
@@ -134,13 +149,14 @@
                     id: 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     geojson: geojson,
                     message: message,
-                    creator: currentUser
+                    creator: currentUser // 標記當前創作者
                 };
 
                 renderObjectOnMap(objectData);
                 socket.emit('new_object', objectData);
             });
 
+            // 監聽本地刪除（只有存在於 myDrawnItems 的東西才會觸發這裡）
             map.on(L.Draw.Event.DELETED, function (e) {
                 e.layers.eachLayer(function (layer) {
                     if (layer.options && layer.options.obj_id) {
@@ -149,35 +165,52 @@
                 });
             });
 
+            // 接收廣播：有人新增物件
             socket.on('object_added', function (data) {
                 renderObjectOnMap(data);
             });
 
+            // 接收廣播：有人刪除物件
             socket.on('object_deleted', function (objectId) {
-                drawnItems.eachLayer(layer => {
-                    if (layer.options && layer.options.obj_id === objectId) {
-                        drawnItems.removeLayer(layer);
-                    }
+                // 同時從兩個群組搜尋並移除該圖層
+                [myDrawnItems, othersDrawnItems].forEach(group => {
+                    group.eachLayer(layer => {
+                        if (layer.options && layer.options.obj_id === objectId) {
+                            group.removeLayer(layer);
+                        }
+                    });
                 });
             });
         }
 
+        // 渲染物件時進行「權限判定分流」
         function renderObjectOnMap(data) {
+            // 檢查是否已存在，防止重複繪製
             let isExist = false;
-            drawnItems.eachLayer(layer => {
-                if (layer.options && layer.options.obj_id === data.id) isExist = true;
+            [myDrawnItems, othersDrawnItems].forEach(group => {
+                group.eachLayer(layer => {
+                    if (layer.options && layer.options.obj_id === data.id) isExist = true;
+                });
             });
             if (isExist) return;
 
+            // 建立圖層
             const layer = L.geoJSON(data.geojson, {
                 onEachFeature: function (feature, layer) {
-                    layer.bindPopup(`<b>事件：</b>${data.message}<br><small>回報者: ${data.creator}</small>`);
+                    // 泡泡框提示是誰畫的
+                    layer.bindPopup(`<b>事件：</b>${data.message}<br><small style="color:gray;">回報者: ${data.creator} ${data.creator === currentUser ? '(您自己)' : ''}</small>`);
                 }
             });
 
             layer.eachLayer(subLayer => {
                 subLayer.options.obj_id = data.id; 
-                drawnItems.addLayer(subLayer);
+                
+                // 【核心權限邏輯】：如果這張圖的 creator 是我自己，就丟進 myDrawnItems；否則丟進唯讀的 othersDrawnItems
+                if (data.creator === currentUser) {
+                    myDrawnItems.addLayer(subLayer);
+                } else {
+                    othersDrawnItems.addLayer(subLayer);
+                }
             });
         }
     </script>
