@@ -1,57 +1,67 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
-
-// 修正：指向正確的靜態檔案資料夾
-app.use(express.static(__dirname + '/public'));
-
-// 如果保險起見，可以直接強制首頁導向
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: { origin: "*" } // 允許跨網域連接
 });
 
-// 儲存地圖物件資料結構
-let shapes = {}; 
+// 解析 JSON 請求
+app.use(express.json());
 
+// 模擬的內建管理員帳號資料庫 (可自行增加)
+const USERS = {
+    "admin1": "password123",
+    "admin2": "map999"
+};
+
+// 儲存目前地圖上所有物件的記憶體陣列（重啟伺服器會清空）
+let mapObjects = [];
+
+// 1. 登入 API
+app.post('/api/login', (express.json()), (req, res) => {
+    const { username, password } = req.body;
+    if (USERS[username] && USERS[username] === password) {
+        res.json({ success: true, token: `mock-token-${username}` });
+    } else {
+        res.status(401).json({ success: false, message: "帳號或密碼錯誤" });
+    }
+});
+
+// 2. 取得歷史地圖物件 API
+app.get('/api/objects', (req, res) => {
+    res.json(mapObjects);
+});
+
+// 3. Socket.io 即時通訊與廣播
 io.on('connection', (socket) => {
-  let userRoom = '';
+    console.log('一位使用者已連線:', socket.id);
 
-  socket.on('join', (data) => {
-    userRoom = data.room;
-    socket.join(userRoom);
-    socket.emit('init-shapes', Object.values(shapes).filter(s => s.room === userRoom));
-  });
+    // 監聽：有人新增了地圖物件
+    socket.on('new_object', (data) => {
+        // data 包含 { id, geojson, message, creator }
+        mapObjects.push(data);
+        // 廣播給「除自己以外」的所有人
+        socket.broadcast.emit('object_added', data);
+    });
 
-  socket.on('shape:add', (shape) => {
-    shape.room = userRoom;
-    shapes[shape.id] = shape;
-    io.to(userRoom).emit('shape:added', shape);
-  });
+    // 監聽：有人刪除了地圖物件
+    socket.on('delete_object', (objectId) => {
+        mapObjects = mapObjects.filter(obj => obj.id !== objectId);
+        // 廣播給所有人
+        socket.broadcast.emit('object_deleted', objectId);
+    });
 
-  socket.on('shape:update', (updatedShape) => {
-    if (!updatedShape || !updatedShape.id) return;
-    if (shapes[updatedShape.id]) {
-      const oldProperties = shapes[updatedShape.id].properties || {};
-      const newProperties = updatedShape.properties || {};
-      shapes[updatedShape.id] = { 
-        ...shapes[updatedShape.id], 
-        ...updatedShape,
-        properties: { ...oldProperties, ...newProperties }
-      };
-      io.to(userRoom).emit('shape:updated', shapes[updatedShape.id]);
-    }
-  });
-
-  socket.on('shape:remove', (id) => {
-    if (shapes[id]) {
-      delete shapes[id];
-      io.to(userRoom).emit('shape:removed', id);
-    }
-  });
+    socket.on('disconnect', () => {
+        console.log('使用者已斷線:', socket.id);
+    });
 });
 
+// 啟動伺服器 (Render 會自動指派 PORT)
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-  console.log(`伺服器執行於連接埠 ${PORT}`);
+server.listen(PORT, () => {
+    console.log(`伺服器正在運行於 port ${PORT}`);
 });
