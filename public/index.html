@@ -5,18 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 引入伺服器內部載入的核心樣式 -->
-<link rel="stylesheet" href="https://cloudflare.com" integrity="sha512-Zcn6dRxuq75gKykAtXvK9C9s71SUpIayNfVdAnrSUn06KxhZf0e2Vd9vBbfD0E7973w0YnN1b25N5c5wA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-<link rel="stylesheet" href="https://cloudflare.com" integrity="sha512-Y76W1Z+UdfwSgWcl0r+V99yTshUJyPz6Esh3Yy8A7fRkM0rP0gP7kM9p5f7s7X3Y3V3w0vVw9X8W7Y3w====" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-    
+    <!-- 核心通信與地圖大腦 (JS 使用本地與自帶路徑非常穩定，保持原樣) -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <script src="/leaflet-draw/leaflet.draw.js"></script>
 
+    <!-- 【超級修正】：免除所有外部 CSS 讀取，直接內嵌 Leaflet 與 工具列的核心排版樣式 -->
     <style>
+        /* 1. 地圖基礎核心樣式 */
+        .leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow, .leaflet-layer, .leaflet-overlay-pane, .leaflet-shadow-pane, .leaflet-marker-pane, .leaflet-popup-pane, .leaflet-map-pane svg, .leaflet-zoom-box, .leaflet-image-layer, .leaflet-layer { position: absolute; left: 0; top: 0; }
+        .leaflet-container { overflow:hidden; -ms-touch-action: none; touch-action: none; cursor: -webkit-grab; cursor: -moz-grab; cursor: grab; }
+        .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-user-drag: none; }
+        .leaflet-tile { filter: inherit; visibility: hidden; }
+        .leaflet-tile-loaded { visibility: inherit; }
+        .leaflet-zoom-box { width: 0; height: 0; -moz-box-sizing: border-box; box-sizing: border-box; z-index: 800; }
+        .leaflet-pane { z-index: 400; }
+        .leaflet-tile-pane    { z-index: 200; }
+        .leaflet-overlay-pane { z-index: 400; }
+        .leaflet-shadow-pane  { z-index: 500; }
+        .leaflet-marker-pane  { z-index: 600; }
+        .leaflet-popup-pane   { z-index: 700; }
+        .leaflet-map-pane canvas { z-index: 100; }
+        
+        /* 2. 控制列與按鈕排版修正（讓縮放與畫筆按鈕乖乖垂直排隊） */
+        .leaflet-control { position: relative; z-index: 800; pointer-events: auto; float: left; clear: both; }
+        .leaflet-top, .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
+        .leaflet-top { top: 0; }
+        .leaflet-right { right: 0; }
+        .leaflet-left { left: 0; }
+        .leaflet-bottom { bottom: 0; }
+        .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,0.65); border-radius: 4px; display: inline-block; background-color: #fff; margin-bottom: 10px; }
+        .leaflet-bar a, .leaflet-bar a:hover { background-color: #fff; border-bottom: 1px solid #ccc; width: 26px; height: 26px; line-height: 26px; block-size: 26px; display: block; text-align: center; text-decoration: none; color: black; font-weight: bold; font-size: 22px; }
+        .leaflet-bar a:line-shadow { border-bottom: none; }
+        .leaflet-control-zoom-in, .leaflet-control-zoom-out { font: bold 22px 'Lucida Console', Monaco, monospace; text-indent: 1px; }
+        
+        /* 3. 繪圖工具列與對齊圖示修正 */
+        .leaflet-draw { margin-left: 10px; margin-top: 10px; }
+        .leaflet-draw-section { position: relative; display: block; margin-bottom: 5px; }
+        .leaflet-draw-toolbar { margin-top: 0; margin-bottom: 0; display: block; }
+        .leaflet-draw-toolbar a {
+            background-image: url('/leaflet-draw-images/spritesheet.png') !important;
+            background-repeat: no-repeat !important;
+            background-size: 270px 30px !important;
+            width: 30px !important;
+            height: 30px !important;
+            display: block !important;
+            border-bottom: 1px solid #ccc !important;
+        }
+        
+        /* 鎖定精準各按鈕在切片圖上的位置 */
+        .leaflet-draw-draw-polyline { background-position: -2px -2px !important; }
+        .leaflet-draw-draw-polygon { background-position: -31px -2px !important; }
+        .leaflet-draw-draw-rectangle { background-position: -62px -2px !important; }
+        .leaflet-draw-draw-circle { background-position: -92px -2px !important; }
+        .leaflet-draw-draw-marker { background-position: -122px -2px !important; }
+        .leaflet-draw-edit-edit { background-position: -152px -2px !important; }
+        .leaflet-draw-edit-remove { background-position: -182px -2px !important; }
+        
+        /* 4. 地圖彈出視窗與網頁主體樣式 */
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
-        #map { width: 100%; height: 100vh; display: none; background: #e5e3df; } 
+        #map { width: 100%; height: 100vh; display: none; background: #e5e3df; position: relative; } 
+        .leaflet-popup { position: absolute; text-align: center; margin-bottom: 20px; }
+        .leaflet-popup-content-wrapper { padding: 1px; text-align: left; border-radius: 12px; background: white; box-shadow: 0 3px 14px rgba(0,0,0,0.4); }
+        .leaflet-popup-content { margin: 13px 19px; line-height: 1.4; font-size: 14px; min-width: 150px; }
         
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -30,12 +81,6 @@
             position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
-        
-        /* 額外修正：修復 Leaflet.draw 在某些環境下工具列圖示變空白方塊的問題 */
-.leaflet-draw-toolbar a {
-    background-image: url('/leaflet-draw-images/spritesheet.png') !important;
-}
-.leaflet-draw-toolbar a { background-size: 270px 30px !important; }
     </style>
 </head>
 <body>
@@ -61,15 +106,18 @@
         let socket;
         let currentUser = "";
         let map;             
-        let myDrawnItems;    // 存放「當前用戶自己畫的」圖層群組（允許編輯、刪除）
-        let othersDrawnItems;// 存放「別人畫的」圖層群組（唯讀，不允許編輯）
+        let myDrawnItems;    
+        let othersDrawnItems;
 
         function initMapInstance() {
             if (map) return; 
             
-            map = L.map('map').setView([23.6, 121], 8);
+            // 初始化地圖，隱藏預設的放大縮小控制鈕，我們自己在左上角手動加進去以修正排版
+            map = L.map('map', { zoomControl: false }).setView([23.6, 121], 8);
             
-            // 初始化兩個分開的圖層群組
+            // 手動加入縮放按鈕，確保其套用我們內嵌的樣式結構
+            L.control.zoom({ position: 'topleft' }).addTo(map);
+            
             myDrawnItems = new L.FeatureGroup();
             othersDrawnItems = new L.FeatureGroup();
             
@@ -78,7 +126,7 @@
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
+                attribution: '&copy; OpenStreetMap'
             }).addTo(map);
         }
 
@@ -120,18 +168,16 @@
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
 
-            // 【關鍵修改】：左側的繪圖控制列，只去綁定「我自己的圖層群組（myDrawnItems）」
-            // 這樣刪除和編輯功能，就絕對碰不到別人群組（othersDrawnItems）裡的圖形！
             const drawControl = new L.Control.Draw({
+                position: 'topleft',
                 edit: { 
-                    featureGroup: myDrawnItems, // 限制工具列只能動自己的東西
+                    featureGroup: myDrawnItems, 
                     remove: true 
                 },
                 draw: { circle: false, circlemarker: false, marker: true, polygon: true, polyline: true, rectangle: true }
             });
             map.addControl(drawControl);
 
-            // 載入歷史物件
             fetch(`${SERVER_URL}/api/objects`)
                 .then(res => res.json())
                 .then(objects => {
@@ -140,7 +186,6 @@
                     }
                 });
 
-            // 監聽本地創建
             map.on(L.Draw.Event.CREATED, function (e) {
                 const message = prompt("請輸入該地區發生的事件說明：");
                 if (message === null) return;
@@ -150,14 +195,13 @@
                     id: 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     geojson: geojson,
                     message: message,
-                    creator: currentUser // 標記當前創作者
+                    creator: currentUser 
                 };
 
                 renderObjectOnMap(objectData);
                 socket.emit('new_object', objectData);
             });
 
-            // 監聽本地刪除（只有存在於 myDrawnItems 的東西才會觸發這裡）
             map.on(L.Draw.Event.DELETED, function (e) {
                 e.layers.eachLayer(function (layer) {
                     if (layer.options && layer.options.obj_id) {
@@ -166,54 +210,4 @@
                 });
             });
 
-            // 接收廣播：有人新增物件
             socket.on('object_added', function (data) {
-                renderObjectOnMap(data);
-            });
-
-            // 接收廣播：有人刪除物件
-            socket.on('object_deleted', function (objectId) {
-                // 同時從兩個群組搜尋並移除該圖層
-                [myDrawnItems, othersDrawnItems].forEach(group => {
-                    group.eachLayer(layer => {
-                        if (layer.options && layer.options.obj_id === objectId) {
-                            group.removeLayer(layer);
-                        }
-                    });
-                });
-            });
-        }
-
-        // 渲染物件時進行「權限判定分流」
-        function renderObjectOnMap(data) {
-            // 檢查是否已存在，防止重複繪製
-            let isExist = false;
-            [myDrawnItems, othersDrawnItems].forEach(group => {
-                group.eachLayer(layer => {
-                    if (layer.options && layer.options.obj_id === data.id) isExist = true;
-                });
-            });
-            if (isExist) return;
-
-            // 建立圖層
-            const layer = L.geoJSON(data.geojson, {
-                onEachFeature: function (feature, layer) {
-                    // 泡泡框提示是誰畫的
-                    layer.bindPopup(`<b>事件：</b>${data.message}<br><small style="color:gray;">回報者: ${data.creator} ${data.creator === currentUser ? '(您自己)' : ''}</small>`);
-                }
-            });
-
-            layer.eachLayer(subLayer => {
-                subLayer.options.obj_id = data.id; 
-                
-                // 【核心權限邏輯】：如果這張圖的 creator 是我自己，就丟進 myDrawnItems；否則丟進唯讀的 othersDrawnItems
-                if (data.creator === currentUser) {
-                    myDrawnItems.addLayer(subLayer);
-                } else {
-                    othersDrawnItems.addLayer(subLayer);
-                }
-            });
-        }
-    </script>
-</body>
-</html>
