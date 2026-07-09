@@ -5,69 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 核心通信與地圖大腦 (JS 使用本地與自帶路徑非常穩定，保持原樣) -->
+    <!-- 引入全球最標準、絕對不會造成工具列歪掉的 Leaflet 核心樣式 -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <link rel="stylesheet" href="https://unpkg.com" />
+    
+    <!-- 引入核心通訊與地圖大腦 JS -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/leaflet/leaflet.js"></script>
-    <script src="/leaflet-draw/leaflet.draw.js"></script>
+    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com"></script>
 
-    <!-- 【超級修正】：免除所有外部 CSS 讀取，直接內嵌 Leaflet 與 工具列的核心排版樣式 -->
     <style>
-        /* 1. 地圖基礎核心樣式 */
-        .leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow, .leaflet-layer, .leaflet-overlay-pane, .leaflet-shadow-pane, .leaflet-marker-pane, .leaflet-popup-pane, .leaflet-map-pane svg, .leaflet-zoom-box, .leaflet-image-layer, .leaflet-layer { position: absolute; left: 0; top: 0; }
-        .leaflet-container { overflow:hidden; -ms-touch-action: none; touch-action: none; cursor: -webkit-grab; cursor: -moz-grab; cursor: grab; }
-        .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-user-drag: none; }
-        .leaflet-tile { filter: inherit; visibility: hidden; }
-        .leaflet-tile-loaded { visibility: inherit; }
-        .leaflet-zoom-box { width: 0; height: 0; -moz-box-sizing: border-box; box-sizing: border-box; z-index: 800; }
-        .leaflet-pane { z-index: 400; }
-        .leaflet-tile-pane    { z-index: 200; }
-        .leaflet-overlay-pane { z-index: 400; }
-        .leaflet-shadow-pane  { z-index: 500; }
-        .leaflet-marker-pane  { z-index: 600; }
-        .leaflet-popup-pane   { z-index: 700; }
-        .leaflet-map-pane canvas { z-index: 100; }
-        
-        /* 2. 控制列與按鈕排版修正（讓縮放與畫筆按鈕乖乖垂直排隊） */
-        .leaflet-control { position: relative; z-index: 800; pointer-events: auto; float: left; clear: both; }
-        .leaflet-top, .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
-        .leaflet-top { top: 0; }
-        .leaflet-right { right: 0; }
-        .leaflet-left { left: 0; }
-        .leaflet-bottom { bottom: 0; }
-        .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,0.65); border-radius: 4px; display: inline-block; background-color: #fff; margin-bottom: 10px; }
-        .leaflet-bar a, .leaflet-bar a:hover { background-color: #fff; border-bottom: 1px solid #ccc; width: 26px; height: 26px; line-height: 26px; block-size: 26px; display: block; text-align: center; text-decoration: none; color: black; font-weight: bold; font-size: 22px; }
-        .leaflet-bar a:line-shadow { border-bottom: none; }
-        .leaflet-control-zoom-in, .leaflet-control-zoom-out { font: bold 22px 'Lucida Console', Monaco, monospace; text-indent: 1px; }
-        
-        /* 3. 繪圖工具列與對齊圖示修正 */
-        .leaflet-draw { margin-left: 10px; margin-top: 10px; }
-        .leaflet-draw-section { position: relative; display: block; margin-bottom: 5px; }
-        .leaflet-draw-toolbar { margin-top: 0; margin-bottom: 0; display: block; }
-        .leaflet-draw-toolbar a {
-            background-image: url('/leaflet-draw-images/spritesheet.png') !important;
-            background-repeat: no-repeat !important;
-            background-size: 270px 30px !important;
-            width: 30px !important;
-            height: 30px !important;
-            display: block !important;
-            border-bottom: 1px solid #ccc !important;
-        }
-        
-        /* 鎖定精準各按鈕在切片圖上的位置 */
-        .leaflet-draw-draw-polyline { background-position: -2px -2px !important; }
-        .leaflet-draw-draw-polygon { background-position: -31px -2px !important; }
-        .leaflet-draw-draw-rectangle { background-position: -62px -2px !important; }
-        .leaflet-draw-draw-circle { background-position: -92px -2px !important; }
-        .leaflet-draw-draw-marker { background-position: -122px -2px !important; }
-        .leaflet-draw-edit-edit { background-position: -152px -2px !important; }
-        .leaflet-draw-edit-remove { background-position: -182px -2px !important; }
-        
-        /* 4. 地圖彈出視窗與網頁主體樣式 */
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
-        #map { width: 100%; height: 100vh; display: none; background: #e5e3df; position: relative; } 
-        .leaflet-popup { position: absolute; text-align: center; margin-bottom: 20px; }
-        .leaflet-popup-content-wrapper { padding: 1px; text-align: left; border-radius: 12px; background: white; box-shadow: 0 3px 14px rgba(0,0,0,0.4); }
-        .leaflet-popup-content { margin: 13px 19px; line-height: 1.4; font-size: 14px; min-width: 150px; }
+        #map { width: 100%; height: 100vh; display: none; background: #e5e3df; } 
         
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -80,6 +29,12 @@
         #info-panel {
             position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
+        }
+        
+        /* 修正 Leaflet.draw 工具列圖示排版與圖磚定位 */
+        .leaflet-draw-toolbar a {
+            background-image: url('https://unpkg.com') !important;
+            background-size: 270px 30px !important;
         }
     </style>
 </head>
@@ -112,11 +67,7 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 初始化地圖，隱藏預設的放大縮小控制鈕，我們自己在左上角手動加進去以修正排版
-            map = L.map('map', { zoomControl: false }).setView([23.6, 121], 8);
-            
-            // 手動加入縮放按鈕，確保其套用我們內嵌的樣式結構
-            L.control.zoom({ position: 'topleft' }).addTo(map);
+            map = L.map('map').setView([23.6, 121], 8);
             
             myDrawnItems = new L.FeatureGroup();
             othersDrawnItems = new L.FeatureGroup();
@@ -126,7 +77,7 @@
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
+                attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
         }
 
@@ -139,29 +90,37 @@
                 return;
             }
 
-            const res = await fetch(`${SERVER_URL}/api/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: userIn, password: passIn })
-            });
+            try {
+                const res = await fetch(`${SERVER_URL}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: userIn, password: passIn })
+                });
 
-            const data = await res.json();
-            if (data.success) {
-                currentUser = userIn;
-                document.getElementById('login-box').style.display = 'none';
-                document.getElementById('map').style.display = 'block';
-                document.getElementById('info-panel').style.display = 'block';
-                document.getElementById('user-display').innerText = currentUser;
-                
-                initMapInstance();
-                
-                setTimeout(() => {
-                    if (map) map.invalidateSize();
-                }, 300);
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = userIn;
+                    document.getElementById('login-box').style.display = 'none';
+                    document.getElementById('map').style.display = 'block';
+                    document.getElementById('info-panel').style.display = 'block';
+                    document.getElementById('user-display').innerText = currentUser;
+                    
+                    initMapInstance();
+                    
+                    // 給地圖足夠的時間去渲染，徹底解決第一張截圖的「地圖碎塊/破圖」問題
+                    setTimeout(() => {
+                        if (map) {
+                            map.invalidateSize();
+                        }
+                    }, 300);
 
-                initSocketAndLayers(); 
-            } else {
-                document.getElementById('login-error').innerText = data.message;
+                    initSocketAndLayers(); 
+                } else {
+                    document.getElementById('login-error').innerText = data.message;
+                }
+            } catch (err) {
+                document.getElementById('login-error').innerText = "連線後端錯誤！";
+                console.error(err);
             }
         }
 
@@ -169,7 +128,6 @@
             socket = io(SERVER_URL);
 
             const drawControl = new L.Control.Draw({
-                position: 'topleft',
                 edit: { 
                     featureGroup: myDrawnItems, 
                     remove: true 
@@ -211,3 +169,45 @@
             });
 
             socket.on('object_added', function (data) {
+                renderObjectOnMap(data);
+            });
+
+            socket.on('object_deleted', function (objectId) {
+                [myDrawnItems, othersDrawnItems].forEach(group => {
+                    group.eachLayer(layer => {
+                        if (layer.options && layer.options.obj_id === objectId) {
+                            group.removeLayer(layer);
+                        }
+                    });
+                });
+            });
+        }
+
+        function renderObjectOnMap(data) {
+            let isExist = false;
+            [myDrawnItems, othersDrawnItems].forEach(group => {
+                group.eachLayer(layer => {
+                    if (layer.options && layer.options.obj_id === data.id) isExist = true;
+                });
+            });
+            if (isExist) return;
+
+            const layer = L.geoJSON(data.geojson, {
+                onEachFeature: function (feature, layer) {
+                    layer.bindPopup(`<b>事件：</b>${data.message}<br><small style="color:gray;">回報者: ${data.creator} ${data.creator === currentUser ? '(您自己)' : ''}</small>`);
+                }
+            });
+
+            layer.eachLayer(subLayer => {
+                subLayer.options.obj_id = data.id; 
+                
+                if (data.creator === currentUser) {
+                    myDrawnItems.addLayer(subLayer);
+                } else {
+                    othersDrawnItems.addLayer(subLayer);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
