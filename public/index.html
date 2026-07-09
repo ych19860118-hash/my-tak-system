@@ -156,21 +156,43 @@
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
-                } else if (currentTool === 'circle') {
+                }                 // === 終極修正：利用陣列索引精準分離緯度(lat)與經度(lng)，彻底根除 Invalid LatLng 錯誤 ===
+                else if (currentTool === 'circle') {
                     tempPoints.push([lat, lng]);
+                    
                     if (tempPoints.length === 1) {
-                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
+                        // 點第一下：先在中心建立一個半徑 100 公尺的小圓當作視覺提醒
+                        tempShape = L.circle([lat, lng], { radius: 100, color: '#3388ff' }).addTo(map);
                     } else if (tempPoints.length === 2) {
-                        const centerLat = tempPoints; const centerLng = tempPoints;
-                        const centerPoint = L.latLng(centerLat, centerLng); const edgePoint = L.latLng(lat, lng);
-                        const radius = map.distance(centerPoint, edgePoint);
-                        const msg = prompt("請輸入圓形影響範圍說明：") || "未命名半徑區";
+                        // 點第二下：精準抓出第一點的緯度與經度
+                        const centerLat = tempPoints[0][0]; // 抓取第一點的緯度數字
+                        const centerLng = tempPoints[0][1]; // 抓取第一點的經度數字
+                        
+                        // 建立合法的 Leaflet 經緯度實例
+                        const centerPoint = L.latLng(centerLat, centerLng);
+                        const edgePoint = L.latLng(lat, lng);
+                        
+                        // 計算中心到第二點的真實地理距離（公尺）做為半徑
+                        const finalRadius = map.distance(centerPoint, edgePoint);
+                        
+                        const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
                         const data = {
-                            id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [centerLat, centerLng], 
-                            radius: radius, message: msg, creator: currentUser, color: "#3388ff"
+                            id: 'obj_' + Date.now(),
+                            shapeType: "circle",
+                            coordinates: [centerLat, centerLng], // 儲存一維中心點
+                            radius: finalRadius,
+                            message: msg, 
+                            creator: currentUser, 
+                            color: "#3388ff"
                         };
-                        if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                        
+                        if (tempShape) map.removeLayer(tempShape); // 移除暫存圓
+                        renderObjectOnMap(data); 
+                        socket.emit('new_object', data); 
+                        switchTool('pan'); // 切換回瀏覽模式
                     }
+                }
+
                 } else if (currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
