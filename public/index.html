@@ -30,12 +30,10 @@
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
         
-        /* 修正 Leaflet.draw 工具列圖示排版 */
-        .leaflet-draw-toolbar a {
-            background-image: url('/leaflet-draw-images/spritesheet.png') !important;
-            background-size: 270px 30px !important;
-        }
-        .leaflet-draw-toolbar {
+      /* 請把這兩段加在 <style> 與 </style> 之間 */
+
+/* 1. 強制讓左側繪圖工具列的按鈕垂直排列，並貼合在一起 */
+.leaflet-draw-toolbar {
     margin-top: 5px !important;
     display: flex !important;
     flex-direction: column !important;
@@ -55,6 +53,16 @@
     height: 30px !important;
     display: block !important;
 }
+
+.leaflet-draw-toolbar a:last-child {
+    border-bottom: none !important;
+}
+
+/* 2. 徹底美化：修正按鈕在某些高解析度螢幕下圖示位移的問題 */
+.leaflet-draw-actions {
+    display: none !important; /* 隱藏未作畫時展開的提示，防止排版被推擠 */
+}
+
     </style>
 </head>
 <body>
