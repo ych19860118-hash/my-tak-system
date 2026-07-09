@@ -3,33 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>颱風防災協同即時地圖</title>
+    <title>颱風防災分組協同即時地圖</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
         #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
+        
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #1e1e1e; padding: 40px 30px; border-radius: 12px; 
+            background: #1e1e1e; padding: 35px 30px; border-radius: 12px; 
             box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; z-index: 2000;
-            border: 1px solid #333; width: 280px;
+            border: 1px solid #333; width: 300px;
         }
-        #login-box h2 { color: #ffffff; margin-bottom: 24px; font-weight: 500; font-size: 22px; letter-spacing: 1px; }
-        #login-box input { 
+        #login-box h2 { color: #ffffff; margin-bottom: 20px; font-weight: 500; font-size: 22px; }
+        #login-box input, #login-box select { 
             display: block; margin: 12px auto; padding: 12px; width: 90%; 
             background: #2a2a2a; border: 1px solid #444; border-radius: 6px; 
-            color: #ffffff; font-size: 15px; outline: none; transition: border 0.3s;
+            color: #ffffff; font-size: 14px; outline: none; box-sizing: border-box;
         }
-        #login-box input:focus { border-color: #007bff; }
+        #login-box input:focus, #login-box select:focus { border-color: #007bff; }
         #login-box button { 
-            width: 98%; padding: 12px; background: #007bff; color: white; 
+            width: 90%; padding: 12px; background: #007bff; color: white; 
             border: none; border-radius: 6px; cursor: pointer; font-size: 16px; 
-            font-weight: bold; margin-top: 15px; transition: background 0.2s;
+            font-weight: bold; margin-top: 10px;
         }
-        #login-box button:hover { background: #0056b3; }
         #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
+        
         #custom-toolbar {
             position: absolute; top: 90px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
@@ -40,26 +41,44 @@
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
+        
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
+        
+        /* 🟢 右下角即時線上人數與應變房號狀態欄 */
         #typhoon-info {
             position: absolute; bottom: 20px; right: 12px; background: rgba(30, 30, 30, 0.9);
             padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000;
-            border: 1px solid #444; font-size: 13px; display: none; max-width: 300px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #444; font-size: 13px; display: none; min-width: 200px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
+
+    <!-- 多功能分房登入介面 -->
     <div id="login-box">
-        <h2>災害應變協同系統</h2>
-        <input type="text" id="username" placeholder="請輸入您的通報暱稱 (身分ID)">
-        <input type="password" id="password" placeholder="管理團隊安全密碼">
-        <button onclick="login()">進入公開防災地圖</button>
+        <h2>應變協同中心</h2>
+        <input type="text" id="username" placeholder="請輸入您的通報暱稱">
+        
+        <!-- 房號挑選 -->
+        <select id="room-select" onchange="checkRoomType()">
+            <option value="public_1">公開應變頻道 1</option>
+            <option value="public_2">公開應變頻道 2</option>
+            <option value="custom">自訂專屬私有應變房...</option>
+        </select>
+        
+        <!-- 動態彈出：讓用戶能輸入自訂房號與密碼 -->
+        <input type="text" id="custom-room-name" placeholder="請設定您的私有房號 (例: hsinchu_99)" style="display:none;">
+        <input type="password" id="room-password" placeholder="請輸入該房進入密碼 (選填)">
+        
+        <button onclick="login()">進入防災地圖</button>
         <p id="login-error"></p>
     </div>
+
+    <!-- 工具列 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
@@ -67,15 +86,31 @@
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
     </div>
+
+    <!-- 狀態監控面板 -->
     <div id="typhoon-info">
-        <b style="color: #ffc107; font-size: 14px;">🌀 應變中心提示</b>
-        <div id="typhoon-status" style="margin-top: 6px; line-height: 1.4;">目前防颱應變中心已啟動，請各地區通報人員利用左側工具列，即時回報道路狀況、積水或物資需求。雙擊螢幕可滿版操作。</div>
+        <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
+        <div style="margin-top: 6px; line-height: 1.5;">
+            🟢 當前線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
+            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房。雙擊地圖可滿螢幕。</span>
+        </div>
     </div>
     <div id="map"></div>
     <script>
         const SERVER_URL = window.location.origin; 
-        let socket, currentUser = "", map, allMapLayers = {};
+        let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
+
+        // 控制登入畫面：若選自訂房，才跳出輸入房號框
+        function checkRoomType() {
+            const select = document.getElementById('room-select').value;
+            const customInput = document.getElementById('custom-room-name');
+            if (select === 'custom') {
+                customInput.style.display = 'block';
+            } else {
+                customInput.style.display = 'none';
+            }
+        }
 
         function initMapInstance() {
             if (map) return; 
@@ -87,6 +122,7 @@
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
 
+            // 手機端雙擊畫面自動全螢幕滿版
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
@@ -111,7 +147,7 @@
                 });
             });
 
-            // 地圖點擊事件監聽
+            // 地圖點擊事件監聽：處理五合一原生繪圖
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -142,12 +178,11 @@
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 } else if (currentTool === 'circle') {
-                    // 🔴 圓形核心：改用安全物件屬性，100% 根除 Invalid LatLng 與系統截斷死穴
                     if (tempPoints.length === 0) {
                         tempPoints.push({ lat: lat, lng: lng });
                         tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
                     } else if (tempPoints.length === 1) {
-                        const firstPoint = tempPoints.shift(); // 安全取出第一點物件
+                        const firstPoint = tempPoints.shift(); 
                         const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
@@ -204,19 +239,32 @@
 
         async function login() {
             const userIn = document.getElementById('username').value.trim();
-            const passIn = document.getElementById('password').value;
+            const passIn = document.getElementById('room-password').value;
+            const roomSel = document.getElementById('room-select').value;
+            const customRoom = document.getElementById('custom-room-name').value.trim();
+
+            let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
+
             if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
+            if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂房間名稱！"; return; }
+            
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: userIn, password: passIn })
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom })
                 });
                 const data = await res.json();
                 if (data.success) {
                     currentUser = data.username; 
+                    currentRoom = data.roomName;
+                    
                     document.getElementById('login-box').style.display = 'none';
                     document.getElementById('map').style.display = 'block'; 
                     document.getElementById('custom-toolbar').style.display = 'flex'; 
                     document.getElementById('typhoon-info').style.display = 'block';
+                    document.getElementById('state-room').innerText = currentRoom;
+
                     initMapInstance(); 
                     setTimeout(() => { if (map) map.invalidateSize(); }, 300); 
                     initSocketAndLayers(); 
@@ -225,9 +273,22 @@
         }
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
-            fetch(`${SERVER_URL}/api/objects`).then(res => res.json()).then(objects => {
-                if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj));
+            
+            // 💡 新增：加入指定房間，開始接收與廣播該應變頻道的專屬資料
+            socket.emit('join_room', { roomName: currentRoom, username: currentUser });
+
+            // 💡 新增：接收來自伺服器發送的該應變房間歷史歷史舊物件
+            socket.on('history_objects', function(objects) {
+                if (Array.isArray(objects)) {
+                    objects.forEach(obj => renderObjectOnMap(obj));
+                }
             });
+
+            // 💡 新增：動態監聽並更新右下角當前應變頻道的在線即時人數
+            socket.on('update_user_count', function(count) {
+                document.getElementById('state-count').innerText = count;
+            });
+
             socket.on('object_added', data => renderObjectOnMap(data));
             socket.on('object_deleted', id => {
                 if (allMapLayers[id]) {
@@ -263,7 +324,7 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 📌 錨點流暢拖曳平移黑科技
+            // 📌 錨點流暢拖曳平移算法
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
@@ -306,18 +367,15 @@
                 });
             }
 
-            // 🔒 權限防護：Popup 對話框判定分流
- let popupContent = "";
+            // 🔒 獨立權限核心：Popup 對話框判定分流（只能修改自己建的，點別人的是唯讀）
+            let popupContent = "";
             if (isMyObject) {
-                // 💡 判斷：如果是 marker (標點工具)，就把顏色選單區塊隱藏 (display:none)
                 const isMarker = (data.shapeType === "marker");
-                
                 popupContent = `
                     <div class="popup-menu">
                         <b>編輯您回報的災情</b><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        
                         <div style="${isMarker ? 'display: none;' : ''}">
                             <label>等級變更：</label>
                             <select id="edit-color-${data.id}">
@@ -327,7 +385,6 @@
                                 <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (積水/警告)</option>
                             </select>
                         </div>
-                        
                         <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
                         <button onclick="deleteObject('${data.id}')">撤銷此回報</button>
                     </div>`;
