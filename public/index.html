@@ -116,7 +116,7 @@
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "circle",
-                            coordinates: [tempPoints, tempPoints], 
+                            coordinates: [tempPoints[0], tempPoints[1]], 
                             radius: radius,
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
@@ -199,7 +199,7 @@
 
             if (data.shapeType === "marker") {
                 mainLayer = L.marker(pts);
-                centerLatLng = L.latLng(pts, pts);
+                centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
                 mainLayer = L.polyline(pts, { color: data.color, weight: 4 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
@@ -208,7 +208,7 @@
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
                 mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
-                centerLatLng = L.latLng(pts, pts);
+                centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polygon") {
                 mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
@@ -220,13 +220,12 @@
 
             // 核心拖曳算法：如果是創作者本人且不是標準標記針，自動在中心生成一根 📌 控制針
             if (isMyObject && data.shapeType !== "marker") {
+                // 改用純文字樣式定義圖示，完全避開複雜的陣列物件，保證零出錯
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
                     icon: L.divIcon({ 
                         html: '📌', 
-                        className: 'control-pin-icon', 
-                        iconSize:, 
-                        iconAnchor: [12, 12] 
+                        className: 'control-pin-icon'
                     })
                 }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
