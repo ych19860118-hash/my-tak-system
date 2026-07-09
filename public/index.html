@@ -59,10 +59,11 @@
         const map = L.map('map').setView([23.6, 121], 8);
         const drawnItems = new L.FeatureGroup();
 
-        // 初始化地圖外觀
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+// 初始化地圖外觀，改用固定的 https 連結
+L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://openstreetmap.org">OpenStreetMap</a>'
+}).addTo(map);
         map.addLayer(drawnItems);
 
         // 登入功能驗證
