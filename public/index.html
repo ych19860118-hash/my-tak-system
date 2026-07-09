@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 全面改為讀取自己 Render 伺服器內部的檔案，解決 CSP 安全阻擋導致 L is not defined 的問題 -->
+    <!-- 引入核心樣式與 JS -->
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/leaflet-draw/leaflet.draw.css" />
     
@@ -30,37 +30,34 @@
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
         
-     /* 1. 強制讓左側繪圖工具列的按鈕垂直排列，並貼合在一起 */
-.leaflet-draw-toolbar {
-    margin-top: 5px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    border: 2px solid rgba(0,0,0,0.2) !important;
-    border-radius: 4px !important;
-    background: #fff !important;
-    overflow: hidden !important;
-}
+        /* 修正 Leaflet.draw 工具列排版 */
+        .leaflet-draw-toolbar {
+            margin-top: 5px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            border: 2px solid rgba(0,0,0,0.2) !important;
+            border-radius: 4px !important;
+            background: #fff !important;
+            overflow: hidden !important;
+        }
+        .leaflet-draw-toolbar a {
+            background-image: url('/leaflet-draw-images/spritesheet.png') !important;
+            background-size: 270px 30px !important;
+            border-bottom: 1px solid #ccc !important;
+            width: 30px !important;
+            height: 30px !important;
+            display: block !important;
+        }
+        .leaflet-draw-toolbar a:last-child { border-bottom: none !important; }
+        .leaflet-draw-actions { display: none !important; }
 
-.leaflet-draw-toolbar-top {
-    margin-top: 10px !important;
-}
-
-.leaflet-draw-toolbar a {
-    border-bottom: 1px solid #ccc !important;
-    width: 30px !important;
-    height: 30px !important;
-    display: block !important;
-}
-
-.leaflet-draw-toolbar a:last-child {
-    border-bottom: none !important;
-}
-
-/* 2. 徹底美化：修正按鈕在某些高解析度螢幕下圖示位移的問題 */
-.leaflet-draw-actions {
-    display: none !important; /* 隱藏未作畫時展開的提示，防止排版被推擠 */
-}
-
+        /* 進階功能：彈出控制選單樣式 */
+        .popup-menu { font-size: 14px; min-width: 180px; }
+        .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
+        .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
+        .popup-menu button { 
+            width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; 
+        }
     </style>
 </head>
 <body>
@@ -76,7 +73,9 @@
     <div id="info-panel">
         <h3>即時地圖後台</h3>
         <p>目前使用者：<b id="user-display" style="color: #007bff;"></b></p>
-        <p style="font-size: 13px; color: #555;">💡 規則：您可以看到所有人畫的圖。但<b>只有您自己創建的物件</b>才可以被您刪除或編輯。</p>
+        <p style="font-size: 13px; color: #555;">💡 <b>最新功能指南：</b><br>
+        1. 畫完或點擊物件可<b>直接用滑鼠拖曳</b>移動位置！<br>
+        2. 單擊您自己的物件，可直接<b>修改名稱、變更顏色或刪除</b>它！</p>
     </div>
     <div id="map"></div>
 
@@ -86,19 +85,11 @@
         let socket;
         let currentUser = "";
         let map;             
-        let myDrawnItems;    
-        let othersDrawnItems;
+        let allMapLayers = {}; // 用一個統一的物件，透過物件 ID 來集中管理所有地圖上的圖層
 
         function initMapInstance() {
             if (map) return; 
-            
             map = L.map('map').setView([23.6, 121], 8);
-            
-            myDrawnItems = new L.FeatureGroup();
-            othersDrawnItems = new L.FeatureGroup();
-            
-            map.addLayer(myDrawnItems);
-            map.addLayer(othersDrawnItems);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
@@ -115,51 +106,40 @@
                 return;
             }
 
-            try {
-                const res = await fetch(`${SERVER_URL}/api/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: userIn, password: passIn })
-                });
+            const res = await fetch(`${SERVER_URL}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userIn, password: passIn })
+            });
 
-                const data = await res.json();
-                if (data.success) {
-                    currentUser = userIn;
-                    document.getElementById('login-box').style.display = 'none';
-                    document.getElementById('map').style.display = 'block';
-                    document.getElementById('info-panel').style.display = 'block';
-                    document.getElementById('user-display').innerText = currentUser;
-                    
-                    initMapInstance();
-                    
-                    setTimeout(() => {
-                        if (map) {
-                            map.invalidateSize();
-                        }
-                    }, 300);
-
-                    initSocketAndLayers(); 
-                } else {
-                    document.getElementById('login-error').innerText = data.message;
-                }
-            } catch (err) {
-                document.getElementById('login-error').innerText = "連線後端錯誤！";
-                console.error(err);
+            const data = await res.json();
+            if (data.success) {
+                currentUser = userIn;
+                document.getElementById('login-box').style.display = 'none';
+                document.getElementById('map').style.display = 'block';
+                document.getElementById('info-panel').style.display = 'block';
+                document.getElementById('user-display').innerText = currentUser;
+                
+                initMapInstance();
+                
+                setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+                initSocketAndLayers(); 
+            } else {
+                document.getElementById('login-error').innerText = data.message;
             }
         }
 
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
 
+            // 繪圖工具列（我們把內建的刪除和編輯鈕關掉，因為改用點擊物件直接操作更新，這樣最精準）
             const drawControl = new L.Control.Draw({
-                edit: { 
-                    featureGroup: myDrawnItems, 
-                    remove: true 
-                },
+                edit: { featureGroup: new L.FeatureGroup(), remove: false, edit: false },
                 draw: { circle: false, circlemarker: false, marker: true, polygon: true, polyline: true, rectangle: true }
             });
             map.addControl(drawControl);
 
+            // 載入歷史物件
             fetch(`${SERVER_URL}/api/objects`)
                 .then(res => res.json())
                 .then(objects => {
@@ -168,70 +148,99 @@
                     }
                 });
 
+            // 監聽本地繪製
             map.on(L.Draw.Event.CREATED, function (e) {
-                const message = prompt("請輸入該地區發生的事件說明：");
-                if (message === null) return;
+                const message = prompt("請輸入該地區發生的事件說明：") || "未命名事件";
 
                 const geojson = e.layer.toGeoJSON();
                 const objectData = {
                     id: 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     geojson: geojson,
                     message: message,
-                    creator: currentUser 
+                    creator: currentUser,
+                    color: "#3388ff" // 預設藍色
                 };
 
                 renderObjectOnMap(objectData);
                 socket.emit('new_object', objectData);
             });
 
-            map.on(L.Draw.Event.DELETED, function (e) {
-                e.layers.eachLayer(function (layer) {
-                    if (layer.options && layer.options.obj_id) {
-                        socket.emit('delete_object', layer.options.obj_id);
-                    }
-                });
-            });
-
+            // 監聽廣播：有人新增物件
             socket.on('object_added', function (data) {
                 renderObjectOnMap(data);
             });
 
+            // 監聽廣播：有人刪除物件
             socket.on('object_deleted', function (objectId) {
-                [myDrawnItems, othersDrawnItems].forEach(group => {
-                    group.eachLayer(layer => {
-                        if (layer.options && layer.options.obj_id === objectId) {
-                            group.removeLayer(layer);
-                        }
-                    });
-                });
+                if (allMapLayers[objectId]) {
+                    map.removeLayer(allMapLayers[objectId]);
+                    delete allMapLayers[objectId];
+                }
+            });
+
+            // 監聽廣播：有人修改了物件（更名、改顏色、移動位置）
+            socket.on('object_updated', function (updatedData) {
+                if (allMapLayers[updatedData.id]) {
+                    // 先移除舊圖層，再用新數據重新畫一個，達成秒級即時更新
+                    map.removeLayer(allMapLayers[updatedData.id]);
+                    delete allMapLayers[updatedData.id];
+                }
+                renderObjectOnMap(updatedData);
             });
         }
 
+        // 把物件畫到地圖上，並同時塞入拖曳、顏色變更與選單邏輯
         function renderObjectOnMap(data) {
-            let isExist = false;
-            [myDrawnItems, othersDrawnItems].forEach(group => {
-                group.eachLayer(layer => {
-                    if (layer.options && layer.options.obj_id === data.id) isExist = true;
-                });
-            });
-            if (isExist) return;
+            if (allMapLayers[data.id]) return;
 
-            const layer = L.geoJSON(data.geojson, {
-                onEachFeature: function (feature, layer) {
-                    layer.bindPopup(`<b>事件：</b>${data.message}<br><small style="color:gray;">回報者: ${data.creator} ${data.creator === currentUser ? '(您自己)' : ''}</small>`);
-                }
+            // 1. 設定圖形外觀顏色與填滿
+            const styleOptions = {
+                color: data.color,
+                fillColor: data.color,
+                fillOpacity: 0.4,
+                weight: 4
+            };
+
+            let mainLayer;
+            const geojsonLayer = L.geoJSON(data.geojson, {
+                pointToLayer: function(geoJsonPoint, latlng) {
+                    // 如果是標記點（Marker），可以更換不同顏色（這裡示範自訂圖示，或使用樣式控制）
+                    return L.marker(latlng, { draggable: (data.creator === currentUser) });
+                },
+                style: styleOptions
             });
 
-            layer.eachLayer(subLayer => {
-                subLayer.options.obj_id = data.id; 
+            // 抓出真正的圖層實例
+            geojsonLayer.eachLayer(layer => { mainLayer = layer; });
+            if (!mainLayer) return;
+
+            // 2. 開啟拖曳功能（如果是線條或多邊形，Leaflet 預設不支援直接 draggable，需要透過動態監聽點位，這裡我們直接允許 Marker 拖曳，多邊形可自由更新）
+            if (mainLayer.dragging && data.creator === currentUser) {
+                mainLayer.dragging.enable();
                 
-                if (data.creator === currentUser) {
-                    myDrawnItems.addLayer(subLayer);
-                } else {
-                    othersDrawnItems.addLayer(subLayer);
-                }
-            });
-        }
-    </script>
-</body>
-</html>
+                // 當放開滑鼠拖曳完成時，通知所有人新位置
+                mainLayer.on('dragend', function(e) {
+                    const newLatlng = mainLayer.getLatLng();
+                    data.geojson = mainLayer.toGeoJSON(); // 更新地理數據
+                    
+                    // 廣播給後端
+                    socket.emit('delete_object', data.id); // 先移除
+                    socket.emit('new_object', data);       // 再重新廣播新資料
+                });
+            }
+
+            // 3. 綁定強大的 Popup 控制選單
+            let popupContent = "";
+            if (data.creator === currentUser) {
+                // 如果是自己的物件：顯示完整的 編輯名稱、換顏色、刪除 選單
+                popupContent = `
+                    <div class="popup-menu">
+                        <b>編輯您的物件</b><br><br>
+                        <label>修改名稱：</label>
+                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
+                        
+                        <label>變更顏色：</label>
+                        <select id="edit-color-${data.id}">
+                            <option value="#3388ff" ${data.color === '#3388ff' ? 'selected' : ''}>藍色 (預設)</option>
+                            <option value="#dc3545" ${data.color === '#dc3545' ? 'selected' : ''}>紅色 (危險/火災)</option>
+                            <option value="#28a745" ${data.color === '#28a745' ? 'selected' : ''}>綠色 (安全/通行)</option>
