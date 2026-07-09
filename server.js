@@ -13,6 +13,7 @@ const io = new Server(server, {
 app.use(express.json());
 app.use('/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet', 'dist')));
 app.use('/leaflet-draw', express.static(path.join(__dirname, 'node_modules', 'leaflet-draw', 'dist')));
+app.use('/leaflet-draw-images', express.static(path.join(__dirname, 'node_modules', 'leaflet-draw', 'dist', 'images')));
 // 設定靜態檔案目錄，讓 Render 自動讀取 public 資料夾內的所有檔案（包含 index.html）
 app.use(express.static(path.join(__dirname, 'public')));
 
