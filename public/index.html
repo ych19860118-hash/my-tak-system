@@ -11,24 +11,41 @@
     <script src="/leaflet/leaflet.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
-        #map { width: 100%; height: 100vh; display: none; background: #e5e3df; } 
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
+        #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
+        
+        /* 🌙 全新高質感暗色系（Dark Mode）登入視窗 */
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            text-align: center; z-index: 2000;
+            background: #1e1e1a; padding: 40px 30px; border-radius: 12px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; z-index: 2000;
+            border: 1px solid #333; width: 280px;
         }
-        #login-box input { display: block; margin: 10px auto; padding: 8px; width: 200px; }
-        #login-box button { padding: 8px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #login-box h2 { color: #ffffff; margin-bottom: 24px; font-weight: 500; font-size: 22px; letter-spacing: 1px; }
+        #login-box input { 
+            display: block; margin: 12px auto; padding: 12px; width: 90%; 
+            background: #2a2a2a; border: 1px solid #444; border-radius: 6px; 
+            color: #ffffff; font-size: 15px; outline: none; transition: border 0.3s;
+        }
+        #login-box input:focus { border-color: #007bff; }
+        #login-box button { 
+            width: 98%; padding: 12px; background: #007bff; color: white; 
+            border: none; border-radius: 6px; cursor: pointer; font-size: 16px; 
+            font-weight: bold; margin-top: 15px; transition: background 0.2s;
+        }
+        #login-box button:hover { background: #0056b3; }
+        #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
         
-        /* 側邊工具列排版：保證 100% 垂直對齊、絕不歪斜、免疫圖片阻擋 */
+        /* 📱 手機端大尺寸自製工具列：100% 垂直對齊、絕不歪斜、加大至 44px 方便觸控 */
         #custom-toolbar {
-            position: absolute; top: 80px; left: 10px; z-index: 1000; display: none; flex-direction: column; gap: 6px;
+            position: absolute; top: 90px; left: 12px; z-index: 1000; 
+            display: none; flex-direction: column; gap: 10px;
         }
         .tool-btn {
-            width: 34px; height: 34px; background: white !important; background-image: none !important;
-            border: 2px solid rgba(0,0,0,0.2) !important; border-radius: 4px !important; cursor: pointer; font-size: 16px;
-            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.3); margin: 0 !important; padding: 0 !important;
+            width: 44px !important; height: 44px !important; background: white !important; background-image: none !important;
+            border: 2px solid rgba(0,0,0,0.3) !important; border-radius: 8px !important; cursor: pointer; font-size: 20px;
+            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
+            margin: 0 !important; padding: 0 !important; touch-action: button;
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
@@ -43,16 +60,16 @@
 </head>
 <body>
 
-    <!-- 登入介面 -->
+    <!-- 暗色系登入介面 -->
     <div id="login-box">
-        <h2>地圖協同系統登入</h2>
+        <h2>地圖協同系統</h2>
         <input type="text" id="username" placeholder="請輸入您的用戶暱稱">
-        <input type="password" id="password" placeholder="密碼">
+        <input type="password" id="password" placeholder="請輸入登入密碼">
         <button onclick="login()">進入公開地圖</button>
-        <p id="login-error" style="color:red;"></p>
+        <p id="login-error"></p>
     </div>
 
-    <!-- 自製功能選單列（右側巨大的 info-panel 面板已徹底永久刪除移除） -->
+    <!-- 自製功能選單列 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
@@ -70,93 +87,125 @@
 
         function initMapInstance() {
             if (map) return; 
-            map = L.map('map').setView([23.6, 121], 8);
+            
+            // 建立地圖並關閉雙擊放大，以便將雙擊保留給全螢幕功能
+            map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-            // 監聽地圖點擊事件，進行五合一原生繪圖
-            map.on('click', function(e) {
-                const lat = e.latlng.lat, lng = e.latlng.lng;
-                
-                if (currentTool === 'marker') {
-                    const msg = prompt("請輸入回報點說明：") || "未命名地標";
-                    const data = {
-                        id: 'obj_' + Date.now(),
-                        shapeType: "marker",
-                        coordinates: [lat, lng],
-                        message: msg, creator: currentUser, color: "#3388ff" 
-                    };
-                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                } else if (currentTool === 'polyline') {
-                    tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
-                    else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
-                } else if (currentTool === 'rectangle') {
-                    tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 2) {
-                        const msg = prompt("請輸入方形區域說明：") || "未命名方形";
-                        const data = {
-                            id: 'obj_' + Date.now(),
-                            shapeType: "rectangle",
-                            coordinates: JSON.parse(JSON.stringify(tempPoints)), 
-                            message: msg, creator: currentUser, color: "#3388ff"
-                        };
-                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                    }
-                } else if (currentTool === 'circle') {
-                    tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) {
-                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
-                    } else if (tempPoints.length === 2) {
-                        // 【圓形計算完美對齊】：精準區分第一點中心與第二點邊緣，彻底根除圓形無法繪製的錯誤
-                        const centerPoint = L.latLng(tempPoints[0][0], tempPoints[0][1]);
-                        const edgePoint = L.latLng(lat, lng);
-                        const radius = map.distance(centerPoint, edgePoint);
-                        
-                        const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
-                        const data = {
-                            id: 'obj_' + Date.now(),
-                            shapeType: "circle",
-                            coordinates: [tempPoints[0][0], tempPoints[0][1]], 
-                            radius: radius,
-                            message: msg, creator: currentUser, color: "#3388ff"
-                        };
-                        if (tempShape) map.removeLayer(tempShape); 
-                        renderObjectOnMap(data); 
-                        socket.emit('new_object', data); 
-                        switchTool('pan');
-                    }
-                } else if (currentTool === 'polygon') {
-                    tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
-                    else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+            // 手機端工具列觸控防穿透攔截
+            const toolbarDiv = document.getElementById('custom-toolbar');
+            L.DomEvent.disableClickPropagation(toolbarDiv);
+            L.DomEvent.disableScrollPropagation(toolbarDiv);
+
+            // 📱 手機端雙擊畫面自動全螢幕滿版黑科技
+            map.on('dblclick', function() {
+                const docElm = document.documentElement;
+                const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
+                if (!isFullscreen) {
+                    if (docElm.requestFullscreen) docElm.requestFullscreen();
+                    else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
+                    else if (docElm.mozRequestFullScreen) docElm.mozRequestFullScreen();
+                    else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); 
+                    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                    else if (document.msExitFullscreen) document.msExitFullscreen();
                 }
             });
 
-            // 監聽滑鼠右鍵結束線條與多邊形繪製
-            map.on('contextmenu', function() {
-                if (currentTool === 'polyline' && tempPoints.length >= 2) {
-                    const msg = prompt("請輸入線條說明：") || "未命名線條";
-                    const data = {
-                        id: 'obj_' + Date.now(),
-                        shapeType: "polyline",
-                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
-                        message: msg, creator: currentUser, color: "#3388ff"
-                    };
-                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
-                    const msg = prompt("請輸入多邊形說明：") || "未命名多邊形";
-                    const data = {
-                        id: 'obj_' + Date.now(),
-                        shapeType: "polygon",
-                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
-                        message: msg, creator: currentUser, color: "#3388ff"
-                    };
-                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                }
+            // 當全螢幕狀態改變時，自動刷新地圖尺寸防止破圖變形
+            const resizeEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+            resizeEvents.forEach(evt => {
+                document.addEventListener(evt, () => {
+                    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+                });
             });
         }
+
+        // 監聽地圖點擊事件，進行五合一原生繪圖
+        map.on('click', function(e) {
+            const lat = e.latlng.lat, lng = e.latlng.lng;
+            
+            if (currentTool === 'marker') {
+                const msg = prompt("請輸入回報點說明：") || "未命名地標";
+                const data = {
+                    id: 'obj_' + Date.now(),
+                    shapeType: "marker",
+                    coordinates: [lat, lng],
+                    message: msg, creator: currentUser, color: "#3388ff" 
+                };
+                renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+            } else if (currentTool === 'polyline') {
+                tempPoints.push([lat, lng]);
+                if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
+                else tempShape.setLatLngs(tempPoints);
+                if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+            } else if (currentTool === 'rectangle') {
+                tempPoints.push([lat, lng]);
+                if (tempPoints.length === 2) {
+                    const msg = prompt("請輸入方形區域說明：") || "未命名方形";
+                    const data = {
+                        id: 'obj_' + Date.now(),
+                        shapeType: "rectangle",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)), 
+                        message: msg, creator: currentUser, color: "#3388ff"
+                    };
+                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                }
+            } else if (currentTool === 'circle') {
+                tempPoints.push([lat, lng]);
+                if (tempPoints.length === 1) {
+                    tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
+                } else if (tempPoints.length === 2) {
+                    const centerPoint = L.latLng(tempPoints[0][0], tempPoints[0][1]);
+                    const edgePoint = L.latLng(lat, lng);
+                    const radius = map.distance(centerPoint, edgePoint);
+                    
+                    const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
+                    const data = {
+                        id: 'obj_' + Date.now(),
+                        shapeType: "circle",
+                        coordinates: [tempPoints[0][0], tempPoints[0][1]], 
+                        radius: radius,
+                        message: msg, creator: currentUser, color: "#3388ff"
+                    };
+                    if (tempShape) map.removeLayer(tempShape); 
+                    renderObjectOnMap(data); 
+                    socket.emit('new_object', data); 
+                    switchTool('pan');
+                }
+            } else if (currentTool === 'polygon') {
+                tempPoints.push([lat, lng]);
+                if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
+                else tempShape.setLatLngs(tempPoints);
+                if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+            }
+        });
+
+        // 監聽滑鼠右鍵或長按結束線條與多邊形繪製
+        map.on('contextmenu', function() {
+            if (currentTool === 'polyline' && tempPoints.length >= 2) {
+                const msg = prompt("請輸入線條說明：") || "未命名線條";
+                const data = {
+                    id: 'obj_' + Date.now(),
+                    shapeType: "polyline",
+                    coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                    message: msg, creator: currentUser, color: "#3388ff"
+                };
+                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+            } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
+                const msg = prompt("請輸入多邊形說明：") || "未命名多邊形";
+                const data = {
+                    id: 'obj_' + Date.now(),
+                    shapeType: "polygon",
+                    coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                    message: msg, creator: currentUser, color: "#3388ff"
+                };
+                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+            }
+        });
 
         function switchTool(tool) {
             currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -164,7 +213,6 @@
             if (tool !== 'pan') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
         }
 
-        // 登入驗證（已徹底移除右側巨大的 info-panel 對應指令，保證完全不噴錯）
         async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('password').value;
@@ -226,9 +274,8 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 核心拖曳算法：如果是創作者本人且不是標準標記針，自動在中心生成一根 📌 控制針
+            // 📌 錨點流暢拖曳平移黑科技
             if (isMyObject && data.shapeType !== "marker") {
-                // 完全避開複雜的物件格式，利用最安全的純文字字串樣式來定義錨點
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
                     icon: L.divIcon({ 
@@ -344,3 +391,4 @@
     </script>
 </body>
 </html>
+
