@@ -4,8 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
+    
+    <!-- 【關鍵修正 1】：將所有核心套件與樣式全部移到最頂端載入，確保 L 和 io 優先被定義 -->
     <link rel="stylesheet" href="https://unpkg.com" />
     <link rel="stylesheet" href="https://unpkg.com" />
+    
+    <script src="https://socket.io"></script>
+    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com"></script>
+
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
         #map { width: 100%; height: 100vh; display: none; background: #e5e3df; } 
@@ -41,26 +48,25 @@
     </div>
     <div id="map"></div>
 
-    <script src="https://socket.io"></script>
-    <script src="https://unpkg.com"></script>
-    <script src="https://unpkg.com"></script>
-
     <script>
         const SERVER_URL = window.location.origin; 
 
         let socket;
         let currentUser = "";
-        
-        // 先建立地圖實例
-        const map = L.map('map').setView([23.6, 121], 8);
-        const drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
+        let map;             // 【關鍵修正 2】：先宣告變數，等網頁完全載入後再初始化
+        let drawnItems;
 
-        // 使用安全的官方 HTTPS 圖磚來源
-        L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+        // 當網頁與套件全部下載完畢後，才啟動地圖初始化
+        window.onload = function() {
+            map = L.map('map').setView([23.6, 121], 8);
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        };
 
         async function login() {
             const userIn = document.getElementById('username').value;
@@ -80,10 +86,9 @@
                 document.getElementById('info-panel').style.display = 'block';
                 document.getElementById('user-display').innerText = currentUser;
                 
-                // 給瀏覽器 100ms 反應時間將地圖顯示，然後重整尺寸
                 setTimeout(() => {
-                    map.invalidateSize();
-                }, 100);
+                    if (map) map.invalidateSize();
+                }, 200);
 
                 initSocketAndLayers(); 
             } else {
@@ -92,6 +97,7 @@
         }
 
         function initSocketAndLayers() {
+            // 確保此時 io 已經存在
             socket = io(SERVER_URL);
 
             const drawControl = new L.Control.Draw({
