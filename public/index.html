@@ -31,7 +31,6 @@
         }
         #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
         
-        /* 💡 【回歸左側垂直排版】：確保工具列在手機與電腦上絕對直立不歪斜、不飄移 */
         #custom-toolbar {
             position: absolute; top: 90px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
@@ -80,7 +79,7 @@
         <p id="login-error"></p>
     </div>
 
-    <!-- 💡 自製左側垂直工具列（已徹底拔除夜晚模式☀️切換按鈕，排版完美還原） -->
+    <!-- 自製左側垂直工具列 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
@@ -93,8 +92,8 @@
     <div id="typhoon-info">
         <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
         <div style="margin-top: 6px; line-height: 1.5;">
-            🟢 當前線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
-            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房。雙擊地圖可滿螢幕操作。</span>
+            🟢 線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
+            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房</span>
         </div>
     </div>
     <div id="map"></div>
@@ -238,7 +237,7 @@
             const customRoom = document.getElementById('custom-room-name').value.trim();
             let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
 
-            if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
+            if(!userIn) { document.getElementById('login-error').innerText = "您的通報暱稱！"; return; }
             if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂房間名稱！"; return; }
             
             try {
@@ -349,7 +348,6 @@
                 });
             }
 
-            // 🔒 獨立權限核心 Popup 對話框（已完美隱藏標準標記點 📍 的顏色變更功能）
             let popupContent = "";
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
@@ -393,33 +391,49 @@
             }
         }
 
-        // === 核心修正：加入舊圖層「強制拔除機制」，徹底修復變更顏色不正常的 Bug ===
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
             
-            fetch(`${SERVER_URL}/api/objects`).then(res => res.json()).then(objects => {
-                const found = objects.find(obj => obj.id === objectId);
-                if (found) {
-                    found.message = newMsg; 
-                    found.color = newColor; // 寫入新挑選的顏色
-                    
-                    // 💡 【終極補強】：在重新繪製前，強行把舊顏色的圖層、以及它的 📌 錨點針從地圖上徹底移除！
-                    if (allMapLayers[objectId]) {
-                        map.removeLayer(allMapLayers[objectId].layer);
-                        if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
-                        delete allMapLayers[objectId]; // 抹除舊快取
-                    }
-                    
-                    // 重新以全新顏色、全新描述畫上地圖，並秒級同步廣播給全伺服器在線人員
-                    renderObjectOnMap(found);
-                    
-                    socket.emit('delete_object', objectId); 
-                    socket.emit('new_object', found);
-                }
-            });
-        }
+            if (allMapLayers[objectId]) {
+                const layerGroup = allMapLayers[objectId];
+                const isCircle = !!layerGroup.layer.options.radius;
+                const isRect = !isCircle && layerGroup.layer.getBounds && typeof layerGroup.layer.getLatLngs !== 'function';
+                
+                let sType = "polygon";
+                if (isCircle) sType = "circle";
+                else if (isRect) sType = "rectangle";
+                else if (layerGroup.layer instanceof L.Polyline && !(layerGroup.layer instanceof L.Polygon)) sType = "polyline";
 
+                const updatedData = {
+                    id: objectId,
+                    shapeType: sType,
+                    coordinates: isCircle ? [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng] : null,
+                    radius: isCircle ? layerGroup.layer.options.radius : null,
+                    message: newMsg,
+                    color: newColor, 
+                    creator: currentUser
+                };
+
+                if (!isCircle) {
+                    const dumpPoints = function(points) {
+                        return points.map(p => {
+                            if (Array.isArray(p)) return dumpPoints(p);
+                            return [p.lat, p.lng];
+                        });
+                    };
+                    updatedData.coordinates = dumpPoints(layerGroup.layer.getLatLngs());
+                }
+
+                map.removeLayer(layerGroup.layer);
+                if (layerGroup.pin) map.removeLayer(layerGroup.pin);
+                delete allMapLayers[objectId];
+
+                renderObjectOnMap(updatedData);
+                socket.emit('delete_object', objectId);
+                socket.emit('new_object', updatedData);
+            }
+        }
 
         function toggleStatusPanel() {
             const panel = document.getElementById('typhoon-info');
