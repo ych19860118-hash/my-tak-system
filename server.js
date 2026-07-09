@@ -20,57 +20,79 @@ let rooms = {
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
 // 後端登入與「自動建房」API 路由
+// === 核心修正：加入同應變房「暱稱查重攔截機制」，防止相同 ID 重複使用與越權編輯 ===
 app.post('/api/login', (req, res) => {
     const { username, password, roomName, roomPassword } = req.body;
     const rName = roomName ? roomName.trim() : "public_1";
+    const uName = username ? username.trim() : "";
 
-    if (!username || username.trim() === "") {
-        return res.json({ success: false, message: "請輸入有效的通報暱稱！" });
+    if (uName === "") {
+        return res.json({ success: false, message: "登入失敗：請輸入有效的通報暱稱！" });
     }
 
-    // 如果該房間不存在，則視為使用者自行創建新房間，並鎖定他們設定的房間密碼
+    // 1. 如果是新房間，直接初始化
     if (!rooms[rName]) {
         rooms[rName] = {
             password: roomPassword ? roomPassword.trim() : "",
             objects: []
         };
     } else {
-        // 如果是現有房間，則必須驗證密碼是否符合
+        // 2. 如果是現有房間，先驗證管理密碼是否正確
         if (rooms[rName].password !== "" && rooms[rName].password !== roomPassword.trim()) {
-            return res.json({ success: false, message: "該應變房間密碼錯誤！" });
+            return res.json({ success: false, message: "登入失敗：該應變房間密碼錯誤！" });
         }
     }
 
-    // 如果原本正在執行 10 分鐘倒數清除，有人登入代表房間復活，立刻取消計時器
+    // 🔥【核心不重複黑科技】：檢查 Socket.io 內部，該應變房內目前有沒有人在用這個暱稱
+    const roomSockets = io.sockets.adapter.rooms.get(rName);
+    if (roomSockets) {
+        let isNameTaken = false;
+        
+        // 遞迴遍歷目前在這個房間內所有連線中的人員
+        for (const socketId of roomSockets) {
+            const clientSocket = io.sockets.sockets.get(socketId);
+            // 比對其他人的 socket.name 是否跟剛要進來的人一模一樣
+            if (clientSocket && clientSocket.myName === uName) {
+                isNameTaken = true;
+                break;
+            }
+        }
+
+        if (isNameTaken) {
+            return res.json({ 
+                success: false, 
+                message: `登入失敗：暱稱「${uName}」目前正被房內其他在線人員使用中，請換一個名字！` 
+            });
+        }
+    }
+
+    // 3. 如果原本該房正處於無人自毀倒數，有人成功進來就立刻取消計時器
     if (roomTimers[rName]) {
         clearTimeout(roomTimers[rName]);
         delete roomTimers[rName];
     }
 
-    res.json({ success: true, username: username.trim(), roomName: rName });
+    res.json({ success: true, username: uName, roomName: rName });
 });
 
-// Socket.io 多人分頻即時通訊大腦
-io.on('connection', (socket) => {
-    let myRoom = "";
-    let myName = "";
 
-    // 監聽加入房間
+// Socket.io 多人分頻即時通訊大腦
+    // 請在 socket.on('join_room') 內部，補上將人名綁定在 socket 實例上的指令：
     socket.on('join_room', (data) => {
         myRoom = data.roomName;
         myName = data.username;
+        
+        // 💡 關鍵補強：把人名和房號寫入這個連線實例中，方便上面的登入路由即時查重比對
+        socket.myName = myName; 
+        socket.myRoom = myRoom;
+        
         socket.join(myRoom);
-
-        // 取消該房間的毀滅倒數計時器（安全防護）
+        
         if (roomTimers[myRoom]) {
             clearTimeout(roomTimers[myRoom]);
             delete roomTimers[myRoom];
         }
-
-        // 把該房間的所有歷史舊物件，單獨發送給剛進房的新人
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
-
-        // 即時計算該 Socket 房間內目前有多少人在線上，廣播通知房內全員
         sendUserCount(myRoom);
     });
 
