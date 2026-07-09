@@ -12,17 +12,25 @@ const io = new Server(server, {
 // 解析 JSON 請求
 app.use(express.json());
 
-// 模擬的內建管理員帳號資料庫 (可自行增加)
+// 設定靜態檔案目錄，讓 Render 自動讀取 public 資料夾內的所有檔案（包含 index.html）
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 模擬的內建管理員帳號資料庫 (可自行修改帳密)
 const USERS = {
     "admin1": "password123",
     "admin2": "map999"
 };
 
-// 儲存目前地圖上所有物件的記憶體陣列（重啟伺服器會清空）
+// 儲存目前地圖上所有物件的記憶體陣列（注意：Render 免費版伺服器閒置重啟時會清空）
 let mapObjects = [];
 
-// 1. 登入 API
-app.post('/api/login', (express.json()), (req, res) => {
+// 1. 首頁路由：當使用者訪問網址時，直接回傳 index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// 2. 登入驗證 API
+app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     if (USERS[username] && USERS[username] === password) {
         res.json({ success: true, token: `mock-token-${username}` });
@@ -31,12 +39,12 @@ app.post('/api/login', (express.json()), (req, res) => {
     }
 });
 
-// 2. 取得歷史地圖物件 API
+// 3. 取得歷史地圖物件 API（供剛登入的使用者載入已有標記）
 app.get('/api/objects', (req, res) => {
     res.json(mapObjects);
 });
 
-// 3. Socket.io 即時通訊與廣播
+// 4. Socket.io 即時通訊與廣播
 io.on('connection', (socket) => {
     console.log('一位使用者已連線:', socket.id);
 
@@ -44,7 +52,7 @@ io.on('connection', (socket) => {
     socket.on('new_object', (data) => {
         // data 包含 { id, geojson, message, creator }
         mapObjects.push(data);
-        // 廣播給「除自己以外」的所有人
+        // 廣播給「除自己以外」的所有在線人員
         socket.broadcast.emit('object_added', data);
     });
 
@@ -60,7 +68,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// 啟動伺服器 (Render 會自動指派 PORT)
+// 啟動伺服器 (Render 部署時會自動動態指派 PORT)
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`伺服器正在運行於 port ${PORT}`);
