@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // 模擬的內建管理員帳號資料庫 (可自行修改帳密)
 const USERS = {
     "admin1": "password123",
-    "admin2": "map999"
+    "admin2": "map999",
     "123": "123"
 };
 
