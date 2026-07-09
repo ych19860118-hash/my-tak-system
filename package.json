@@ -1,6 +1,7 @@
 {
-  "name": "map-coedit-server",
+  "name": "my-tak-system",
   "version": "1.0.0",
+  "description": "即時多人協同地圖標記系統",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -8,5 +9,8 @@
   "dependencies": {
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
