@@ -1,7 +1,6 @@
 {
-  "name": "web-tak",
+  "name": "map-coedit-server",
   "version": "1.0.0",
-  "description": "Multiplayer Map Collaboration Tool",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
