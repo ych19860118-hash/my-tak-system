@@ -48,11 +48,18 @@
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         
-        /* 🟢 右下角即時線上人數與應變房號狀態欄 */
+        /* ℹ️ 右下角小圓開關與隱藏面板樣式 */
+        #toggle-info-btn {
+            position: absolute; bottom: 20px; right: 12px; z-index: 1001;
+            width: 36px; height: 34px; background: rgba(30, 30, 30, 0.9); 
+            border: 1px solid #444; border-radius: 6px; cursor: pointer; 
+            font-size: 16px; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
         #typhoon-info {
-            position: absolute; bottom: 20px; right: 12px; background: rgba(30, 30, 30, 0.9);
+            position: absolute; bottom: 65px; right: 12px; background: rgba(30, 30, 30, 0.9);
             padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000;
-            border: 1px solid #444; font-size: 13px; display: none; min-width: 200px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #444; font-size: 13px; display: none !important; /* 預設完全隱藏 */
+            max-width: 250px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
     </style>
 </head>
@@ -62,32 +69,29 @@
     <div id="login-box">
         <h2>應變協同中心</h2>
         <input type="text" id="username" placeholder="請輸入您的通報暱稱">
-        
-        <!-- 房號挑選 -->
         <select id="room-select" onchange="checkRoomType()">
             <option value="public_1">公開應變頻道 1</option>
             <option value="public_2">公開應變頻道 2</option>
             <option value="custom">自訂專屬私有應變房...</option>
         </select>
-        
-        <!-- 動態彈出：讓用戶能輸入自訂房號與密碼 -->
         <input type="text" id="custom-room-name" placeholder="請設定您的私有房號 (例: hsinchu_99)" style="display:none;">
         <input type="password" id="room-password" placeholder="請輸入該房進入密碼 (選填)">
-        
         <button onclick="login()">進入防災地圖</button>
         <p id="login-error"></p>
     </div>
 
-    <!-- 工具列 -->
+    <!-- 自製功能選單工具列 (最下方新增了 ☀️ 模式切換按鍵) -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
         <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
+        <button class="tool-btn" id="btn-mapmode" onclick="toggleMapMode()" title="切換白天/夜晚模式" style="margin-top: 15px !important; background: #e9ecef !important;">☀️</button>
     </div>
 
-    <!-- 狀態監控面板 -->
+    <!-- ℹ️ 狀態監控隱藏標籤與面板 -->
+    <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ️</button>
     <div id="typhoon-info">
         <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
         <div style="margin-top: 6px; line-height: 1.5;">
@@ -100,23 +104,30 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
+        
+        // 💡 新增：管理白天與夜晚地圖圖層的實例變數與模式狀態
+        let dayLayer, nightLayer;
+        let isNightMode = false;
 
-        // 控制登入畫面：若選自訂房，才跳出輸入房號框
         function checkRoomType() {
             const select = document.getElementById('room-select').value;
             const customInput = document.getElementById('custom-room-name');
-            if (select === 'custom') {
-                customInput.style.display = 'block';
-            } else {
-                customInput.style.display = 'none';
-            }
+            if (select === 'custom') customInput.style.display = 'block';
+            else customInput.style.display = 'none';
         }
 
         function initMapInstance() {
             if (map) return; 
             
+            // 建立地圖並關閉雙擊放大
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            
+            // 💡 初始化白天與夜晚兩種地圖源（夜晚使用免金鑰的 CartoDB 經典極簡暗黑圖層）
+            dayLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+            nightLayer = L.tileLayer('https://{s}://{z}/{x}/{y}{r}.png', { maxZoom: 20 });
+            
+            // 預設載入白天圖層
+            dayLayer.addTo(map);
 
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
@@ -130,24 +141,18 @@
                 if (!isFullscreen) {
                     if (docElm.requestFullscreen) docElm.requestFullscreen();
                     else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
-                    else if (docElm.mozRequestFullScreen) docElm.mozRequestFullScreen();
-                    else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
                 } else {
                     if (document.exitFullscreen) document.exitFullscreen();
                     else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); 
-                    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
-                    else if (document.msExitFullscreen) document.msExitFullscreen();
                 }
             });
 
             const resizeEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
             resizeEvents.forEach(evt => {
-                document.addEventListener(evt, () => {
-                    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
-                });
+                document.addEventListener(evt, () => { setTimeout(() => { if (map) map.invalidateSize(); }, 300); });
             });
 
-            // 地圖點擊事件監聽：處理五合一原生繪圖
+            // 地圖點擊事件監聽
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -196,9 +201,7 @@
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
                         if (tempShape) map.removeLayer(tempShape); 
-                        renderObjectOnMap(data); 
-                        socket.emit('new_object', data); 
-                        switchTool('pan');
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 } else if (currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
@@ -231,10 +234,30 @@
             });
         }
 
+        // 💡 新增：白天/夜晚模式秒級切換控制核心
+        function toggleMapMode() {
+            if (!map) return;
+            const btn = document.getElementById('btn-mapmode');
+            
+            if (!isNightMode) {
+                map.removeLayer(dayLayer);
+                nightLayer.addTo(map);
+                btn.innerText = "🌙";
+                btn.title = "切換至白天模式";
+                isNightMode = true;
+            } else {
+                map.removeLayer(nightLayer);
+                dayLayer.addTo(map);
+                btn.innerText = "☀️";
+                btn.title = "切換至夜晚模式";
+                isNightMode = false;
+            }
+        }
+
         function switchTool(tool) {
             currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
             if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
-            if (tool !== 'pan') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
+            if (tool !== 'pan' && tool !== 'mapmode') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
         }
 
         async function login() {
@@ -242,7 +265,6 @@
             const passIn = document.getElementById('room-password').value;
             const roomSel = document.getElementById('room-select').value;
             const customRoom = document.getElementById('custom-room-name').value.trim();
-
             let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
 
             if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
@@ -250,41 +272,28 @@
             
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    currentUser = data.username; 
-                    currentRoom = data.roomName;
-                    
+                    currentUser = data.username; currentRoom = data.roomName;
                     document.getElementById('login-box').style.display = 'none';
                     document.getElementById('map').style.display = 'block'; 
                     document.getElementById('custom-toolbar').style.display = 'flex'; 
-                    document.getElementById('typhoon-info').style.display = 'block';
+                    document.getElementById('toggle-info-btn').style.display = 'flex';
                     document.getElementById('state-room').innerText = currentRoom;
-
-                    initMapInstance(); 
-                    setTimeout(() => { if (map) map.invalidateSize(); }, 300); 
-                    initSocketAndLayers(); 
+                    initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
-            } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
-        }
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
-            
-            // 💡 新增：加入指定房間，開始接收與廣播該應變頻道的專屬資料
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
 
-            // 💡 新增：接收來自伺服器發送的該應變房間歷史歷史舊物件
             socket.on('history_objects', function(objects) {
                 if (Array.isArray(objects)) {
                     objects.forEach(obj => renderObjectOnMap(obj));
                 }
             });
 
-            // 💡 新增：動態監聽並更新右下角當前應變頻道的在線即時人數
             socket.on('update_user_count', function(count) {
                 document.getElementById('state-count').innerText = count;
             });
@@ -367,7 +376,7 @@
                 });
             }
 
-            // 🔒 獨立權限核心：Popup 對話框判定分流（只能修改自己建的，點別人的是唯讀）
+            // 🔒 權限保護 Popup 選單：標記針自動隱藏變更顏色區塊
             let popupContent = "";
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
@@ -425,6 +434,16 @@
                     socket.emit('delete_object', objectId); socket.emit('new_object', found);
                 }
             });
+        }
+
+        // 動態收折 ℹ️ 人數狀態面板
+        function toggleStatusPanel() {
+            const panel = document.getElementById('typhoon-info');
+            if (window.getComputedStyle(panel).display === 'none') {
+                panel.style.setProperty('display', 'block', 'important');
+            } else {
+                panel.style.setProperty('display', 'none', 'important');
+            }
         }
     </script>
 </body>
