@@ -17,7 +17,7 @@
         /* 🌙 全新高質感暗色系（Dark Mode）登入視窗 */
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #1e1e1a; padding: 40px 30px; border-radius: 12px; 
+            background: #1e1e1e; padding: 40px 30px; border-radius: 12px; 
             box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; z-index: 2000;
             border: 1px solid #333; width: 280px;
         }
@@ -88,16 +88,16 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 建立地圖並關閉雙擊放大，以便將雙擊保留給全螢幕功能
+            // 1. 建立地圖實例並關閉雙擊放大
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-            // 手機端工具列觸控防穿透攔截
+            // 2. 手機端工具列觸控防穿透攔截
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
 
-            // 📱 手機端雙擊畫面自動全螢幕滿版黑科技
+            // 3. 📱 手機端雙擊畫面自動全螢幕滿版
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
@@ -115,97 +115,99 @@
                 }
             });
 
-            // 當全螢幕狀態改變時，自動刷新地圖尺寸防止破圖變形
+            // 當全螢幕狀態改變時自動重整尺寸
             const resizeEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
             resizeEvents.forEach(evt => {
                 document.addEventListener(evt, () => {
                     setTimeout(() => { if (map) map.invalidateSize(); }, 300);
                 });
             });
-        }
 
-        // 監聽地圖點擊事件，進行五合一原生繪圖
-        map.on('click', function(e) {
-            const lat = e.latlng.lat, lng = e.latlng.lng;
-            
-            if (currentTool === 'marker') {
-                const msg = prompt("請輸入回報點說明：") || "未命名地標";
-                const data = {
-                    id: 'obj_' + Date.now(),
-                    shapeType: "marker",
-                    coordinates: [lat, lng],
-                    message: msg, creator: currentUser, color: "#3388ff" 
-                };
-                renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-            } else if (currentTool === 'polyline') {
-                tempPoints.push([lat, lng]);
-                if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
-                else tempShape.setLatLngs(tempPoints);
-                if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
-            } else if (currentTool === 'rectangle') {
-                tempPoints.push([lat, lng]);
-                if (tempPoints.length === 2) {
-                    const msg = prompt("請輸入方形區域說明：") || "未命名方形";
+            // =========================================================================
+            // 💡【核心修正】地圖點擊事件監聽：此處已確保 map 變數已被指派，絕不卡死
+            // =========================================================================
+            map.on('click', function(e) {
+                const lat = e.latlng.lat, lng = e.latlng.lng;
+                
+                if (currentTool === 'marker') {
+                    const msg = prompt("請輸入回報點說明：") || "未命名地標";
                     const data = {
                         id: 'obj_' + Date.now(),
-                        shapeType: "rectangle",
-                        coordinates: JSON.parse(JSON.stringify(tempPoints)), 
-                        message: msg, creator: currentUser, color: "#3388ff"
+                        shapeType: "marker",
+                        coordinates: [lat, lng],
+                        message: msg, creator: currentUser, color: "#3388ff" 
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'polyline') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+                } else if (currentTool === 'rectangle') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 2) {
+                        const msg = prompt("請輸入方形區域說明：") || "未命名方形";
+                        const data = {
+                            id: 'obj_' + Date.now(),
+                            shapeType: "rectangle",
+                            coordinates: JSON.parse(JSON.stringify(tempPoints)), 
+                            message: msg, creator: currentUser, color: "#3388ff"
+                        };
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                    }
+                } else if (currentTool === 'circle') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) {
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
+                    } else if (tempPoints.length === 2) {
+                        const centerPoint = L.latLng(tempPoints, tempPoints);
+                        const edgePoint = L.latLng(lat, lng);
+                        const radius = map.distance(centerPoint, edgePoint);
+                        
+                        const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
+                        const data = {
+                            id: 'obj_' + Date.now(),
+                            shapeType: "circle",
+                            coordinates: [tempPoints, tempPoints], 
+                            radius: radius,
+                            message: msg, creator: currentUser, color: "#3388ff"
+                        };
+                        if (tempShape) map.removeLayer(tempShape); 
+                        renderObjectOnMap(data); 
+                        socket.emit('new_object', data); 
+                        switchTool('pan');
+                    }
+                } else if (currentTool === 'polygon') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 }
-            } else if (currentTool === 'circle') {
-                tempPoints.push([lat, lng]);
-                if (tempPoints.length === 1) {
-                    tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
-                } else if (tempPoints.length === 2) {
-                    const centerPoint = L.latLng(tempPoints[0][0], tempPoints[0][1]);
-                    const edgePoint = L.latLng(lat, lng);
-                    const radius = map.distance(centerPoint, edgePoint);
-                    
-                    const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
+            });
+
+            // 監聽滑鼠右鍵或長按結束線條與多邊形繪製
+            map.on('contextmenu', function() {
+                if (currentTool === 'polyline' && tempPoints.length >= 2) {
+                    const msg = prompt("請輸入線條說明：") || "未命名線條";
                     const data = {
                         id: 'obj_' + Date.now(),
-                        shapeType: "circle",
-                        coordinates: [tempPoints[0][0], tempPoints[0][1]], 
-                        radius: radius,
+                        shapeType: "polyline",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
-                    if (tempShape) map.removeLayer(tempShape); 
-                    renderObjectOnMap(data); 
-                    socket.emit('new_object', data); 
-                    switchTool('pan');
+                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
+                    const msg = prompt("請輸入多邊形說明：") || "未命名多邊形";
+                    const data = {
+                        id: 'obj_' + Date.now(),
+                        shapeType: "polygon",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        message: msg, creator: currentUser, color: "#3388ff"
+                    };
+                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 }
-            } else if (currentTool === 'polygon') {
-                tempPoints.push([lat, lng]);
-                if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
-                else tempShape.setLatLngs(tempPoints);
-                if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
-            }
-        });
-
-        // 監聽滑鼠右鍵或長按結束線條與多邊形繪製
-        map.on('contextmenu', function() {
-            if (currentTool === 'polyline' && tempPoints.length >= 2) {
-                const msg = prompt("請輸入線條說明：") || "未命名線條";
-                const data = {
-                    id: 'obj_' + Date.now(),
-                    shapeType: "polyline",
-                    coordinates: JSON.parse(JSON.stringify(tempPoints)),
-                    message: msg, creator: currentUser, color: "#3388ff"
-                };
-                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-            } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
-                const msg = prompt("請輸入多邊形說明：") || "未命名多邊形";
-                const data = {
-                    id: 'obj_' + Date.now(),
-                    shapeType: "polygon",
-                    coordinates: JSON.parse(JSON.stringify(tempPoints)),
-                    message: msg, creator: currentUser, color: "#3388ff"
-                };
-                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-            }
-        });
+            });
+        }
 
         function switchTool(tool) {
             currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -391,4 +393,3 @@
     </script>
 </body>
 </html>
-
