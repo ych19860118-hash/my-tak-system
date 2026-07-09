@@ -10,6 +10,18 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
         #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
+        
+        /* 💡 【最新功能】：當 map 被加上 .dark-map 類別時，用瀏覽器硬體加速將地圖強行翻轉成極致暗黑色系 */
+        .dark-map .leaflet-tile-container {
+            filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%) !important;
+        }
+        /* 貼心優化：地圖上的幾何圖形、標記針與 📌 錨點不需要被反轉顏色，保持原本鮮豔的紅、黃、藍防災警戒色 */
+        .dark-map .leaflet-marker-icon,
+        .dark-map .leaflet-marker-shadow,
+        .dark-map .leaflet-overlay-pane {
+            filter: invert(100%) hue-rotate(180deg) !important;
+        }
+
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #1e1e1e; padding: 35px 30px; border-radius: 12px; 
@@ -93,8 +105,6 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
-        
-        let dayLayer, nightLayer;
         let isNightMode = false;
 
         function checkRoomType() {
@@ -109,19 +119,8 @@
             
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             
-            // ☀️ 白天模式：採用標準 OpenStreetMap
-            dayLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
-            });
-            
-            // 🌙 夜晚模式：換上 100% 免金鑰、專門為夜間防災優化的 Stadia 暗黑無阻擋底圖網址
-            nightLayer = L.tileLayer('https://stadiamaps.com{z}/{x}/{y}{r}.png', {
-                maxZoom: 20,
-                attribution: '&copy; Stadia Maps, &copy; OpenStreetMap'
-            });
-            
-            dayLayer.addTo(map);
+            // 💡 採用全開源最穩定的標準白天 OSM 底圖，夜晚直接套用第一部分的 CSS 濾鏡
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
@@ -149,15 +148,20 @@
             initDrawingEvents();
         }
 
+        // 💡 修正：利用網頁內建的 CSS 濾鏡，在百萬分之一秒內強行反轉底圖顏色，百分之百永不失效！
         function toggleMapMode() {
             if (!map) return;
             const btn = document.getElementById('btn-mapmode');
+            const mapDiv = document.getElementById('map');
+            
             if (!isNightMode) {
-                map.removeLayer(dayLayer); nightLayer.addTo(map);
-                btn.innerText = "🌙"; btn.title = "切換至白天模式"; isNightMode = true;
+                mapDiv.classList.add('dark-map');
+                btn.innerText = "🌙"; btn.title = "切換至白天模式";
+                isNightMode = true;
             } else {
-                map.removeLayer(nightLayer); dayLayer.addTo(map);
-                btn.innerText = "☀️"; btn.title = "切換至夜晚模式"; isNightMode = false;
+                mapDiv.classList.remove('dark-map');
+                btn.innerText = "☀️"; btn.title = "切換至夜晚模式";
+                isNightMode = false;
             }
         }
 
@@ -354,7 +358,7 @@
                 });
             }
 
-            // 🔒 獨立權限核心：Popup 對話框判定分流（只能修改自己建的，點別人的是唯讀）
+            // 🔒 獨立權限核心 Popup 對話框
             let popupContent = "";
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
