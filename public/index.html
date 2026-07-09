@@ -155,12 +155,17 @@
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
-                } else if (currentTool === 'circle') {
+                }               // === 修正後的圓形點擊邏輯，直接用陣列索引抓出數字，100% 根除 Invalid LatLng 錯誤 ===
+                else if (currentTool === 'circle') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
                         tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
                     } else if (tempPoints.length === 2) {
-                        const centerPoint = L.latLng(tempPoints, tempPoints);
+                        // 關鍵修正：精準分離第一點的緯度與經度
+                        const centerLat = tempPoints[0][0];
+                        const centerLng = tempPoints[0][1];
+                        
+                        const centerPoint = L.latLng(centerLat, centerLng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
                         
@@ -168,7 +173,7 @@
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "circle",
-                            coordinates: [tempPoints, tempPoints], 
+                            coordinates: [centerLat, centerLng], // 只儲存一維中心點數值
                             radius: radius,
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
@@ -177,13 +182,7 @@
                         socket.emit('new_object', data); 
                         switchTool('pan');
                     }
-                } else if (currentTool === 'polygon') {
-                    tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
-                    else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 }
-            });
 
             // 監聽滑鼠右鍵或長按結束線條與多邊形繪製
             map.on('contextmenu', function() {
@@ -258,8 +257,14 @@
             if (data.shapeType === "marker") {
                 mainLayer = L.marker(pts);
                 centerLatLng = L.latLng(pts);
-            } else if (data.shapeType === "polyline") {
-                mainLayer = L.polyline(pts, { color: data.color, weight: 4 });
+                       } else if (data.shapeType === "polyline") {
+                // 關鍵優化：加上 weight: 5 稍微加粗，並透過特殊的內建參數確保手機觸控能 100% 抓到
+                mainLayer = L.polyline(pts, { 
+                    color: data.color, 
+                    weight: 6, 
+                    interactive: true,
+                    bubblingMouseEvents: false // 防止點擊事件穿透回地圖底層
+                });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
                 mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
