@@ -109,8 +109,17 @@
             
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             
-            dayLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
-            nightLayer = L.tileLayer('https://{s}://{z}/{x}/{y}{r}.png', { maxZoom: 20 });
+            // ☀️ 白天模式：採用標準 OpenStreetMap
+            dayLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            });
+            
+            // 🌙 夜晚模式：換上 100% 免金鑰、專門為夜間防災優化的 Stadia 暗黑無阻擋底圖網址
+            nightLayer = L.tileLayer('https://stadiamaps.com{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                attribution: '&copy; Stadia Maps, &copy; OpenStreetMap'
+            });
             
             dayLayer.addTo(map);
 
