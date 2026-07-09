@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 引入最穩定的原生地圖核心，拋棄所有外部拖曳外掛，改用原生錨點控制 -->
+    <!-- 引入最穩定的原生地圖核心樣式與核心 JS 庫 -->
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -39,7 +39,7 @@
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
         
-        /* 📌 拖曳錨點樣式提升優先權 */
+        /* 📌 拖曳錨點樣式控制 */
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
     </style>
 </head>
@@ -54,10 +54,10 @@
     <div id="info-panel">
         <h3>即時地圖後台</h3>
         <p>目前使用者：<b id="user-display" style="color: #007bff;"></b></p>
-        <p style="font-size: 13px; color: #555; line-height: 1.5;">💡 <b>最新操作指南：</b><br>
-        1. 點擊左側工具列，即可在地圖上開始作圖。<br>
-        2. 畫完之後，圖形中央會出現 📌 錨點。<b>滑鼠左鍵按住 📌 拖曳，即可帶著整塊圖形移動位置</b>！<br>
-        3. 點擊圖形本身，可以修改名稱、變更顏色或刪除！</p>
+        <p style="font-size: 13px; color: #555; line-height: 1.5;">💡 <b>操作指南：</b><br>
+        1. 點擊左側工具列按鈕，即可在地圖上開始作圖。<br>
+        2. 畫完之後，幾何圖形中央會出現 📌 錨點。<b>滑鼠左鍵按住 📌 拖曳，即可帶著整塊圖形平移移動位置</b>！<br>
+        3. 單擊圖形本身，可以修改名稱、變更顏色或刪除！</p>
     </div>
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
@@ -102,7 +102,7 @@
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "rectangle",
-                            coordinates: JSON.parse(JSON.stringify(tempPoints)), // 儲存對角線兩點
+                            coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -111,12 +111,12 @@
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.circle(tempPoints, {radius: 100, color: '#3388ff'}).addTo(map);
                     else if (tempPoints.length === 2) {
-                        const radius = map.distance(tempPoints[0], tempPoints[1]);
+                        const radius = map.distance(tempPoints, tempPoints);
                         const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "circle",
-                            coordinates: [tempPoints[0][0], tempPoints[0][1]], // 圓心
+                            coordinates: [tempPoints, tempPoints], 
                             radius: radius,
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
@@ -197,10 +197,9 @@
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
 
-            // 1. 根據純粹的自訂幾何數據，建立標準地圖圖層（再也不會發生 GeoJSON 解析失誤）
             if (data.shapeType === "marker") {
                 mainLayer = L.marker(pts);
-                centerLatLng = L.latLng(pts[0], pts[1]);
+                centerLatLng = L.latLng(pts, pts);
             } else if (data.shapeType === "polyline") {
                 mainLayer = L.polyline(pts, { color: data.color, weight: 4 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
@@ -209,7 +208,7 @@
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
                 mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
-                centerLatLng = L.latLng(pts[0], pts[1]);
+                centerLatLng = L.latLng(pts, pts);
             } else if (data.shapeType === "polygon") {
                 mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
@@ -217,41 +216,21 @@
             if (!mainLayer) return;
             mainLayer.addTo(map);
 
-            // 儲存圖層實例
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 2. 【核心拖曳平移算法】如果是創作者本人，且不是標記針，就自動在中心生成一根 📌 控制針
+            // 核心拖曳算法：如果是創作者本人且不是標準標記針，自動在中心生成一根 📌 控制針
             if (isMyObject && data.shapeType !== "marker") {
-                //  這是修正完畢的正確程式碼片段：
-                if (shapeType && shapeType !== "marker") {
-                    let centerLatLng;
-                    
-                    if (data.shapeType === "circle") {
-                        centerLatLng = L.latLng(pts[0], pts[1]);
-                    } else if (data.shapeType === "rectangle") {
-                        centerLatLng = L.rectangle(pts).getBounds().getCenter();
-                    } else if (mainLayer.getBounds) {
-                        centerLatLng = mainLayer.getBounds().getCenter();
-                    } else if (mainLayer.getLatLngs) {
-                        const allPts = mainLayer.getLatLngs();
-                        centerLatLng = Array.isArray(allPts[0]) ? allPts[0][0] : allPts[0];
-                    }
-
-                    if (centerLatLng) {
-                        const controlPin = L.marker(centerLatLng, {
-                            draggable: true,
-                            icon: L.divIcon({ 
-                                html: '📌', 
-                                className: 'control-pin-icon', 
-                                iconSize:, 
-                                iconAnchor: [12, 12] 
-                            })
-                        }).addTo(map);
-                        allMapLayers[data.id].pin = controlPin;
-
+                const controlPin = L.marker(centerLatLng, {
+                    draggable: true,
+                    icon: L.divIcon({ 
+                        html: '📌', 
+                        className: 'control-pin-icon', 
+                        iconSize:, 
+                        iconAnchor: [12, 12] 
+                    })
+                }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
 
-                // 核心黑科技：當滑鼠拖曳 📌 控制針時，計算平移量（Offset），讓底下幾何圖形毫無延遲同步移動！
                 let startLatLng = centerLatLng;
                 controlPin.on('drag', function(e) {
                     const nextLatLng = e.latlng;
@@ -275,10 +254,9 @@
                         };
                         mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
                     }
-                    startLatLng = nextLatLng; // 更新起點
+                    startLatLng = nextLatLng; 
                 });
 
-                // 當放開滑鼠拖曳結束時，捕捉最新數據，秒級通知全體伺服器在線同步位置！
                 controlPin.on('dragend', function() {
                     if (data.shapeType === "circle") {
                         data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
@@ -294,12 +272,10 @@
                         };
                         data.coordinates = dumpPoints(mainLayer.getLatLngs());
                     }
-                    // 先全體廣播刪除舊的，再廣播新增一個最新位置的，達成秒級瞬移
                     socket.emit('delete_object', data.id);
                     socket.emit('new_object', data);
                 });
             } else if (isMyObject && data.shapeType === "marker") {
-                // 如果是標記針本體，直接允許拖曳移動位置
                 mainLayer.dragging.enable();
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
@@ -308,7 +284,6 @@
                 });
             }
 
-            // 3. 綁定 Popup 控制選單
             let popupContent = "";
             if (isMyObject) {
                 popupContent = `
