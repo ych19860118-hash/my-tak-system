@@ -307,20 +307,27 @@
             }
 
             // 🔒 權限防護：Popup 對話框判定分流
-            let popupContent = "";
+ let popupContent = "";
             if (isMyObject) {
+                // 💡 判斷：如果是 marker (標點工具)，就把顏色選單區塊隱藏 (display:none)
+                const isMarker = (data.shapeType === "marker");
+                
                 popupContent = `
                     <div class="popup-menu">
                         <b>編輯您回報的災情</b><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        <label>等級變更：</label>
-                        <select id="edit-color-${data.id}">
-                            <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般回報)</option>
-                            <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (嚴重中斷/火災)</option>
-                            <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (已搶通/通行)</option>
-                            <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (積水/警告)</option>
-                        </select>
+                        
+                        <div style="${isMarker ? 'display: none;' : ''}">
+                            <label>等級變更：</label>
+                            <select id="edit-color-${data.id}">
+                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般回報)</option>
+                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (嚴重中斷/火災)</option>
+                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (已搶通/通行)</option>
+                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (積水/警告)</option>
+                            </select>
+                        </div>
+                        
                         <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
                         <button onclick="deleteObject('${data.id}')">撤銷此回報</button>
                     </div>`;
