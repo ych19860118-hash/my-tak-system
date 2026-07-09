@@ -109,18 +109,26 @@
                     }
                 } else if (currentTool === 'circle') {
                     tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.circle(tempPoints, {radius: 100, color: '#3388ff'}).addTo(map);
-                    else if (tempPoints.length === 2) {
-                        const radius = map.distance(tempPoints, tempPoints);
+                    if (tempPoints.length === 1) {
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
+                    } else if (tempPoints.length === 2) {
+                        // 精準定義第一點(中心)與第二點(邊緣)，徹底修復 lng 的 null 錯誤
+                        const centerPoint = L.latLng(tempPoints[0][0], tempPoints[0][1]);
+                        const edgePoint = L.latLng(lat, lng);
+                        const radius = map.distance(centerPoint, edgePoint);
+                        
                         const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "circle",
-                            coordinates: [tempPoints[0], tempPoints[1]], 
+                            coordinates: [tempPoints[0][0], tempPoints[0][1]], 
                             radius: radius,
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
-                        if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                        if (tempShape) map.removeLayer(tempShape); 
+                        renderObjectOnMap(data); 
+                        socket.emit('new_object', data); 
+                        switchTool('pan');
                     }
                 } else if (currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
@@ -129,6 +137,7 @@
                     if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
                 }
             });
+
 
             // 監聽滑鼠右鍵結束線條與多邊形繪製
             map.on('contextmenu', function() {
