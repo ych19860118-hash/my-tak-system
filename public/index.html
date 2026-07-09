@@ -222,10 +222,33 @@
 
             // 2. 【核心拖曳平移算法】如果是創作者本人，且不是標記針，就自動在中心生成一根 📌 控制針
             if (isMyObject && data.shapeType !== "marker") {
-                const controlPin = L.marker(centerLatLng, {
-                    draggable: true,
-                    icon: L.divIcon({ html: '📌', className: 'control-pin-icon', iconSize:, iconAnchor: [10, 10] })
-                }).addTo(map);
+                //  這是修正完畢的正確程式碼片段：
+                if (shapeType && shapeType !== "marker") {
+                    let centerLatLng;
+                    
+                    if (data.shapeType === "circle") {
+                        centerLatLng = L.latLng(pts[0], pts[1]);
+                    } else if (data.shapeType === "rectangle") {
+                        centerLatLng = L.rectangle(pts).getBounds().getCenter();
+                    } else if (mainLayer.getBounds) {
+                        centerLatLng = mainLayer.getBounds().getCenter();
+                    } else if (mainLayer.getLatLngs) {
+                        const allPts = mainLayer.getLatLngs();
+                        centerLatLng = Array.isArray(allPts[0]) ? allPts[0][0] : allPts[0];
+                    }
+
+                    if (centerLatLng) {
+                        const controlPin = L.marker(centerLatLng, {
+                            draggable: true,
+                            icon: L.divIcon({ 
+                                html: '📌', 
+                                className: 'control-pin-icon', 
+                                iconSize:, 
+                                iconAnchor: [12, 12] 
+                            })
+                        }).addTo(map);
+                        allMapLayers[data.id].pin = controlPin;
+
                 allMapLayers[data.id].pin = controlPin;
 
                 // 核心黑科技：當滑鼠拖曳 📌 控制針時，計算平移量（Offset），讓底下幾何圖形毫無延遲同步移動！
