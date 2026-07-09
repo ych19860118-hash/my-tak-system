@@ -3,215 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>多人共同即時地圖</title>
+    <title>多人即時地圖管理系統</title>
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <link rel="stylesheet" href="https://unpkg.com" />
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background-color: #f8f9fa; }
-        #canvas-container { position: relative; width: 100vw; height: 100vh; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+        #map { width: 100%; height: 100vh; display: none; } /* 登入前隱藏地圖 */
         
-        /* 畫布底圖：穩定的點格畫布，保證不會因為地圖加載而卡死 */
-        #map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(#d3d3d3 1.5px, transparent 1.5px); background-size: 30px 30px; cursor: crosshair; }
-        .room-info { position: absolute; top: 10px; left: 60px; z-index: 1000; background: white; padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; font-weight: bold; }
+        /* 登入視窗樣式 */
+        #login-box {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-align: center; z-index: 2000;
+        }
+        #login-box input { display: block; margin: 10px auto; padding: 8px; width: 200px; }
+        #login-box button { padding: 8px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         
-        /* 繪圖控制面板樣式 */
-        .map-tools { position: absolute; top: 60px; left: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; font-family: sans-serif; }
-        .map-tools button { padding: 10px 14px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-weight: bold; text-align: left; transition: all 0.2s; }
-        .map-tools button:hover { background: #f0f0f0; }
-        .map-tools button.active { background: #007bff; color: white; border-color: #0056b3; }
-        .map-tools .clear-btn { color: #dc3545; border-color: #dc3545; margin-top: 10px; text-align: center; }
-        .map-tools .clear-btn:hover { background: #dc3545; color: white; }
+        #info-panel {
+            position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
+            padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
+        }
     </style>
 </head>
 <body>
 
-    <div class="room-info">當前房間：<span id="room-name">預設房間</span></div>
-
-    <div id="canvas-container">
-        <!-- 核心繪圖畫布 -->
-        <canvas id="map-canvas"></canvas>
-
-        <!-- 操作面板 -->
-        <div class="map-tools">
-            <button id="draw-circle">⭕ 畫圓形區域</button>
-            <button id="draw-rect">⏹️ 畫方形區域</button>
-            <button id="draw-poly">⬡ 畫多邊形 (點3下自動完成)</button>
-            <button id="draw-line">↗️ 畫線條路徑 (點2下自動完成)</button>
-            <button id="clear-all" class="clear-btn">🗑️ 清除當前地圖</button>
-        </div>
+    <!-- 登入介面 -->
+    <div id="login-box">
+        <h2>管理員登入</h2>
+        <input type="text" id="username" placeholder="管理員帳號">
+        <input type="password" id="password" placeholder="密碼">
+        <button onclick="login()">登入系統</button>
+        <p id="login-error" style="color:red;"></p>
     </div>
 
-    <!-- 引用您自己後端伺服器的即時通訊庫 -->
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- 地圖與資訊 -->
+    <div id="info-panel">
+        <h3>即時地圖後台</h3>
+        <p>目前登入：<b id="user-display"></b></p>
+        <p>使用左側工具新增標記，將即時廣播給所有在線人員。</p>
+    </div>
+    <div id="map"></div>
+
+    <!-- 引入 Socket.io 與 地圖套件 -->
+    <script src="https://socket.io"></script>
+    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com"></script>
 
     <script>
-        const socket = io();
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentRoom = urlParams.get('room') || 'lobby';
-        document.getElementById('room-name').innerText = currentRoom;
+        // === 重要：更換成你未來在 Render 部署成功的後端網址 ===
+        const SERVER_URL = "http://localhost:3000"; 
+        // 部署到 Render 後要改成例如: "https://onrender.com"
 
-        // 初始化 HTML5 Canvas
-        const canvas = document.getElementById('map-canvas');
-        const ctx = canvas.getContext('2d');
+        let socket;
+        let currentUser = "";
+        const map = L.map('map').setView([23.6, 121], 8);
+        const drawnItems = new L.FeatureGroup();
 
-        // 自動調整畫布大小符合視窗
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            redrawAll();
-        }
-        window.addEventListener('resize', resizeCanvas);
+        // 初始化地圖外觀
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        map.addLayer(drawnItems);
 
-        // 儲存所有圖形的物件與目前的繪圖狀態
-        let shapes = {};
-        let currentMode = null;
-        let clickedPoints = [];
+        // 登入功能驗證
+        async function login() {
+            const userIn = document.getElementById('username').value;
+            const passIn = document.getElementById('password').value;
 
-        const buttons = {
-            'circle': document.getElementById('draw-circle'),
-            'rect': document.getElementById('draw-rect'),
-            'poly': document.getElementById('draw-poly'),
-            'line': document.getElementById('draw-line')
-        };
-
-        // 切換繪圖模式的按鈕邏輯
-        Object.keys(buttons).forEach(mode => {
-            buttons[mode].addEventListener('click', () => {
-                if (currentMode === mode) {
-                    resetMode();
-                } else {
-                    resetMode();
-                    currentMode = mode;
-                    buttons[mode].classList.add('active');
-                }
+            const res = await fetch(`${SERVER_URL}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userIn, password: passIn })
             });
-        });
 
-        document.getElementById('clear-all').addEventListener('click', () => {
-            if(confirm("確定要清空這間房間的所有共同標記嗎？")) {
-                Object.keys(shapes).forEach(id => {
-                    socket.emit('shape:remove', id);
-                });
-            }
-        });
-
-        function resetMode() {
-            currentMode = null;
-            clickedPoints = [];
-            Object.values(buttons).forEach(b => b.classList.remove('active'));
-            redrawAll();
-        }
-
-        // 當點擊畫布時，觸發圖形座標計算
-        canvas.addEventListener('click', (e) => {
-            if (!currentMode) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            const shapeId = 'shape_' + Math.random().toString(36).substr(2, 9);
-            let newShape = { id: shapeId, type: currentMode };
-
-            if (currentMode === 'circle') {
-                newShape.x = x;
-                newShape.y = y;
-                newShape.radius = 65; // 圓形大小
-                sendAndDraw(newShape);
-                resetMode();
-            } 
-            else if (currentMode === 'rect') {
-                newShape.x = x - 50; // 點擊處為中心延伸方形
-                newShape.y = y - 50;
-                newShape.width = 100;
-                newShape.height = 100;
-                sendAndDraw(newShape);
-                resetMode();
-            } 
-            else if (currentMode === 'line' || currentMode === 'poly') {
-                clickedPoints.push({ x: x, y: y });
+            const data = await res.json();
+            if (data.success) {
+                currentUser = userIn;
+                document.getElementById('login-box').style.display = 'none';
+                document.getElementById('map').style.display = 'block';
+                document.getElementById('info-panel').style.display = 'block';
+                document.getElementById('user-display').innerText = currentUser;
                 
-                const requiredPoints = (currentMode === 'line') ? 2 : 3;
-                if (clickedPoints.length >= requiredPoints) {
-                    newShape.points = clickedPoints;
-                    sendAndDraw(newShape);
-                    resetMode();
-                } else {
-                    // 修正點選時畫布沒反應的問題：點選第一個點時，立刻在畫布上畫出提示紅點
-                    redrawAll();
-                    ctx.fillStyle = '#e74c3c';
-                    clickedPoints.forEach(pt => {
-                        ctx.beginPath();
-                        ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
-                        ctx.fill();
-                    });
-                }
+                map.invalidateSize(); // 刷新地圖尺寸避免破圖
+                initSocketAndLayers(); // 啟動即時連線
+            } else {
+                document.getElementById('login-error').innerText = data.message;
             }
-        });
-
-        function sendAndDraw(shape) {
-            socket.emit('shape:add', shape);
-            shapes[shape.id] = shape;
-            redrawAll();
         }
 
-        // 重新繪製整個畫布的所有即時圖形 (已徹底修正陣列索引錯誤)
-        function redrawAll() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 初始化 Socket 連線與圖層監聽
+        function initSocketAndLayers() {
+            socket = io(SERVER_URL);
 
-            Object.values(shapes).forEach(shape => {
-                ctx.beginPath();
-                ctx.strokeStyle = '#e74c3c'; // 鮮明亮紅色外框
-                ctx.lineWidth = 4;
-                ctx.fillStyle = 'rgba(231, 76, 60, 0.35)'; // 半透明紅色填滿
+            // 啟用繪圖工具列
+            const drawControl = new L.Control.Draw({
+                edit: { featureGroup: drawnItems, remove: true },
+                draw: { circle: false, circlemarker: false, marker: true, polygon: true, polyline: true, rectangle: true }
+            });
+            map.addControl(drawControl);
 
-                if (shape.type === 'circle') {
-                    ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                } 
-                else if (shape.type === 'rect') {
-                    ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-                    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-                } 
-                else if (shape.type === 'line' && shape.points && shape.points.length >= 2) {
-                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
-                    ctx.lineTo(shape.points[1].x, shape.points[1].y);
-                    ctx.stroke();
-                } 
-                else if (shape.type === 'poly' && shape.points && shape.points.length >= 3) {
-                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
-                    for (let i = 1; i < shape.points.length; i++) {
-                        ctx.lineTo(shape.points[i].x, shape.points[i].y);
+            // 載入伺服器上已有的歷史物件
+            fetch(`${SERVER_URL}/api/objects`)
+                .then(res => res.json())
+                .then(objects => {
+                    objects.forEach(obj => renderObjectOnMap(obj));
+                });
+
+            // 監聽本地繪圖：送出到伺服器廣播
+            map.on(L.Draw.Event.CREATED, function (e) {
+                const message = prompt("請輸入該地區發生的事件說明：");
+                if (message === null) return;
+
+                const geojson = e.layer.toGeoJSON();
+                const objectData = {
+                    id: 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    geojson: geojson,
+                    message: message,
+                    creator: currentUser
+                };
+
+                // 本地先渲染
+                renderObjectOnMap(objectData);
+                // 發送給後端廣播
+                socket.emit('new_object', objectData);
+            });
+
+            // 監聽本地刪除：送出到伺服器廣播
+            map.on(L.Draw.Event.DELETED, function (e) {
+                e.layers.eachLayer(function (layer) {
+                    if (layer.options && layer.options.obj_id) {
+                        socket.emit('delete_object', layer.options.obj_id);
                     }
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
+                });
+            });
+
+            // 接收廣播：有人新增了物件
+            socket.on('object_added', function (data) {
+                renderObjectOnMap(data);
+            });
+
+            // 接收廣播：有人刪除了物件
+            socket.on('object_deleted', function (objectId) {
+                drawnItems.eachLayer(layer => {
+                    if (layer.options && layer.options.obj_id === objectId) {
+                        drawnItems.removeLayer(layer);
+                    }
+                });
+            });
+        }
+
+        // 將物件繪製到地圖上的共用函式
+        function renderObjectOnMap(data) {
+            // 避免重複繪製
+            let isExist = false;
+            drawnItems.eachLayer(layer => {
+                if (layer.options && layer.options.obj_id === data.id) isExist = true;
+            });
+            if (isExist) return;
+
+            const layer = L.geoJSON(data.geojson, {
+                onEachFeature: function (feature, layer) {
+                    layer.bindPopup(`<b>事件：</b>${data.message}<br><small>回報者: ${data.creator}</small>`);
                 }
             });
-        }
 
-        // 伺服器房間連線監聽
-        socket.emit('join', { room: currentRoom });
-
-        socket.on('init-shapes', (shapesList) => {
-            shapes = {};
-            shapesList.forEach(shape => {
-                shapes[shape.id] = shape;
+            layer.eachLayer(subLayer => {
+                subLayer.options.obj_id = data.id; // 綁定 ID 方便後續刪除
+                drawnItems.addLayer(subLayer);
             });
-            redrawAll();
-        });
-
-        socket.on('shape:added', (shape) => {
-            shapes[shape.id] = shape;
-            redrawAll();
-        });
-
-        socket.on('shape:removed', (id) => {
-            delete shapes[id];
-            redrawAll();
-        });
-
-        // 初始化第一次的畫布大小
-        resizeCanvas();
+        }
     </script>
 </body>
 </html>
