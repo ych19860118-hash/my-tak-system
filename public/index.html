@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 只引入最核心、最穩定的 Leaflet 地圖，徹底拋棄會導致排版歪掉的外部繪圖外掛 -->
+    <!-- 引入最穩定的原生地圖核心，不依賴任何會歪掉的外掛 -->
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -24,37 +24,38 @@
         
         #info-panel {
             position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
-            padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
+            padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 260px; display: none;
         }
 
-        /* =============================================================
-           【全新自製功能按鈕列】完全由我們掌控，保證在所有螢幕上絕對站直不歪斜！
-           ============================================================= */
+        /* 自製完整五合一選單：保證 100% 垂直對齊、絕不歪斜、免疫圖片阻擋 */
         #custom-toolbar {
             position: absolute;
-            top: 80px; /* 避開地圖自帶的 + - 號 */
+            top: 80px; 
             left: 10px;
             z-index: 1000;
-            display: none; /* 登入前隱藏 */
+            display: none; /* 登入後由 JS 開啟 */
             flex-direction: column;
             gap: 6px;
         }
         .tool-btn {
             width: 34px;
             height: 34px;
-            background: white;
-            border: 2px solid rgba(0,0,0,0.2);
-            border-radius: 4px;
+            background: white !important;
+            background-image: none !important;
+            border: 2px solid rgba(0,0,0,0.2) !important;
+            border-radius: 4px !important;
             cursor: pointer;
             font-size: 16px;
-            display: flex;
+            display: flex !important;
             align-items: center;
             justify-content: center;
             box-shadow: 0 1px 4px rgba(0,0,0,0.3);
             transition: background 0.2s;
+            margin: 0 !important;
+            padding: 0 !important;
         }
-        .tool-btn:hover { background: #f4f4f4; }
-        .tool-btn.active { background: #007bff; color: white; border-color: #0056b3; }
+        .tool-btn:hover { background: #f4f4f4 !important; }
+        .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
 
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
@@ -64,7 +65,6 @@
 </head>
 <body>
 
-    <!-- 登入介面 -->
     <div id="login-box">
         <h2>地圖協同系統登入</h2>
         <input type="text" id="username" placeholder="請輸入您的用戶暱稱">
@@ -73,180 +73,162 @@
         <p id="login-error" style="color:red;"></p>
     </div>
 
-    <!-- 右側資訊面板 -->
     <div id="info-panel">
         <h3>即時地圖後台</h3>
         <p>目前使用者：<b id="user-display" style="color: #007bff;"></b></p>
-        <p style="font-size: 13px; color: #555;">💡 <b>新版操作指南：</b><br>
-        1. 點擊左側 📍 按鈕後，點地圖可新增<b>可自由拖曳</b>的標記針！<br>
-        2. 點擊左側 ▰ 按鈕後，可在地圖上點擊多個點，最後點擊「結束繪製」來畫出多邊形！<br>
-        3. 單擊任何物件即可改名、換顏色或刪除！</p>
+        <p style="font-size: 13px; color: #555; line-height: 1.5;">💡 <b>操作指南：</b><br>
+        1. 點擊 📍 可以在地圖點擊生成<b>可拖曳移動</b>的標記點。<br>
+        2. 點擊 ↗, ⬜, ⭕, ▰ 後，依序在地圖上點擊端點，並用<b>滑鼠右鍵（或再次點擊第一個點）</b>即可結束繪製並儲存！</p>
     </div>
 
-    <!-- 左側全新自製工具列 (保證不歪斜，圖示使用顏文字 Emoji，100% 免疫任何圖片阻擋) -->
+    <!-- 全新擴充的自製功能選單 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
-        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製區域">▰</button>
+        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
+        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
+        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
+        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
     </div>
 
-    <!-- 地圖容器 -->
     <div id="map"></div>
     <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", map, allMapLayers = {};
-        let currentTool = "pan"; // 當前工具：pan(瀏覽), marker(地標), polygon(多邊形)
-        let tempPolygonPoints = []; // 暫存多邊形點位
-        let tempPolygonLines = null; // 暫存繪圖中的線條
+        let currentTool = "pan", tempPoints = [], tempShape = null;
 
         function initMapInstance() {
             if (map) return; 
             map = L.map('map').setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-            // 監聽地圖點擊事件（處理原生繪圖邏輯）
             map.on('click', function(e) {
+                const lat = e.latlng.lat, lng = e.latlng.lng;
                 if (currentTool === 'marker') {
-                    const message = prompt("請輸入該回報點的事件說明：") || "未命名地標";
-                    const objectData = {
-                        id: 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                        geojson: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [e.latlng.lng, e.latlng.lat] } },
-                        message: message, creator: currentUser, color: "#3388ff" 
+                    const msg = prompt("請輸入回報點說明：") || "未命名地標";
+                    const data = {
+                        id: 'obj_' + Date.now(),
+                        geojson: { type: "Feature", properties: { shapeType: "marker" }, geometry: { type: "Point", coordinates: [lng, lat] } },
+                        message: msg, creator: currentUser, color: "#3388ff" 
                     };
-                    renderObjectOnMap(objectData);
-                    socket.emit('new_object', objectData);
-                    switchTool('pan'); // 畫完切換回瀏覽模式
-                } 
-                else if (currentTool === 'polygon') {
-                    tempPolygonPoints.push([e.latlng.lat, e.latlng.lng]);
-                    if (tempPolygonPoints.length === 1) {
-                        tempPolygonLines = L.polyline(tempPolygonPoints, {color: '#3388ff'}).addTo(map);
-                    } else {
-                        tempPolygonLines.setLatLngs(tempPolygonPoints);
+                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'polyline') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 4}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 2) tempShape.bindTooltip("按滑鼠右鍵結束", {permanent: true}).openTooltip();
+                } else if (currentTool === 'rectangle') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 2) {
+                        const bounds = [[Math.min(tempPoints[0][0], tempPoints[1][0]), Math.min(tempPoints[0][1], tempPoints[1][1])], [Math.max(tempPoints[0][0], tempPoints[1][0]), Math.max(tempPoints[0][1], tempPoints[1][1])]];
+                        const msg = prompt("請輸入方形區域說明：") || "未命名方形";
+                        const data = {
+                            id: 'obj_' + Date.now(),
+                            geojson: { type: "Feature", properties: { shapeType: "rectangle", bounds: bounds }, geometry: { type: "Polygon", coordinates: [[[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[0][0]], [bounds[1][1], bounds[1][0]], [bounds[0][1], bounds[1][0]], [bounds[0][1], bounds[0][0]]]] } },
+                            message: msg, creator: currentUser, color: "#3388ff"
+                        };
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
-                    
-                    // 為了方便操作，在第一個點位綁定提示，點擊即可完成繪製
-                    if (tempPolygonPoints.length >= 3) {
-                        tempPolygonLines.bindTooltip("點選此處以結束多邊形繪製", {permanent: true, direction: "top"}).openTooltip();
+                } else if (currentTool === 'circle') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.circle(tempPoints[0], {radius: 100, color: '#3388ff'}).addTo(map);
+                    else if (tempPoints.length === 2) {
+                        const radius = map.distance(tempPoints[0], tempPoints[1]);
+                        const msg = prompt("請輸入圓形區域說明：") || "未命名圓形";
+                        const data = {
+                            id: 'obj_' + Date.now(),
+                            geojson: { type: "Feature", properties: { shapeType: "circle", center: tempPoints[0], radius: radius }, geometry: { type: "Point", coordinates: [tempPoints[0][1], tempPoints[0][0]] } },
+                            message: msg, creator: currentUser, color: "#3388ff"
+                        };
+                        if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
+                } else if (currentTool === 'polygon') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("按滑鼠右鍵結束", {permanent: true}).openTooltip();
                 }
             });
 
-            // 監聽鍵盤或右鍵來結束多邊形繪製
             map.on('contextmenu', function() {
-                if (currentTool === 'polygon' && tempPolygonPoints.length >= 3) {
-                    finishPolygonDrawing();
+                if (currentTool === 'polyline' && tempPoints.length >= 2) {
+                    const msg = prompt("請輸入線條說明：") || "未命名線條";
+                    const data = {
+                        id: 'obj_' + Date.now(),
+                        geojson: { type: "Feature", properties: { shapeType: "polyline" }, geometry: { type: "LineString", coordinates: tempPoints.map(p => [p[1], p[0]]) } },
+                        message: msg, creator: currentUser, color: "#3388ff"
+                    };
+                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
+                    const msg = prompt("請輸入多邊形說明：") || "未命名多邊形";
+                    const closed = [...tempPoints, tempPoints[0]];
+                    const data = {
+                        id: 'obj_' + Date.now(),
+                        geojson: { type: "Feature", properties: { shapeType: "polygon" }, geometry: { type: "Polygon", coordinates: [closed.map(p => [p[1], p[0]])] } },
+                        message: msg, creator: currentUser, color: "#3388ff"
+                    };
+                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 }
             });
         }
 
-        // 結束並送出多邊形數據
-        function finishPolygonDrawing() {
-            const message = prompt("請輸入該區域的事件說明：") || "未命名區域";
-            
-            // 將最後一個點連回第一個點閉合
-            const coords = tempPolygonPoints.map(p => [p[1], p[0]]);
-            coords.push(coords[0]); // 閉合
-
-            const objectData = {
-                id: 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                geojson: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [coords] } },
-                message: message, creator: currentUser, color: "#3388ff" 
-            };
-
-            // 清理暫存線
-            if (tempPolygonLines) { map.removeLayer(tempPolygonLines); tempPolygonLines = null; }
-            tempPolygonPoints = [];
-
-            renderObjectOnMap(objectData);
-            socket.emit('new_object', objectData);
-            switchTool('pan');
-        }
-
-        // 工具列切換按鈕
         function switchTool(tool) {
-            currentTool = tool;
-            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            
-            // 清除多邊形暫存
-            if (tool !== 'polygon' && tempPolygonLines) {
-                map.removeLayer(tempPolygonLines);
-                tempPolygonLines = null;
-                tempPolygonPoints = [];
-            }
-
-            if (tool === 'marker') document.getElementById('btn-marker').classList.add('active');
-            if (tool === 'polygon') document.getElementById('btn-polygon').classList.add('active');
+            currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
+            if (tool !== 'pan') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
         }
-
         async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('password').value;
             if(!userIn) { document.getElementById('login-error').innerText = "請輸入用戶暱稱"; return; }
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: userIn, password: passIn })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: userIn, password: passIn })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    currentUser = userIn;
-                    document.getElementById('login-box').style.display = 'none';
-                    document.getElementById('map').style.display = 'block';
-                    document.getElementById('info-panel').style.display = 'block';
-                    document.getElementById('custom-toolbar').style.display = 'flex'; // 顯示新面板
-                    document.getElementById('user-display').innerText = currentUser;
-                    initMapInstance();
-                    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
-                    initSocketAndLayers(); 
+                    currentUser = userIn; document.getElementById('login-box').style.display = 'none';
+                    document.getElementById('map').style.display = 'block'; document.getElementById('info-panel').style.display = 'block';
+                    document.getElementById('custom-toolbar').style.display = 'flex'; document.getElementById('user-display').innerText = currentUser;
+                    initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
 
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
-
             fetch(`${SERVER_URL}/api/objects`).then(res => res.json()).then(objects => {
                 if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj));
             });
-
             socket.on('object_added', data => renderObjectOnMap(data));
-            socket.on('object_deleted', id => {
-                if (allMapLayers[id]) { map.removeLayer(allMapLayers[id]); delete allMapLayers[id]; }
-            });
-            socket.on('object_updated', updatedData => {
-                if (allMapLayers[updatedData.id]) { map.removeLayer(allMapLayers[updatedData.id]); delete allMapLayers[updatedData.id]; }
-                renderObjectOnMap(updatedData);
-            });
+            socket.on('object_deleted', id => { if (allMapLayers[id]) { map.removeLayer(allMapLayers[id]); delete allMapLayers[id]; } });
         }
 
         function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
-            let mainLayer;
+            let mainLayer, isMyObject = (data.creator === currentUser), shapeType = data.geojson.properties.shapeType;
 
-            const isMyObject = (data.creator === currentUser);
-
-            // 建立原生 Leaflet 圖層
-            const geojsonLayer = L.geoJSON(data.geojson, {
-                pointToLayer: (geoJsonPoint, latlng) => {
-                    // 如果是自己的物件，直接啟用內建完美拖曳
-                    return L.marker(latlng, { draggable: isMyObject });
-                },
-                style: { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 }
-            });
-
-            geojsonLayer.eachLayer(layer => { mainLayer = layer; });
+            if (shapeType === "circle") {
+                mainLayer = L.circle(data.geojson.properties.center, { radius: data.geojson.properties.radius, color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
+            } else if (shapeType === "rectangle") {
+                mainLayer = L.rectangle(data.geojson.properties.bounds, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
+            } else {
+                const geojsonLayer = L.geoJSON(data.geojson, {
+                    pointToLayer: (geoJsonPoint, latlng) => L.marker(latlng, { draggable: isMyObject }),
+                    style: { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 }
+                });
+                geojsonLayer.eachLayer(layer => { mainLayer = layer; });
+            }
             if (!mainLayer) return;
 
-            // 監聽拖曳結束事件
-            if (isMyObject && mainLayer.on) {
+            if (isMyObject && mainLayer.dragging) {
+                mainLayer.dragging.enable();
                 mainLayer.on('dragend', () => {
-                    data.geojson = mainLayer.toGeoJSON(); // 捕捉新坐標
-                    socket.emit('delete_object', data.id); // 觸發全體刪除舊物件
-                    socket.emit('new_object', data);       // 廣播新位置物件
+                    data.geojson = mainLayer.toGeoJSON(); 
+                    if (shapeType === "circle") data.geojson.properties.center = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
+                    socket.emit('delete_object', data.id); socket.emit('new_object', data);       
                 });
             }
 
-            // 綁定 Popup 控制選單
             let popupContent = "";
             if (isMyObject) {
                 popupContent = `
@@ -267,10 +249,7 @@
             } else {
                 popupContent = `<div class="popup-menu"><b>事件：</b>${data.message}<br><br><small style="color:gray;">回報者: ${data.creator}</small></div>`;
             }
-
-            mainLayer.bindPopup(popupContent);
-            mainLayer.addTo(map);
-            allMapLayers[data.id] = mainLayer;
+            mainLayer.bindPopup(popupContent); mainLayer.addTo(map); allMapLayers[data.id] = mainLayer;
         }
 
         function deleteObject(objectId) {
@@ -288,9 +267,7 @@
                 if (found) {
                     found.message = newMsg; found.color = newColor;
                     map.removeLayer(allMapLayers[objectId]); delete allMapLayers[objectId];
-                    renderObjectOnMap(found);
-                    socket.emit('delete_object', objectId);
-                    socket.emit('new_object', found);
+                    renderObjectOnMap(found); socket.emit('delete_object', objectId); socket.emit('new_object', found);
                 }
             });
         }
