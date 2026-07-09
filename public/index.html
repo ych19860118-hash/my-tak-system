@@ -45,8 +45,6 @@
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
-        
-        /* ⚡ 氣象署颱風動態動態浮動狀態欄 */
         #typhoon-info {
             position: absolute; bottom: 20px; right: 12px; background: rgba(30, 30, 30, 0.9);
             padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000;
@@ -56,7 +54,7 @@
 </head>
 <body>
     <div id="login-box">
-        <h2>災情應協同系統</h2>
+        <h2>災害應變協同系統</h2>
         <input type="text" id="username" placeholder="請輸入您的通報暱稱 (身分ID)">
         <input type="password" id="password" placeholder="管理團隊安全密碼">
         <button onclick="login()">進入公開防災地圖</button>
@@ -69,11 +67,9 @@
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
     </div>
-    
-    <!-- 颱風動態面板 -->
     <div id="typhoon-info">
-        <b style="color: #ffc107; font-size: 14px;">🌀 中央氣象署 颱風即時動態</b>
-        <div id="typhoon-status" style="margin-top: 6px; line-height: 1.4;">正在載入氣象資料...</div>
+        <b style="color: #ffc107; font-size: 14px;">🌀 應變中心提示</b>
+        <div id="typhoon-status" style="margin-top: 6px; line-height: 1.4;">目前防颱應變中心已啟動，請各地區通報人員利用左側工具列，即時回報道路狀況、積水或物資需求。雙擊螢幕可滿版操作。</div>
     </div>
     <div id="map"></div>
     <script>
@@ -83,33 +79,9 @@
 
         function initMapInstance() {
             if (map) return; 
-            map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 7);
+            
+            map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-            // =========================================================================
-            // 🌀【最新功能】：直接疊加中央氣象署（CWA）官方開放的地理資訊即時觀測雷達與路徑 WMS 圖層
-            // =========================================================================
-            L.tileLayer.wms("https://cwa.gov.tw", {
-                layers: 'O-A0058-003', // 氣象署全球標準雷達回波/颱風路徑監測層代號
-                format: 'image/png',
-                transparent: true,
-                opacity: 0.5,
-                attribution: "&copy; 中央氣象署 Open Data"
-            }).addTo(map);
-
-            // 串接展示中央氣象署開放 API 文字狀態資訊
-            fetch('https://cwa.gov.tw')
-                .then(res => res.json())
-                .then(apiData => {
-                    const statusDiv = document.getElementById('typhoon-status');
-                    if(apiData && apiData.records && apiData.rest) {
-                        statusDiv.innerHTML = `⚠️ 目前警戒區域環境風速已達強風標準，請注意土石流與低窪地區積水通報。雙擊地圖可滿螢幕操作。`;
-                    } else {
-                        statusDiv.innerHTML = `🌀 應變中心提示：目前颱風暴風圈正逐步接近台灣，請各地區回報人員點擊左側工具即時通報道路狀況。`;
-                    }
-                }).catch(() => {
-                    document.getElementById('typhoon-status').innerHTML = `🌀 應變中心提示：目前颱風暴風圈正接近，請各地區人員利用左側工具列，即時回報積水或倒塌狀況。`;
-                });
 
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
@@ -118,26 +90,37 @@
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
                 if (!isFullscreen) {
                     if (docElm.requestFullscreen) docElm.requestFullscreen();
                     else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
+                    else if (docElm.mozRequestFullScreen) docElm.mozRequestFullScreen();
+                    else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
                 } else {
                     if (document.exitFullscreen) document.exitFullscreen();
                     else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); 
+                    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                    else if (document.msExitFullscreen) document.msExitFullscreen();
                 }
             });
 
             const resizeEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
             resizeEvents.forEach(evt => {
-                document.addEventListener(evt, () => { setTimeout(() => { if (map) map.invalidateSize(); }, 300); });
+                document.addEventListener(evt, () => {
+                    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+                });
             });
 
+            // 地圖點擊事件監聽
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
+                
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
                     const data = {
-                        id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
+                        id: 'obj_' + Date.now(),
+                        shapeType: "marker",
+                        coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff" 
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -151,48 +134,37 @@
                     if (tempPoints.length === 2) {
                         const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
                         const data = {
-                            id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
+                            id: 'obj_' + Date.now(),
+                            shapeType: "rectangle",
+                            coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
-                }                 // === 終極修正：利用陣列索引精準分離緯度(lat)與經度(lng)，彻底根除 Invalid LatLng 錯誤 ===
-                else if (currentTool === 'circle') {
-                    tempPoints.push([lat, lng]);
-                    
-                    if (tempPoints.length === 1) {
-                        // 點第一下：先在中心建立一個半徑 100 公尺的小圓當作視覺提醒
-                        tempShape = L.circle([lat, lng], { radius: 100, color: '#3388ff' }).addTo(map);
-                    } else if (tempPoints.length === 2) {
-                        // 點第二下：精準抓出第一點的緯度與經度
-                        const centerLat = tempPoints[0][0]; // 抓取第一點的緯度數字
-                        const centerLng = tempPoints[0][1]; // 抓取第一點的經度數字
-                        
-                        // 建立合法的 Leaflet 經緯度實例
-                        const centerPoint = L.latLng(centerLat, centerLng);
+                } else if (currentTool === 'circle') {
+                    // 🔴 圓形核心：改用安全物件屬性，100% 根除 Invalid LatLng 與系統截斷死穴
+                    if (tempPoints.length === 0) {
+                        tempPoints.push({ lat: lat, lng: lng });
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
+                    } else if (tempPoints.length === 1) {
+                        const firstPoint = tempPoints.shift(); // 安全取出第一點物件
+                        const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
                         const edgePoint = L.latLng(lat, lng);
-                        
-                        // 計算中心到第二點的真實地理距離（公尺）做為半徑
-                        const finalRadius = map.distance(centerPoint, edgePoint);
+                        const radius = map.distance(centerPoint, edgePoint);
                         
                         const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
                         const data = {
                             id: 'obj_' + Date.now(),
                             shapeType: "circle",
-                            coordinates: [centerLat, centerLng], // 儲存一維中心點
-                            radius: finalRadius,
-                            message: msg, 
-                            creator: currentUser, 
-                            color: "#3388ff"
+                            coordinates: [firstPoint.lat, firstPoint.lng], 
+                            radius: radius,
+                            message: msg, creator: currentUser, color: "#3388ff"
                         };
-                        
-                        if (tempShape) map.removeLayer(tempShape); // 移除暫存圓
+                        if (tempShape) map.removeLayer(tempShape); 
                         renderObjectOnMap(data); 
                         socket.emit('new_object', data); 
-                        switchTool('pan'); // 切換回瀏覽模式
+                        switchTool('pan');
                     }
-                }
-
                 } else if (currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
@@ -205,14 +177,18 @@
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
                     const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
                     const data = {
-                        id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        id: 'obj_' + Date.now(),
+                        shapeType: "polyline",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
                     const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
                     const data = {
-                        id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        id: 'obj_' + Date.now(),
+                        shapeType: "polygon",
+                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -225,6 +201,7 @@
             if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
             if (tool !== 'pan') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
         }
+
         async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('password').value;
@@ -235,19 +212,17 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // 💡 【核心修正 1】：每個人用自己的帳號當作獨立的身份辨識識別標籤
                     currentUser = data.username; 
                     document.getElementById('login-box').style.display = 'none';
                     document.getElementById('map').style.display = 'block'; 
                     document.getElementById('custom-toolbar').style.display = 'flex'; 
-                    document.getElementById('typhoon-info').style.display = 'block'; // 打開颱風面板
+                    document.getElementById('typhoon-info').style.display = 'block';
                     initMapInstance(); 
                     setTimeout(() => { if (map) map.invalidateSize(); }, 300); 
                     initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
             fetch(`${SERVER_URL}/api/objects`).then(res => res.json()).then(objects => {
@@ -288,10 +263,11 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 💡【核心修正 2】：嚴格鎖死權限！只有創作者本人才允許釘上 📌 控制針進行修改
+            // 📌 錨點流暢拖曳平移黑科技
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
-                    draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' })
+                    draggable: true,
+                    icon: L.divIcon({ html: '📌', className: 'control-pin-icon' })
                 }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
 
@@ -330,7 +306,7 @@
                 });
             }
 
-            // 💡【核心修正 3】：Popup 對話框判定分流。非創作者的人，選單一律封死、只有純文字看回報
+            // 🔒 權限防護：Popup 對話框判定分流
             let popupContent = "";
             if (isMyObject) {
                 popupContent = `
