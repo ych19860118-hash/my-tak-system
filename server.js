@@ -19,6 +19,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const USERS = {
     "admin1": "password123",
     "admin2": "map999"
+    "123": "123"
 };
 
 // 儲存目前地圖上所有物件的記憶體陣列（注意：Render 免費版伺服器閒置重啟時會清空）
