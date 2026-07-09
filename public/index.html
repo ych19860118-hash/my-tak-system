@@ -10,7 +10,6 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
         #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
-        
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #1e1e1e; padding: 35px 30px; border-radius: 12px; 
@@ -30,7 +29,6 @@
             font-weight: bold; margin-top: 10px;
         }
         #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
-        
         #custom-toolbar {
             position: absolute; top: 90px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
@@ -41,14 +39,11 @@
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
-        
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
-        
-        /* ℹ️ 右下角小圓開關與隱藏面板樣式 */
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001;
             width: 36px; height: 34px; background: rgba(30, 30, 30, 0.9); 
@@ -58,14 +53,12 @@
         #typhoon-info {
             position: absolute; bottom: 65px; right: 12px; background: rgba(30, 30, 30, 0.9);
             padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000;
-            border: 1px solid #444; font-size: 13px; display: none !important; /* 預設完全隱藏 */
+            border: 1px solid #444; font-size: 13px; display: none !important;
             max-width: 250px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
-
-    <!-- 多功能分房登入介面 -->
     <div id="login-box">
         <h2>應變協同中心</h2>
         <input type="text" id="username" placeholder="請輸入您的通報暱稱">
@@ -79,8 +72,6 @@
         <button onclick="login()">進入防災地圖</button>
         <p id="login-error"></p>
     </div>
-
-    <!-- 自製功能選單工具列 (最下方新增了 ☀️ 模式切換按鍵) -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
@@ -89,8 +80,6 @@
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
         <button class="tool-btn" id="btn-mapmode" onclick="toggleMapMode()" title="切換白天/夜晚模式" style="margin-top: 15px !important; background: #e9ecef !important;">☀️</button>
     </div>
-
-    <!-- ℹ️ 狀態監控隱藏標籤與面板 -->
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ️</button>
     <div id="typhoon-info">
         <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
@@ -105,7 +94,6 @@
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
         
-        // 💡 新增：管理白天與夜晚地圖圖層的實例變數與模式狀態
         let dayLayer, nightLayer;
         let isNightMode = false;
 
@@ -119,21 +107,17 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 建立地圖並關閉雙擊放大
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
             
-            // 💡 初始化白天與夜晚兩種地圖源（夜晚使用免金鑰的 CartoDB 經典極簡暗黑圖層）
             dayLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
             nightLayer = L.tileLayer('https://{s}://{z}/{x}/{y}{r}.png', { maxZoom: 20 });
             
-            // 預設載入白天圖層
             dayLayer.addTo(map);
 
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
 
-            // 手機端雙擊畫面自動全螢幕滿版
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
@@ -152,16 +136,35 @@
                 document.addEventListener(evt, () => { setTimeout(() => { if (map) map.invalidateSize(); }, 300); });
             });
 
-            // 地圖點擊事件監聽
+            // 啟動五合一繪圖監聽大腦
+            initDrawingEvents();
+        }
+
+        function toggleMapMode() {
+            if (!map) return;
+            const btn = document.getElementById('btn-mapmode');
+            if (!isNightMode) {
+                map.removeLayer(dayLayer); nightLayer.addTo(map);
+                btn.innerText = "🌙"; btn.title = "切換至白天模式"; isNightMode = true;
+            } else {
+                map.removeLayer(nightLayer); dayLayer.addTo(map);
+                btn.innerText = "☀️"; btn.title = "切換至夜晚模式"; isNightMode = false;
+            }
+        }
+
+        function switchTool(tool) {
+            currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
+            if (tool !== 'pan' && tool !== 'mapmode') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
+        }
+        function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
                     const data = {
-                        id: 'obj_' + Date.now(),
-                        shapeType: "marker",
-                        coordinates: [lat, lng],
+                        id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff" 
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -175,9 +178,7 @@
                     if (tempPoints.length === 2) {
                         const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
                         const data = {
-                            id: 'obj_' + Date.now(),
-                            shapeType: "rectangle",
-                            coordinates: JSON.parse(JSON.stringify(tempPoints)), 
+                            id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff"
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -191,14 +192,10 @@
                         const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
-                        
                         const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
                         const data = {
-                            id: 'obj_' + Date.now(),
-                            shapeType: "circle",
-                            coordinates: [firstPoint.lat, firstPoint.lng], 
-                            radius: radius,
-                            message: msg, creator: currentUser, color: "#3388ff"
+                            id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
+                            radius: radius, message: msg, creator: currentUser, color: "#3388ff"
                         };
                         if (tempShape) map.removeLayer(tempShape); 
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -215,49 +212,19 @@
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
                     const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
                     const data = {
-                        id: 'obj_' + Date.now(),
-                        shapeType: "polyline",
-                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
                     const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
                     const data = {
-                        id: 'obj_' + Date.now(),
-                        shapeType: "polygon",
-                        coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 }
             });
-        }
-
-        // 💡 新增：白天/夜晚模式秒級切換控制核心
-        function toggleMapMode() {
-            if (!map) return;
-            const btn = document.getElementById('btn-mapmode');
-            
-            if (!isNightMode) {
-                map.removeLayer(dayLayer);
-                nightLayer.addTo(map);
-                btn.innerText = "🌙";
-                btn.title = "切換至白天模式";
-                isNightMode = true;
-            } else {
-                map.removeLayer(nightLayer);
-                dayLayer.addTo(map);
-                btn.innerText = "☀️";
-                btn.title = "切換至夜晚模式";
-                isNightMode = false;
-            }
-        }
-
-        function switchTool(tool) {
-            currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
-            if (tool !== 'pan' && tool !== 'mapmode') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
         }
 
         async function login() {
@@ -284,6 +251,8 @@
                     document.getElementById('state-room').innerText = currentRoom;
                     initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
+            } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
+        }
         function initSocketAndLayers() {
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
@@ -376,7 +345,7 @@
                 });
             }
 
-            // 🔒 權限保護 Popup 選單：標記針自動隱藏變更顏色區塊
+            // 🔒 獨立權限核心：Popup 對話框判定分流（只能修改自己建的，點別人的是唯讀）
             let popupContent = "";
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
@@ -436,7 +405,6 @@
             });
         }
 
-        // 動態收折 ℹ️ 人數狀態面板
         function toggleStatusPanel() {
             const panel = document.getElementById('typhoon-info');
             if (window.getComputedStyle(panel).display === 'none') {
