@@ -11,16 +11,18 @@
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
         #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
         
-        /* 💡 【最新功能】：當 map 被加上 .dark-map 類別時，用瀏覽器硬體加速將地圖強行翻轉成極致暗黑色系 */
+        /* 💡 【全新調校：深夜防災極致黑底色】強行將地圖轉為黑白，反轉成深黑色，並將亮度壓榨到最低 */
         .dark-map .leaflet-tile-container {
-            filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%) !important;
+            filter: grayscale(100%) invert(100%) brightness(35%) contrast(120%) !important;
+            background: #0f0f0f !important; /* 確保未載入完的底色也是純黑 */
         }
-        /* 貼心優化：地圖上的幾何圖形、標記針與 📌 錨點不需要被反轉顏色，保持原本鮮豔的紅、黃、藍防災警戒色 */
+        
+        /* 貼心優化：地圖反轉後，我們要把回報點 📍 與 📌 控制錨點反轉回來，讓它們在黑色背景下呈現鮮艷明亮的警戒色 */
         .dark-map .leaflet-marker-icon,
         .dark-map .leaflet-marker-shadow,
         .dark-map .leaflet-overlay-pane {
-            filter: invert(100%) hue-rotate(180deg) !important;
-        }
+            filter: invert(100%) grayscale(0%) brightness(150%) !important;
+        
 
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
