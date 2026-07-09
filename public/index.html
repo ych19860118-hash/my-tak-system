@@ -5,14 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>多人即時地圖管理系統</title>
     
-    <!-- 引入全球最標準、絕對不會造成工具列歪掉的 Leaflet 核心樣式 -->
-    <link rel="stylesheet" href="https://unpkg.com" />
-    <link rel="stylesheet" href="https://unpkg.com" />
+    <!-- 全面改為讀取自己 Render 伺服器內部的檔案，解決 CSP 安全阻擋導致 L is not defined 的問題 -->
+    <link rel="stylesheet" href="/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/leaflet-draw/leaflet.draw.css" />
     
-    <!-- 引入核心通訊與地圖大腦 JS -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://unpkg.com"></script>
-    <script src="https://unpkg.com"></script>
+    <script src="/leaflet/leaflet.js"></script>
+    <script src="/leaflet-draw/leaflet.draw.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
@@ -31,9 +30,9 @@
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
         
-        /* 修正 Leaflet.draw 工具列圖示排版與圖磚定位 */
+        /* 修正 Leaflet.draw 工具列圖示排版 */
         .leaflet-draw-toolbar a {
-            background-image: url('https://unpkg.com') !important;
+            background-image: url('/leaflet-draw-images/spritesheet.png') !important;
             background-size: 270px 30px !important;
         }
     </style>
@@ -107,7 +106,6 @@
                     
                     initMapInstance();
                     
-                    // 給地圖足夠的時間去渲染，徹底解決第一張截圖的「地圖碎塊/破圖」問題
                     setTimeout(() => {
                         if (map) {
                             map.invalidateSize();
