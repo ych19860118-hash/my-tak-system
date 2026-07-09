@@ -11,19 +11,6 @@
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
         #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
         
-        /* 💡 【全新調校：深夜防災極致黑底色】強行將地圖轉為黑白，反轉成深黑色，並將亮度壓榨到最低 */
-        .dark-map .leaflet-tile-container {
-            filter: grayscale(100%) invert(100%) brightness(35%) contrast(120%) !important;
-            background: #0f0f0f !important; /* 確保未載入完的底色也是純黑 */
-        }
-        
-        /* 貼心優化：地圖反轉後，我們要把回報點 📍 與 📌 控制錨點反轉回來，讓它們在黑色背景下呈現鮮艷明亮的警戒色 */
-        .dark-map .leaflet-marker-icon,
-        .dark-map .leaflet-marker-shadow,
-        .dark-map .leaflet-overlay-pane {
-            filter: invert(100%) grayscale(0%) brightness(150%) !important;
-        
-
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #1e1e1e; padding: 35px 30px; border-radius: 12px; 
@@ -43,6 +30,8 @@
             font-weight: bold; margin-top: 10px;
         }
         #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
+        
+        /* 💡 【回歸左側垂直排版】：確保工具列在手機與電腦上絕對直立不歪斜、不飄移 */
         #custom-toolbar {
             position: absolute; top: 90px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
@@ -53,11 +42,13 @@
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
+        
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
         .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
+        
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001;
             width: 36px; height: 34px; background: rgba(30, 30, 30, 0.9); 
@@ -73,6 +64,8 @@
     </style>
 </head>
 <body>
+
+    <!-- 多功能分房登入介面 -->
     <div id="login-box">
         <h2>應變協同中心</h2>
         <input type="text" id="username" placeholder="請輸入您的通報暱稱">
@@ -86,20 +79,22 @@
         <button onclick="login()">進入防災地圖</button>
         <p id="login-error"></p>
     </div>
+
+    <!-- 💡 自製左側垂直工具列（已徹底拔除夜晚模式☀️切換按鈕，排版完美還原） -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
         <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
-        <button class="tool-btn" id="btn-mapmode" onclick="toggleMapMode()" title="切換白天/夜晚模式" style="margin-top: 15px !important; background: #e9ecef !important;">☀️</button>
     </div>
+
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ️</button>
     <div id="typhoon-info">
         <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
         <div style="margin-top: 6px; line-height: 1.5;">
             🟢 當前線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
-            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房。雙擊地圖可滿螢幕。</span>
+            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房。雙擊地圖可滿螢幕操作。</span>
         </div>
     </div>
     <div id="map"></div>
@@ -107,7 +102,6 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
-        let isNightMode = false;
 
         function checkRoomType() {
             const select = document.getElementById('room-select').value;
@@ -119,15 +113,16 @@
         function initMapInstance() {
             if (map) return; 
             
+            // 建立標準白天版地圖實例並關閉雙擊放大
             map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
-            
-            // 💡 採用全開源最穩定的標準白天 OSM 底圖，夜晚直接套用第一部分的 CSS 濾鏡
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+            // 手機端工具列觸控防穿透攔截
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
 
+            // 手機端雙擊畫面自動全螢幕滿版邏輯
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
@@ -135,42 +130,36 @@
                 if (!isFullscreen) {
                     if (docElm.requestFullscreen) docElm.requestFullscreen();
                     else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
+                    else if (docElm.mozRequestFullScreen) docElm.mozRequestFullScreen();
+                    else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
                 } else {
                     if (document.exitFullscreen) document.exitFullscreen();
                     else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); 
+                    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                    else if (document.msExitFullscreen) document.msExitFullscreen();
                 }
             });
 
             const resizeEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
             resizeEvents.forEach(evt => {
-                document.addEventListener(evt, () => { setTimeout(() => { if (map) map.invalidateSize(); }, 300); });
+                document.addEventListener(evt, () => {
+                    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+                });
             });
 
             // 啟動五合一繪圖監聽大腦
             initDrawingEvents();
         }
 
-        // 💡 修正：利用網頁內建的 CSS 濾鏡，在百萬分之一秒內強行反轉底圖顏色，百分之百永不失效！
-        function toggleMapMode() {
-            if (!map) return;
-            const btn = document.getElementById('btn-mapmode');
-            const mapDiv = document.getElementById('map');
-            
-            if (!isNightMode) {
-                mapDiv.classList.add('dark-map');
-                btn.innerText = "🌙"; btn.title = "切換至白天模式";
-                isNightMode = true;
-            } else {
-                mapDiv.classList.remove('dark-map');
-                btn.innerText = "☀️"; btn.title = "切換至夜晚模式";
-                isNightMode = false;
-            }
-        }
-
         function switchTool(tool) {
-            currentTool = tool; document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } tempPoints = [];
-            if (tool !== 'pan' && tool !== 'mapmode') { const id = 'btn-' + tool; if (document.getElementById(id)) document.getElementById(id).classList.add('active'); }
+            currentTool = tool; 
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
+            tempPoints = [];
+            if (tool !== 'pan') { 
+                const id = 'btn-' + tool; 
+                if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+            }
         }
         function initDrawingEvents() {
             map.on('click', function(e) {
@@ -360,7 +349,7 @@
                 });
             }
 
-            // 🔒 獨立權限核心 Popup 對話框
+            // 🔒 獨立權限核心 Popup 對話框（已完美隱藏標準標記點 📍 的顏色變更功能）
             let popupContent = "";
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
