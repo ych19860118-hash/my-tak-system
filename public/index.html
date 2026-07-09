@@ -23,13 +23,37 @@
             position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9);
             padding: 15px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); max-width: 250px; display: none;
         }
+        .leaflet-draw-section {
+            margin-top: 5px !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
         .leaflet-draw-toolbar {
-            margin-top: 5px !important; display: flex !important; flex-direction: column !important;
-            border: 2px solid rgba(0,0,0,0.2) !important; border-radius: 4px !important; background: #fff !important; overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            border: 2px solid rgba(0,0,0,0.2) !important;
+            border-radius: 4px !important;
+            background: #fff !important;
+            overflow: hidden !important;
+            box-shadow: none !important;
         }
         .leaflet-draw-toolbar a {
-            background-image: url('/leaflet-draw-images/spritesheet.png') !important; background-size: 270px 30px !important;
-            border-bottom: 1px solid #ccc !important; width: 30px !important; height: 30px !important; display: block !important;
+            background-image: url('/leaflet-draw-images/spritesheet.png') !important; 
+            background-size: 270px 30px !important;
+            border-bottom: 1px solid #ccc !important; 
+            width: 30px !important; 
+            height: 30px !important; 
+            display: block !important;
+            float: none !important; /* 強制取消浮動，讓按鈕乖乖垂直排隊 */
+            box-sizing: border-box !important;
+        }
+        .leaflet-draw-toolbar a:last-child { 
+            border-bottom: none !important; 
+        }
+        .leaflet-draw-actions { 
+            display: none !important; 
         }
         .leaflet-draw-toolbar a:last-child { border-bottom: none !important; }
         .leaflet-draw-actions { display: none !important; }
