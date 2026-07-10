@@ -506,9 +506,14 @@
                 });
             }
 
-            // 💡 同步穿透防線：點擊圖形本身或中央，都能無延遲秒級彈出對話框
+            // ⚡【標點工具彈窗修復大腦】：精準分流幾何物件與 Marker 大頭針的點擊事件！
+            // 如果點到的是標點工具，就直接呼叫 openPopup() 讓對話框原地彈出，100% 復活改名與撤銷功能！
             mainLayer.on('click', function() {
-                mainLayer.openPopup(centerLatLng);
+                if (data.shapeType === "marker") {
+                    mainLayer.openPopup(); // 💡 標點工具專用：不傳入 centerLatLng，原地滿血彈出！
+                } else {
+                    mainLayer.openPopup(centerLatLng); // 幾何圖形專用
+                }
             });
 
             // 💡【戰術面板注入】：在 Popup 對話框內完美內嵌一個原生 HTML5 數位戰術調色盤
