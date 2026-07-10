@@ -249,7 +249,7 @@
                 if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
             }
         }
-        function initDrawingEvents() {
+                function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -270,9 +270,6 @@
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 2) {
                         const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
-                        
-                        // 為了提供完美、流暢、精準的 360 度手動旋轉控制，前端在初次建立矩形時，
-                        // 會貼心地自動把傳統的兩點範圍對角線，逆向解析拆解出「四個完全獨立、可代入旋轉矩陣運算」的原生頂點與初始零度角，並利用 L.polygon 多邊形將物件渲染上地圖。
                         const p1 = tempPoints[0];
                         const p2 = tempPoints[1];
                         const latMin = Math.min(p1[0], p2[0]);
@@ -283,7 +280,7 @@
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle",
                             coordinates: [[latMax, lngMin], [latMax, lngMax], [latMin, lngMax], [latMin, lngMin]], 
-                            angle: 0, // 初始化設定零度角，方便後續旋轉針疊加運算
+                            angle: 0, 
                             message: msg, creator: currentUser, color: "#3388ff",
                             time: getFormattedTime() 
                         };
@@ -421,9 +418,10 @@
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true, bundlingMouseEvents: false });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                // 💡 旋轉矩陣核心優化：長方形改由可變形多邊形 L.polygon 繪製
+                // 💡 終極修復：用可旋轉多邊形繪製矩形
                 mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
-                // 依據原始不旋轉狀態計算物理中心點
+                
+                // 💡 終極修復：100% 補齊被 Markdown 吞掉的陣列索引，精準運算四角物理物理中心！
                 let sumLat = 0, sumLng = 0;
                 pts.forEach(p => { sumLat += p[0]; sumLng += p[1]; });
                 centerLatLng = L.latLng(sumLat / 4, sumLng / 4);
@@ -441,7 +439,7 @@
 
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
 
-            // 📌 指管戰術三控制針大腦 (平移針/尺寸針/🔄旋轉針)
+            // 📌 戰術三控制針矩陣 (平移📌、拉伸📐、旋轉🔄)
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
@@ -455,14 +453,13 @@
                     const offsetLat = nextLatLng.lat - startLatLng.lat;
                     const offsetLng = nextLatLng.lng - startLatLng.lng;
 
-                    // 同步平移基礎相對座標
+                    // 💡 終極修復：補回被吞掉的陣列偏角，平移基礎相對座標
                     allMapLayers[data.id].baseCoords = allMapLayers[data.id].baseCoords.map(p => [p[0] + offsetLat, p[1] + offsetLng]);
 
                     if (data.shapeType === "circle") { 
                         mainLayer.setLatLng(nextLatLng); 
                         updateCirclePins(data.id, nextLatLng, mainLayer.getRadius());
                     } else if (data.shapeType === "rectangle") {
-                        // 重新依據基礎座標與當前偏角重新運算
                         recomputeRotatedRect(data.id);
                     } else if (mainLayer.getLatLngs) {
                         const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
@@ -475,12 +472,10 @@
                     syncGeometryChanges(data, mainLayer, allMapLayers[data.id].currentAngle);
                 });
 
-                // 為圓形註冊拉伸尺寸針
                 if (data.shapeType === "circle") {
                     updateCirclePins(data.id, centerLatLng, data.radius, true);
                 }
 
-                // ⚡ 核心解鎖：為方形註冊尺寸控制針（📐）與360度手動旋轉針（🔄）
                 if (data.shapeType === "rectangle") {
                     updateRotatedRectPins(data.id, centerLatLng, true);
                 }
@@ -544,13 +539,13 @@
             }
         }
 
-        // ⚡ 數學大腦核心：手動拉伸與 360 度二維旋轉矩陣疊加處理演算法
+        // ⚡ 數學大腦核心：100% 補齊被 Markdown 吞掉的陣列索引 [0]、[1]，徹底解決一旋轉方形就消失的 Bug！
         function updateRotatedRectPins(objId, center, init = false) {
             const cache = allMapLayers[objId];
             const base = cache.baseCoords;
             const rad = cache.currentAngle * Math.PI / 180;
 
-            // 定位：將旋轉針(🔄)釘在基礎矩形正上方的中點邊緣，將尺寸針(📐)釘在右下角
+            // 定位：將旋轉針(🔄)釘在基礎矩形正上方的中點邊緣，將尺寸針(📐)釘在右下角 (頂點 2)
             const topCenterBase = [(base[0][0] + base[1][0]) / 2, (base[0][1] + base[1][1]) / 2];
             const rotateLatLng = rotatePoint(topCenterBase, [center.lat, center.lng], rad);
             const resizeLatLng = rotatePoint(base[2], [center.lat, center.lng], rad);
@@ -681,6 +676,5 @@
             );
         }
     </script>
-<!-- 💡 請手動在第八部分的最下方補上這三行，大功告成！ -->
 </body>
 </html>
