@@ -50,7 +50,7 @@
         #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
         
-        /* 💡 1. 左側簡約化垂直工具列風格 */
+        /* 💡 左側簡約化垂直工具列風格 */
         #custom-toolbar { 
             position: absolute; top: 20px; left: 15px; z-index: 1000; 
             display: none; flex-direction: column; gap: 6px; 
@@ -82,7 +82,7 @@
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
         
-        /* 💡 2. 右下角活動資訊標籤與按鈕 */
+        /* 💡 右下角活動資訊標籤與按鈕 */
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
             width: 38px; height: 38px; background: #141619; 
@@ -291,7 +291,7 @@
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
                     className: 'tactical-svg-marker'
                 });
-                mainLayer = L.marker(pts, { icon: customMarkerIcon }); 
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject }); 
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true });
@@ -367,7 +367,6 @@
                     resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
                 }
             } else if (isMyObject && data.shapeType === "marker") {
-                mainLayer.dragging.enable();
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                     data.time = getFormattedTime();
