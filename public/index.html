@@ -41,7 +41,8 @@
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
-        .tool-btn.active svg {stroke: #ffffff !important;}
+        .tool-btn.active svg { stroke: #ffffff !important; }
+        
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
@@ -79,38 +80,29 @@
         <p id="login-error"></p>
     </div>
 
-    <!-- 自製左側垂直工具列 -->
+    <!-- 自製左側簡約細線垂直工具列（已完全拿掉隱藏了 +- 縮放按鍵） -->
     <div id="custom-toolbar">
-        <!-- 1. 標記點 -->
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
             </svg>
         </button>
-        
-        <!-- 2. 線條 -->
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 12h5l4 8 5-16 4 8"></path>
             </svg>
         </button>
-        
-        <!-- 3. 方形 -->
         <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             </svg>
         </button>
-        
-        <!-- 4. 圓形 -->
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
             <svg width="22" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
             </svg>
         </button>
-        
-        <!-- 5. 多邊形 -->
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
@@ -132,6 +124,16 @@
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
 
+        // 💡 新增防汛時效黑科技：自動抓取當前系統時間，並格式化為直覺的「月/日 時:分」
+        function getFormattedTime() {
+            const now = new Date();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            return `${m}/${d} ${h}:${min}`;
+        }
+
         function checkRoomType() {
             const select = document.getElementById('room-select').value;
             const customInput = document.getElementById('custom-room-name');
@@ -142,16 +144,14 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 建立標準白天版地圖實例並關閉雙擊放大
+            // 建立標準白天版地圖實例並關閉雙擊放大，同時拔除隱藏「+」與「-」縮放按鈕
             map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-            // 手機端工具列觸控防穿透攔截
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
 
-            // 手機端雙擊畫面自動全螢幕滿版邏輯
             map.on('dblclick', function() {
                 const docElm = document.documentElement;
                 const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
@@ -176,7 +176,6 @@
                 });
             });
 
-            // 啟動五合一繪圖監聽大腦
             initDrawingEvents();
         }
 
@@ -198,7 +197,8 @@
                     const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
-                        message: msg, creator: currentUser, color: "#3388ff" 
+                        message: msg, creator: currentUser, color: "#3388ff",
+                        time: getFormattedTime() // 💡 自動綁定首發通報時間
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline') {
@@ -212,7 +212,8 @@
                         const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
-                            message: msg, creator: currentUser, color: "#3388ff"
+                            message: msg, creator: currentUser, color: "#3388ff",
+                            time: getFormattedTime() // 💡 自動綁定首發通報時間
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
@@ -228,7 +229,8 @@
                         const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
-                            radius: radius, message: msg, creator: currentUser, color: "#3388ff"
+                            radius: radius, message: msg, creator: currentUser, color: "#3388ff",
+                            time: getFormattedTime() // 💡 自動綁定首發通報時間
                         };
                         if (tempShape) map.removeLayer(tempShape); 
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -246,14 +248,16 @@
                     const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
-                        message: msg, creator: currentUser, color: "#3388ff"
+                        message: msg, creator: currentUser, color: "#3388ff",
+                        time: getFormattedTime() // 💡 自動綁定首發通報時間
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
                     const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
-                        message: msg, creator: currentUser, color: "#3388ff"
+                        message: msg, creator: currentUser, color: "#3388ff",
+                        time: getFormattedTime() // 💡 自動綁定首發通報時間
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 }
@@ -335,7 +339,7 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 📌 錨點流暢拖曳平移算法
+            // 📌 錨點流暢拖曳平移與同步算法
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
@@ -368,23 +372,28 @@
                         const dumpPoints = function(points) { return points.map(p => { if (Array.isArray(p)) return dumpPoints(p); return [p.lat, p.lng]; }); };
                         data.coordinates = dumpPoints(mainLayer.getLatLngs());
                     }
+                    data.time = getFormattedTime(); // 💡 每次完成平移位置，自動更新修改時間戳記
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
                 });
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
+                    data.time = getFormattedTime(); // 💡 標記點完成拖曳時，自動更新修改時間戳記
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
                 });
             }
 
-            // 🔒 獨立權限 Popup 對話框
+            // 🔒 獨立權限管理：Popup 對話框判定分流（融入時間戳記機制）
             let popupContent = "";
+            const displayTime = data.time || "無紀錄"; // 防止舊資料缺少時間屬性破圖
+            
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
                 popupContent = `
                     <div class="popup-menu">
-                        <b>編輯您回報的災情</b><br><br>
+                        <b>編輯您回報的災情</b><br>
+                        <small style="color:#007bff;">最後異動時間：${displayTime}</small><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
                         <div style="${isMarker ? 'display: none;' : ''}">
@@ -402,7 +411,8 @@
             } else {
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br><br>
+                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br>
+                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報人員身分: ${data.creator}</small><br><br>
                         <small style="color:#ff4d4d;">🔒 唯讀模式：您非創作者，無法修改此處。</small>
@@ -421,7 +431,7 @@
             }
         }
 
-        // 💡【終極修正完全體】：支援 📍標記點 與所有幾何圖形同時更新描述與顏色的核心黑科技
+        // 💡【核心功能】：更名或換色儲存時，自動注入最新時間戳記並秒級廣播
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
@@ -446,7 +456,8 @@
                     radius: isCircle ? layerGroup.layer.options.radius : null,
                     message: newMsg,
                     color: newColor, 
-                    creator: currentUser
+                    creator: currentUser,
+                    time: getFormattedTime() // 💡 每次點擊儲存修改，自動改寫為最新異動時間！
                 };
 
                 if (!isMarker && !isCircle) {
@@ -459,15 +470,14 @@
                     updatedData.coordinates = dumpPoints(layerGroup.layer.getLatLngs());
                 }
 
-                // 強行拔除舊顏色、舊描述之舊圖層
+                // 移除舊圖層並重新渲染最新修改的數據
                 map.removeLayer(layerGroup.layer);
                 if (layerGroup.pin) map.removeLayer(layerGroup.pin);
                 delete allMapLayers[objectId];
 
-                // 重新渲染最新修改的完全體數據
                 renderObjectOnMap(updatedData);
                 
-                // 向同應變頻道全員廣播秒級更新
+                // 即時廣播
                 socket.emit('delete_object', objectId);
                 socket.emit('new_object', updatedData);
             }
