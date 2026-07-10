@@ -65,6 +65,7 @@
         .tool-btn:hover { background: #1a1d21 !important; border-color: #4a5568 !important; }
         .tool-btn.active { background: #22c55e !important; border-color: #39ff14 !important; }
         .tool-btn.active svg, #btn-locate.active svg { stroke: #0d0e10 !important; }
+        .tool-btn.active svg, #btn-locate.active svg { stroke: #ffffff !important; }
         
         .popup-menu { font-size: 13px; min-width: 180px; font-family: monospace; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; background: #f7fafc; border: 1px solid #cbd5e0; }
@@ -87,22 +88,14 @@
             max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
 
-        /* 💡 戰術半透明地圖常駐文字標籤 */
-  /* 💡 【終極修正】：強化隊員 GPS 標籤，加入戰術黑底、雷達螢光綠發光邊框，字體加粗跳出畫面 */
+        /* 💡 【全新優化】：強化戰術常駐標籤，融入發光綠框、字體強力加粗且置於最高圖層，絕對不被覆蓋吃掉 */
         .tactical-tooltip {
-            background: #141619 !important;               /* 深色戰術背景 */
-            border: 2px solid #39ff14 !important;         /* 亮綠色雷達框線 */
-            color: #39ff14 !important;                    /* 螢光綠文字 */
-            font-weight: 900 !important;                  /* 字體強力加粗 */
-            font-size: 13px !important;                   /* 放大字體方便現地觀看 */
-            font-family: 'Courier New', monospace !important;
-            border-radius: 4px !important;
-            padding: 5px 10px !important;
-            box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; /* 邊框加入綠色發光陰影 */
-            opacity: 1 !important;                        /* 強制 100% 不透明，絕不變淡 */
-            z-index: 10000 !important;                    /* 最高圖層優先級，絕對不被任何形狀壓住 */
+            background: #141619 !important; border: 2px solid #39ff14 !important;
+            color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
+            font-family: 'Courier New', monospace !important; border-radius: 4px !important;
+            padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important;
+            opacity: 1 !important; z-index: 10000 !important;
         }
-        /* 徹底移除 Leaflet 原生醜陋的白箭頭 */
         .tactical-tooltip::before { display: none !important; }
     </style>
 </head>
@@ -206,7 +199,7 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 建立標準白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
+            // 💡 建立白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
             map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
@@ -365,25 +358,31 @@
                 document.getElementById('state-count').innerText = count;
             });
 
-            // 💡【全新即時連線核心】：當收到頻道內其他在線隊員發送 GPS 時，原地畫上或更新他們的雷達小圓點
+            // 💡【終極 Bug 修復核心】：將別人位置的戰術標籤「直接綁在核心小圓點」身上，徹底攻克 ID 標籤被隱藏的容器衝突！
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username;
                 const pLatLng = L.latLng(gpsData.lat, gpsData.lng);
                 
-                // 如果畫面上已經有該隊員的舊圓點，先拔除乾淨，防止多裝置殘留
+                // 1. 如果地圖上已有該隊員的老定位點，先從地圖上拔除
                 if (peerGPSMarkers[pName]) {
                     map.removeLayer(peerGPSMarkers[pName]);
                 }
                 
-                // 在地圖上精準釘上該隊員的「戰術螢光綠小圓點」與誤差半透明光圈
-                peerGPSMarkers[pName] = L.layerGroup([
-                    L.circle(pLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 }), // 核心小圓點
-                    L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 }) // 精度誤差圈
-                ]).addTo(map);
+                // 2. 建立隊員的核心綠色小圓點，並【直接在小圓點身上】綁定永久顯示的發光戰術標籤
+                const peerCenterDot = L.circle(pLatLng, { 
+                    radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 
+                }).bindTooltip(`${pName} 🛰️`, { 
+                    permanent: true, direction: 'top', className: 'tactical-tooltip' 
+                });
                 
-                // 頭頂常駐極簡字體標籤，直觀標示對方身分
-                peerGPSMarkers[pName].bindTooltip(`${pName} 🛰️`, { permanent: true, direction: 'top', className: 'tactical-tooltip' });
+                // 3. 建立外圍的半透明精度誤差圈
+                const peerAccuracyCircle = L.circle(pLatLng, { 
+                    radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 
+                });
+
+                // 4. 將兩個向量實體打包並一併畫上地圖，寫入快取中
+                peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
             });
 
             socket.on('object_added', data => renderObjectOnMap(data));
@@ -421,10 +420,10 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 在地圖幾何物體正中央綁定常駐型戰術文字標籤，不需要重複點擊圖案
+            // 💡 在地圖幾何圖形正中央綁定常駐型黑底綠字標籤，24小時不需點擊直接秀出情資
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
 
-            // 📌 錨點流暢拖曳平移與同步算法
+            // 📌 錨點流暢拖曳平移與時間連動算法
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
@@ -457,14 +456,14 @@
                         const dumpPoints = function(points) { return points.map(p => { if (Array.isArray(p)) return dumpPoints(p); return [p.lat, p.lng]; }); };
                         data.coordinates = dumpPoints(mainLayer.getLatLngs());
                     }
-                    data.time = getFormattedTime(); // 移動圖案完成時連動更新異動時間
+                    data.time = getFormattedTime(); // 移動完成重寫最後異動時間
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
                 });
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
-                    data.time = getFormattedTime(); // 移動大頭針完成時連動更新異動時間
+                    data.time = getFormattedTime(); // 移動大頭針完成時重寫最後異動時間
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
                 });
             }
@@ -516,7 +515,6 @@
             }
         }
 
-        // 💡 支援所有圖形（含標點 📍）同時儲存新描述與顏色的數據逆向打包核心
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
@@ -567,7 +565,7 @@
             }
         }
 
-        // 💡 索取本機 GPS，畫出自己綠色追蹤圈，並同步透過 Socket 廣播分發座標給全房間
+        // 💡 索取本機 GPS，畫出自己綠色追蹤圈（整合自己也永久看得到 ID），並同步透過 Socket 廣播分發座標給全房間
         let myLocationMarker = null;
         function locateUserGPS() {
             if (!navigator.geolocation) {
@@ -585,15 +583,23 @@
 
                     if (myLocationMarker) map.removeLayer(myLocationMarker);
 
-                    // 1. 在自己畫面上畫出個人綠色追蹤核心點
-                    myLocationMarker = L.layerGroup([
-                        L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }),
-                        L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 })
-                    ]).addTo(map);
+                    // 1. 建立自己的核心綠色小圓點，並【直接在小圓點身上】綁定永久顯示的發光戰術標籤
+                    const myCenterDot = L.circle(currentLatLng, { 
+                        radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 
+                    }).bindTooltip(`${currentUser} (您) 🛰️`, { 
+                        permanent: true, direction: 'top', className: 'tactical-tooltip' 
+                    });
 
-                    // 2. 視角大推移平移
+                    // 2. 建立自己外圍的半透明精度誤差圈
+                    const myAccuracyCircle = L.circle(currentLatLng, { 
+                        radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 
+                    });
+
+                    // 3. 將兩個向量實體打包並一併畫上地圖，寫入快取中
+                    myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
+
+                    // 4. 視角大推移平移
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
-                    myLocationMarker.bindPopup(`<b>🛰️ GPS 戰術定位成功</b><br><small style="color:gray;">誤差半徑：約 ${Math.round(accuracy)} 公尺</small>`).openPopup();
                     
                     // ⚡【核心廣播黑科技】：定位成功當下，秒級向房間廣播：「我小明在線，小圓點釘在這邊！」
                     if (socket) {
