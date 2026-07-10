@@ -426,7 +426,7 @@
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
             // 💡 在幾何圖形正中央綁定永久懸浮的黑底綠框戰術高反差文字標籤
-            mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
+            mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
             // 📌 穩固雙控制針核心：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
                 // 1. 中心平移針 (📌)
@@ -499,6 +499,7 @@
                 }
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
+                mainLayer.on('click', function() { mainLayer.openPopup(); });
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                     data.time = getFormattedTime();
