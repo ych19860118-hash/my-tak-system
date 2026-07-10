@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>戰術防災分組協同即時地圖</title>
+    <title>指管協作平台</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -86,12 +86,12 @@
         <h2>TAC-MAP SYSTEM</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         <select id="room-select" onchange="checkRoomType()">
-            <option value="public_1">PUBLIC CHANNEL 01</option>
-            <option value="public_2">PUBLIC CHANNEL 02</option>
-            <option value="custom">SECURE PRIVATE ROOM...</option>
+            <option value="public_1">公開頻道(TW1)</option>
+            <option value="public_2">公開頻道(TW2)</option>
+            <option value="custom">新增私人指管平台</option>
         </select>
-        <input type="text" id="custom-room-name" placeholder="ENTER NEW ROOM ID" style="display:none;">
-        <input type="password" id="room-password" placeholder="SECURE ACCESS KEY (密碼)">
+        <input type="text" id="custom-room-name" placeholder="輸入頻道名稱" style="display:none;">
+        <input type="password" id="room-password" placeholder="輸入頻道密碼">
         <button onclick="login()">DEPLOY TO MAP</button>
         <p id="login-error"></p>
     </div>
@@ -129,11 +129,11 @@
     <!-- 右下角狀態欄 -->
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <div id="typhoon-info">
-        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b>
+        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">頻道名: <span id="state-room" style="color:#39ff14;"></span></b>
         <div style="margin-top: 8px;">
-            STATUS: <b style="color:#39ff14;">ACTIVE</b><br>
-            ONLINE MARSHALS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b><br>
-            <span style="color:#718096; font-size:10px; display:block; margin-top:5px; line-height:1.4;">[SYS_WARN] Auto-wipe sequence triggers after 10 mins of total room vacancy.</span>
+            狀態: <b style="color:#39ff14;">ACTIVE</b><br>
+            在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b><br>
+            <span style="color:#718096; font-size:10px; display:block; margin-top:5px; line-height:1.4;">[警告] 頻道內若10分鐘無用戶，系統自動清除資訊及頻道</span>
         </div>
     </div>
     <div id="map"></div>
@@ -213,7 +213,7 @@
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
-                    const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
+                    const msg = prompt("請輸入位置回報狀況說明：") || "未命名位置";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff",
@@ -228,7 +228,7 @@
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 2) {
-                        const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
+                        const msg = prompt("請輸入該區域說明：") || "未命名區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff",
@@ -245,7 +245,7 @@
                         const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
-                        const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
+                        const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
                             radius: radius, message: msg, creator: currentUser, color: "#3388ff",
@@ -258,13 +258,13 @@
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
                     else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製/長按螢幕", {permanent: true}).openTooltip();
                 }
             });
 
             map.on('contextmenu', function() {
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
-                    const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
+                    const msg = prompt("請輸入線條說明：") || "未命名線條";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff",
@@ -272,7 +272,7 @@
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
-                    const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
+                    const msg = prompt("請輸入區域範圍說明：") || "未命名多邊形";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff",
@@ -291,7 +291,7 @@
             let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
 
             if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
-            if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂房間名稱！"; return; }
+            if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂頻道名稱！"; return; }
             
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
@@ -433,14 +433,14 @@
                         <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
-                        <small style="color:gray;">回報人員身分: ${data.creator}</small><br><br>
-                        <small style="color:#ff4d4d;">🔒 唯讀模式：您非創作者，無法修改此處。</small>
+                        <small style="color:gray;">回報人員: ${data.creator}</small><br><br>
+                        <small style="color:#ff4d4d;">🔒 唯讀模式：您非回報者，無法修改。</small>
                     </div>`;
             }
             mainLayer.bindPopup(popupContent);
         }
         function deleteObject(objectId) {
-            if (confirm("確定要撤銷這個災情回報嗎？")) {
+            if (confirm("確定要撤銷這個回報嗎？")) {
                 if (allMapLayers[objectId]) {
                     map.removeLayer(allMapLayers[objectId].layer);
                     if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
