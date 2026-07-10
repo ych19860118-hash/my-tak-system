@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>戰術防災分組協同即時地圖</title>
+    <title>COP System協同情資地圖</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -107,9 +107,9 @@
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         
         <select id="room-select" onchange="checkRoomType()">
-            <option value="public_1">公開頻道(風災)</option>
-            <option value="public_2">公開頻道(震災)</option>
-            <option value="custom">新增私人指管頻道...</option>
+            <option value="公開頻道(風災)">公開頻道(風災)</option>
+            <option value="公開頻道(震災)">公開頻道(震災)</option>
+            <option value="custom">新增私人頻道...</option>
         </select>
         
         <input type="text" id="custom-room-name" placeholder="ENTER NEW ROOM ID" style="display:none;">
@@ -171,7 +171,7 @@
         <div style="margin-top: 8px;">
             STATUS: <b style="color:#39ff14;">ACTIVE</b><br>
             ONLINE MARSHALS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b><br>
-            <span style="color:#718096; font-size:10px; display:block; margin-top:5px; line-height:1.4;">[SYS_WARN] Auto-wipe sequence triggers after 10 mins of total room vacancy.</span>
+            <span style="color:#718096; font-size:10px; display:block; margin-top:5px; line-height:1.4;">[SYS_WARN] 頻道10分鐘後無任何用戶，系統將自動刪除頻道!.</span>
         </div>
     </div>
     <div id="map"></div>
@@ -253,7 +253,7 @@
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
-                    const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
+                    const msg = prompt("請輸入位置狀況說明：") || "未命名位置";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff",
@@ -268,7 +268,7 @@
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 2) {
-                        const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
+                        const msg = prompt("請輸入該區域說明：") || "未命名區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff",
@@ -285,7 +285,7 @@
                         const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
-                        const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
+                        const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
                             radius: radius, message: msg, creator: currentUser, color: "#3388ff",
@@ -298,13 +298,13 @@
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
                     else tempShape.setLatLngs(tempPoints);
-                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製/手機用戶請長按", {permanent: true}).openTooltip();
                 }
             });
 
             map.on('contextmenu', function() {
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
-                    const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
+                    const msg = prompt("請輸入線條說明：") || "未命名線條";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff",
@@ -312,7 +312,7 @@
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
-                    const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
+                    const msg = prompt("請輸入區域範圍說明：") || "未命名多邊形";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff",
@@ -331,7 +331,7 @@
             let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
 
             if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
-            if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂房間名稱！"; return; }
+            if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂頻道名稱！"; return; }
             
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
@@ -375,7 +375,7 @@
                 
                 const peerCenterDot = L.circle(pLatLng, { 
                     radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 
-                }).bindTooltip(`${pName} 🛰️`, { 
+                }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${pName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { 
                     permanent: true, direction: 'top', className: 'tactical-tooltip' 
                 });
                 
@@ -514,10 +514,10 @@
                         <div style="${isMarker ? 'display: none;' : ''}">
                             <label>等級變更：</label>
                             <select id="edit-color-${data.id}">
-                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般回報)</option>
-                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (嚴重中斷/火災)</option>
-                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (已搶通/通行)</option>
-                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (積水/警告)</option>
+                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (ex:一般回報)</option>
+                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (ex:嚴重中斷/火災)</option>
+                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (ex:已搶通/通行)</option>
+                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (ex:積水/警告)</option>
                             </select>
                         </div>
                         <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
@@ -646,7 +646,7 @@
 
                     const myCenterDot = L.circle(currentLatLng, { 
                         radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 
-                    }).bindTooltip(`${currentUser} (您) 🛰️`, { 
+                    }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${currentUser} (您) <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { 
                         permanent: true, direction: 'top', className: 'tactical-tooltip' 
                     });
 
