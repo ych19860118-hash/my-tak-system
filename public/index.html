@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>指管共同圖像平台</title>
+    <title>颱風防災分組協同即時地圖</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -66,16 +66,16 @@
 
     <!-- 多功能分房登入介面 -->
     <div id="login-box">
-        <h2>WEBTAK</h2>
+        <h2>應變協同中心</h2>
         <input type="text" id="username" placeholder="請輸入您的通報暱稱">
         <select id="room-select" onchange="checkRoomType()">
-            <option value="public_1">公開應變頻道(TW-1)</option>
-            <option value="public_2">公開應變頻道(TW-2)</option>
-            <option value="custom">自訂私有應變房...</option>
+            <option value="public_1">公開應變頻道 1</option>
+            <option value="public_2">公開應變頻道 2</option>
+            <option value="custom">自訂專屬私有應變房...</option>
         </select>
         <input type="text" id="custom-room-name" placeholder="請設定您的私有房號 (例: hsinchu_99)" style="display:none;">
         <input type="password" id="room-password" placeholder="請輸入該房進入密碼 (選填)">
-        <button onclick="login()">進入地圖</button>
+        <button onclick="login()">進入防災地圖</button>
         <p id="login-error"></p>
     </div>
 
@@ -92,8 +92,8 @@
     <div id="typhoon-info">
         <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
         <div style="margin-top: 6px; line-height: 1.5;">
-            🟢 線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
-            <span style="color:gray; font-size:11px;">⚠️ 提示：超過 10 分鐘無人在線上，系統自動清空資訊</span>
+            🟢 當前線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
+            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房。雙擊地圖可滿螢幕操作。</span>
         </div>
     </div>
     <div id="map"></div>
@@ -165,7 +165,7 @@
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
-                    const msg = prompt("請輸入位置回報狀況說明：") || "未命名位置";
+                    const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff" 
@@ -179,7 +179,7 @@
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 2) {
-                        const msg = prompt("請輸入該區域說明：") || "未命名區域";
+                        const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff"
@@ -195,7 +195,7 @@
                         const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
                         const edgePoint = L.latLng(lat, lng);
                         const radius = map.distance(centerPoint, edgePoint);
-                        const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形區域";
+                        const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
                             radius: radius, message: msg, creator: currentUser, color: "#3388ff"
@@ -213,14 +213,14 @@
 
             map.on('contextmenu', function() {
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
-                    const msg = prompt("請輸入線條說明：") || "未命名線條";
+                    const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
-                    const msg = prompt("請輸入區域範圍說明：") || "未命名多邊形";
+                    const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff"
@@ -237,7 +237,7 @@
             const customRoom = document.getElementById('custom-room-name').value.trim();
             let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
 
-            if(!userIn) { document.getElementById('login-error').innerText = "您的通報暱稱！"; return; }
+            if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
             if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂房間名稱！"; return; }
             
             try {
@@ -348,6 +348,7 @@
                 });
             }
 
+            // 🔒 獨立權限 Popup 對話框
             let popupContent = "";
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
@@ -371,17 +372,16 @@
             } else {
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 回報狀況</b><br><br>
+                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br><br>
                         <b>內容：</b>${data.message}<br>
-                        <small style="color:gray;">回報人員: ${data.creator}</small><br><br>
+                        <small style="color:gray;">回報人員身分: ${data.creator}</small><br><br>
                         <small style="color:#ff4d4d;">🔒 唯讀模式：您非創作者，無法修改此處。</small>
                     </div>`;
             }
             mainLayer.bindPopup(popupContent);
         }
-
         function deleteObject(objectId) {
-            if (confirm("確定要撤銷這個回報嗎？")) {
+            if (confirm("確定要撤銷這個災情回報嗎？")) {
                 if (allMapLayers[objectId]) {
                     map.removeLayer(allMapLayers[objectId].layer);
                     if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
@@ -391,31 +391,35 @@
             }
         }
 
+        // 💡【終極修正完全體】：支援 📍標記點 與所有幾何圖形同時更新描述與顏色的核心黑科技
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
             
             if (allMapLayers[objectId]) {
                 const layerGroup = allMapLayers[objectId];
-                const isCircle = !!layerGroup.layer.options.radius;
-                const isRect = !isCircle && layerGroup.layer.getBounds && typeof layerGroup.layer.getLatLngs !== 'function';
+                
+                const isMarker = (layerGroup.layer instanceof L.Marker);
+                const isCircle = !isMarker && !!layerGroup.layer.options.radius;
+                const isRect = !isMarker && !isCircle && layerGroup.layer.getBounds && typeof layerGroup.layer.getLatLngs !== 'function';
                 
                 let sType = "polygon";
-                if (isCircle) sType = "circle";
+                if (isMarker) sType = "marker";
+                else if (isCircle) sType = "circle";
                 else if (isRect) sType = "rectangle";
                 else if (layerGroup.layer instanceof L.Polyline && !(layerGroup.layer instanceof L.Polygon)) sType = "polyline";
 
                 const updatedData = {
                     id: objectId,
                     shapeType: sType,
-                    coordinates: isCircle ? [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng] : null,
+                    coordinates: isMarker || isCircle ? [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng] : null,
                     radius: isCircle ? layerGroup.layer.options.radius : null,
                     message: newMsg,
                     color: newColor, 
                     creator: currentUser
                 };
 
-                if (!isCircle) {
+                if (!isMarker && !isCircle) {
                     const dumpPoints = function(points) {
                         return points.map(p => {
                             if (Array.isArray(p)) return dumpPoints(p);
@@ -425,11 +429,15 @@
                     updatedData.coordinates = dumpPoints(layerGroup.layer.getLatLngs());
                 }
 
+                // 強行拔除舊顏色、舊描述之舊圖層
                 map.removeLayer(layerGroup.layer);
                 if (layerGroup.pin) map.removeLayer(layerGroup.pin);
                 delete allMapLayers[objectId];
 
+                // 重新渲染最新修改的完全體數據
                 renderObjectOnMap(updatedData);
+                
+                // 向同應變頻道全員廣播秒級更新
                 socket.emit('delete_object', objectId);
                 socket.emit('new_object', updatedData);
             }
