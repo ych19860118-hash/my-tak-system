@@ -127,6 +127,7 @@
         </div>
     </div>
     <div id="map"></div>
+
     <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
@@ -368,28 +369,29 @@
             const displayTime = data.time || "無紀錄";
 
             if (isMyObject) {
+                // 💡 修正：為所有圖形類型補上名稱與顏色表單欄位
                 popupContent = `
                     <div class="popup-menu">
-                        <b>編輯您回報的災情</b><br>
+                        <b>編輯您回報的圖形/災情</b><br>
                         <small style="color:gray;">最後異動：${displayTime}</small><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
                         <div>
-                            <label>等級變更：</label>
+                            <label>等級/顏色變更：</label>
                             <select id="edit-color-${data.id}">
-                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般回報)</option>
-                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (嚴重中斷)</option>
-                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (道路搶通)</option>
-                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (積水警告)</option>
+                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
+                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
+                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
+                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
                             </select>
                         </div>
                         <button onclick="updateObject('${data.id}')">儲存修改</button>
-                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此回報</button>
+                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
             } else {
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br>
+                        <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報身分: ${data.creator}</small>
@@ -415,7 +417,7 @@
         }
 
         function deleteObject(objectId) {
-            if (confirm("確定要撤銷這個災情回報嗎？")) {
+            if (confirm("確定要撤銷這個圖形回報嗎？")) {
                 if (allMapLayers[objectId]) {
                     map.removeLayer(allMapLayers[objectId].layer);
                     if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
