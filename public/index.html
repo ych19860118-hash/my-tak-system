@@ -92,7 +92,6 @@
     </style>
 </head>
 <body>
-    <!-- 災害情資平台：戰術應變登入艙介面 -->
     <div id="login-box">
         <h2>COP SYSTEM情資平台</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
@@ -107,7 +106,6 @@
         <p id="login-error"></p>
     </div>
 
-    <!-- 自製左側垂直指管工具列 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">📈</button>
@@ -117,7 +115,6 @@
         <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 15px !important; border-color: #22c55e !important;">🛰️</button>
     </div>
 
-    <!-- 戰術終端機人數面板隱藏標籤 -->
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <div id="typhoon-info">
         <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b>
@@ -369,7 +366,6 @@
             const displayTime = data.time || "無紀錄";
 
             if (isMyObject) {
-                // 💡 修正：為所有圖形類型補上名稱與顏色表單欄位
                 popupContent = `
                     <div class="popup-menu">
                         <b>編輯您回報的圖形/災情</b><br>
@@ -443,12 +439,12 @@
                 let currentCoordinates = null, currentRadius = null;
                 if (isCircle) {
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
-                } else if (isRect || isMarker) {
+                } else if (isRect) {
+                    // 💡 修正：使用 getBounds() 正確抓取矩形邊界，避免呼叫不存在的 getLatLng()
+                    const b = cache.layer.getBounds();
+                    currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                } else if (isMarker) {
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
-                    if (!isMarker) {
-                        const b = cache.layer.getBounds();
-                        currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-                    }
                 } else {
                     const rawLatLngs = cache.layer.getLatLngs();
                     currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
