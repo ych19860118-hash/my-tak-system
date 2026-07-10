@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>戰術防災分組協同即時地圖</title>
+    <title>COP System協同地理圖資</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -109,16 +109,16 @@
 </head>
 <body>
     <div id="login-box">
-        <h2>COP SYSTEM情資平台</h2>
+        <h2>COP System協同地理圖資</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         <select id="room-select" onchange="checkRoomType()">
-            <option value="public_1">公開頻道(風災)</option>
-            <option value="public_2">公開頻道(震災)</option>
-            <option value="custom">新增私人指管頻道...</option>
+            <option value="公開頻道(風災)">公開頻道(風災)</option>
+            <option value="公開頻道(震災)">公開頻道(震災)</option>
+            <option value="custom">新增私用頻道...</option>
         </select>
         <input type="text" id="custom-room-name" placeholder="ENTER NEW ROOM ID" style="display:none;">
         <input type="password" id="room-password" placeholder="SECURE ACCESS KEY (密碼)">
-        <button onclick="login()">進入情資地圖</button>
+        <button onclick="login()">ENTER</button>
         <p id="login-error"></p>
     </div>
 
@@ -145,10 +145,10 @@
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <div id="typhoon-info">
-        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b>
+        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">頻道名稱: <span id="state-room" style="color:#39ff14;"></span></b>
         <div style="margin-top: 8px;">
-            STATUS: <b style="color:#39ff14;">ACTIVE</b><br>
-            ONLINE OPERATORS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
+            狀態: <b style="color:#39ff14;">ACTIVE</b><br>
+            在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
         </div>
     </div>
     <div id="map"></div>
@@ -197,7 +197,7 @@
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
-                    const msg = prompt("請輸入災情狀況：") || "未命名災情";
+                    const msg = prompt("請輸入位置狀況：") || "未命名位置";
                     const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
@@ -236,7 +236,7 @@
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
-                const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入多邊形說明：") || "未命名圖形";
+                const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
                 const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
                 if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
             });
@@ -420,7 +420,7 @@
                         <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
-                        <small style="color:gray;">回報身分: ${data.creator}</small>
+                        <small style="color:gray;">回報員: ${data.creator}</small>
                     </div>`;
             }
             mainLayer.bindPopup(popupContent);
