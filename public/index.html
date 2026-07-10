@@ -8,7 +8,21 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Courier New', Courier, monospace, sans-serif; background-color: #0d0e10; }
+       body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            width: 100%; 
+            font-family: 'Courier New', Courier, monospace, sans-serif; 
+            background-color: #0b0c0e; /* 網格底色 */
+            
+            /* ⚡ 戰術雷達網格核心：每 30 像素產生一條微弱的螢光綠電子定位線 */
+            background-image: 
+                linear-gradient(rgba(34, 197, 94, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 197, 94, 0.04) 1px, transparent 1px);
+            background-size: 30px 30px; /* 網格大小設定 */
+            background-position: center;
+        }
         #map { width: 100%; height: 100vh; display: none; background: #111214; } 
         
         /* ⚡ 全新升級：軍用雷達戰術風登入艙 */
