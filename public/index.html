@@ -352,7 +352,7 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-                function initSocketAndLayers() {
+                       function initSocketAndLayers() {
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
 
@@ -366,7 +366,6 @@
                 document.getElementById('state-count').innerText = count;
             });
 
-            // 💡【核心防護】：將別人位置的戰術標籤直接綁在核心小圓點身上，並掛上極簡細線向量雷達波
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username;
@@ -379,7 +378,7 @@
                 const peerCenterDot = L.circle(pLatLng, { 
                     radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 
                 }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${pName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { 
-                    permanent: true, direction: 'top', className: 'tactical-tooltip' 
+                    permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false 
                 });
                 
                 const peerAccuracyCircle = L.circle(pLatLng, { 
@@ -406,7 +405,17 @@
             const pts = data.coordinates;
 
             if (data.shapeType === "marker") {
-                mainLayer = L.marker(pts); centerLatLng = L.latLng(pts);
+                // 💡【大頭針 SVG 魔改大腦】：強行將原本死板的藍色大頭針，升級為純 SVG 細線水滴向量戰術通報針！
+                // 它能直接讀取資料庫裡的十六進位顏色碼（data.color），讓大頭針跟其他範圍工具一樣，點調色盤什麼顏色就秒變什麼顏色！
+                const svgColor = data.color || "#3388ff";
+                const customMarkerIcon = L.divIcon({
+                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); transform: translate(-10px, -36px);"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                    className: 'tactical-svg-marker',
+                    iconSize:,
+                    iconAnchor: [15, 42]
+                });
+                mainLayer = L.marker(pts, { icon: customMarkerIcon }); 
+                centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
@@ -424,10 +433,10 @@
             mainLayer.addTo(map);
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
-
-            // 💡 在幾何圖形正中央綁定永久懸浮的黑底綠框戰術高反差文字標籤
+            // 在物件（幾何圖形或大頭針水滴）正中央強制綁定永久懸浮的黑底綠框戰術發光標籤
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
-            // 📌 穩固雙控制針核心：📌負責平移、📐負責手動拉伸縮放尺寸
+
+            // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸放大縮小尺寸
             if (isMyObject && data.shapeType !== "marker") {
                 // 1. 中心平移針 (📌)
                 const controlPin = L.marker(centerLatLng, {
@@ -436,7 +445,7 @@
                 }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
 
-                // ⚡【終極解鎖連動】：當使用者點選圖形正中央的 📌 針時，強行命令它直接代為彈出底下的編輯與調色盤選單！
+                // 點擊中央的 📌 針時，強行命令它直接代為彈出底下的編輯與調色盤選單！
                 controlPin.on('click', function() {
                     mainLayer.openPopup(centerLatLng);
                 });
@@ -498,8 +507,8 @@
                     });
                 }
             } else if (isMyObject && data.shapeType === "marker") {
+                // 💡【大頭針專屬平移與彈窗解鎖】：讓大頭針支援拖曳平移更新，放開滑鼠即刻同步
                 mainLayer.dragging.enable();
-                mainLayer.on('click', function() { mainLayer.openPopup(); });
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                     data.time = getFormattedTime();
@@ -507,20 +516,14 @@
                 });
             }
 
-            // ⚡【標點工具彈窗修復大腦】：精準分流幾何物件與 Marker 大頭針的點擊事件！
-            // 如果點到的是標點工具，就直接呼叫 openPopup() 讓對話框原地彈出，100% 復活改名與撤銷功能！
+            // ⚡【穿透與彈窗分流】：不管是點擊物件本體、大頭針文字框，都能原地滿血彈出 Popup 編輯窗
             mainLayer.on('click', function() {
-                if (data.shapeType === "marker") {
-                    mainLayer.openPopup(); // 💡 標點工具專用：不傳入 centerLatLng，原地滿血彈出！
-                } else {
-                    mainLayer.openPopup(centerLatLng); // 幾何圖形專用
-                }
+                mainLayer.openPopup(centerLatLng);
             });
 
-            // 💡【戰術面板注入】：在 Popup 對話框內完美內嵌一個原生 HTML5 數位戰術調色盤
+            // 💡【戰術全對等面板】：現在不論是大頭針還是範圍工具，創作者通通可以在這裡一秒修改描述、呼叫調色盤變色、撤銷刪除！
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
-            const isMarker = (data.shapeType === "marker");
 
             if (isMyObject) {
                 popupContent = `
@@ -529,12 +532,12 @@
                         <small style="color:#22c55e;">最後異動時間：${displayTime}</small><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        <div style="margin-bottom: 12px; ${isMarker ? 'display: none;' : 'display: flex; align-items: center; gap: 8px;'}">
+                        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                             <label>戰術調色盤：</label>
                             <input type="color" id="edit-color-${data.id}" value="${data.color || '#3388ff'}" style="width: 45px; height: 28px; padding: 0; border: 1px solid #2d3748; background: none; cursor: pointer; border-radius: 2px;">
                         </div>
                         <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
-                        <button onclick="deleteObject('${data.id}')" style="margin-top:5px; background:#e53e3e;">撤銷回報</button>
+                        <button onclick="deleteObject('${data.id}')" style="margin-top:5px; background:#e53e3e;">撤銷此回報</button>
                     </div>`;
             } else {
                 popupContent = `
@@ -559,7 +562,7 @@
                 currentCoordinates = mainLayer.getLatLngs().map(p => [p.lat, p.lng]);
             }
             data.time = getFormattedTime();
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color, creator: currentUser, time: data.time };
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, creator: currentUser, time: data.time };
             socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
 
@@ -575,31 +578,44 @@
             }
         }
 
-        // 💡【調色盤資料對接大腦】：精準讀取 HTML5 Color Picker 選中的顏色，並逆向同步給全房間
+        // 💡【調色盤全對接大腦】：不論是大頭針、圓形或長方形，點儲存修改時一律自動重構渲染並同步色彩！
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             if (allMapLayers[objectId]) {
                 const cache = allMapLayers[objectId];
                 const isCircle = !!cache.layer.options.radius;
                 const isRect = !isCircle && cache.layer instanceof L.Rectangle;
-                let sType = "polygon"; if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle";
+                const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
+                
+                let sType = "polygon"; 
+                if (isCircle) sType = "circle"; 
+                else if (isRect) sType = "rectangle";
+                else if (isMarker) sType = "marker";
 
-                // 💡 核心行：自動抓取調色盤的最新色彩十六進位碼（如 #ff0000）
+                // 自動抓取調色盤的最新色彩十六進位碼（如 #ff0000）
                 const newColor = document.getElementById(`edit-color-${objectId}`) ? document.getElementById(`edit-color-${objectId}`).value : '#3388ff';
 
                 let currentCoordinates = null, currentRadius = null;
                 if (isCircle) {
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
-                } else if (isRect) {
-                    const b = cache.layer.getBounds();
-                    currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                } else if (isRect || isMarker) {
+                    if (isMarker) {
+                        currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
+                    } else {
+                        const b = cache.layer.getBounds();
+                        currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                    }
                 } else {
                     currentCoordinates = cache.layer.getLatLngs().map(p => [p.lat, p.lng]);
                 }
 
                 const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: newMsg, color: newColor, creator: currentUser, time: getFormattedTime() };
-                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
+                
+                map.removeLayer(cache.layer); 
+                if (cache.pin) map.removeLayer(cache.pin); 
+                if (cache.resizePin) map.removeLayer(cache.resizePin);
                 delete allMapLayers[objectId];
+                
                 renderObjectOnMap(updatedData);
                 socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
             }
@@ -621,7 +637,7 @@
                     const currentLatLng = L.latLng(userLat, userLng);
                     if (myLocationMarker) map.removeLayer(myLocationMarker);
 
-                    const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${currentUser} (您) <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { permanent: true, direction: 'top', className: 'tactical-tooltip' });
+                    const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${currentUser} (您) <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
                     const myAccuracyCircle = L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 });
                     myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
