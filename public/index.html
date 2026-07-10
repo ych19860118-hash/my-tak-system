@@ -87,7 +87,7 @@
             max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
 
-        /* 💡 戰術半透明地圖常駐文字標籤：完美融入暗色系，字體清晰且不擋地圖路網 */
+        /* 💡 戰術半透明地圖常駐文字標籤 */
         .tactical-tooltip {
             background: rgba(20, 22, 25, 0.8) !important; border: 1px solid #22c55e !important;
             color: #39ff14 !important; font-weight: bold; font-family: monospace;
@@ -102,7 +102,6 @@
         <h2>COP SYSTEM情資平台</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         
-        <!-- 💡 完美對齊修正版：將 value 與後端 100% 獨立串接分流 -->
         <select id="room-select" onchange="checkRoomType()">
             <option value="public_1">公開頻道(風災)</option>
             <option value="public_2">公開頻道(震災)</option>
@@ -148,7 +147,7 @@
                 <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
             </svg>
         </button>
-        <!-- 💡 6. 🛰️ 戰術 GPS 雷達定位按鈕 -->
+        <!-- 6. 🛰️ 戰術 GPS 雷達定位按鈕 -->
         <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 15px !important; background: #1a1d21 !important; border-color: #22c55e !important;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -197,7 +196,7 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 💡 建立白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
+            // 建立標準白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
             map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
@@ -250,7 +249,7 @@
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
                         message: msg, creator: currentUser, color: "#3388ff",
-                        time: getFormattedTime() // 自動綁定首發通報時間
+                        time: getFormattedTime() 
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline') {
@@ -265,7 +264,7 @@
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: JSON.parse(JSON.stringify(tempPoints)), 
                             message: msg, creator: currentUser, color: "#3388ff",
-                            time: getFormattedTime() // 自動綁定首發通報時間
+                            time: getFormattedTime() 
                         };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
@@ -282,7 +281,7 @@
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
                             radius: radius, message: msg, creator: currentUser, color: "#3388ff",
-                            time: getFormattedTime() // 自動綁定首發通報時間
+                            time: getFormattedTime() 
                         };
                         if (tempShape) map.removeLayer(tempShape); 
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -301,7 +300,7 @@
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff",
-                        time: getFormattedTime() // 自動綁定首發通報時間
+                        time: getFormattedTime() 
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
@@ -309,7 +308,7 @@
                     const data = {
                         id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff",
-                        time: getFormattedTime() // 自動綁定首發通報時間
+                        time: getFormattedTime() 
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 }
@@ -356,6 +355,27 @@
                 document.getElementById('state-count').innerText = count;
             });
 
+            // 💡【全新即時連線核心】：當收到頻道內其他在線隊員發送 GPS 時，原地畫上或更新他們的雷達小圓點
+            let peerGPSMarkers = {}; 
+            socket.on('peer_gps_updated', function(gpsData) {
+                const pName = gpsData.username;
+                const pLatLng = L.latLng(gpsData.lat, gpsData.lng);
+                
+                // 如果畫面上已經有該隊員的舊圓點，先拔除乾淨，防止多裝置殘留
+                if (peerGPSMarkers[pName]) {
+                    map.removeLayer(peerGPSMarkers[pName]);
+                }
+                
+                // 在地圖上精準釘上該隊員的「戰術螢光綠小圓點」與誤差半透明光圈
+                peerGPSMarkers[pName] = L.layerGroup([
+                    L.circle(pLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 }), // 核心小圓點
+                    L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 }) // 精度誤差圈
+                ]).addTo(map);
+                
+                // 頭頂常駐極簡字體標籤，直觀標示對方身分
+                peerGPSMarkers[pName].bindTooltip(`${pName} 🛰️`, { permanent: true, direction: 'top', className: 'tactical-tooltip' });
+            });
+
             socket.on('object_added', data => renderObjectOnMap(data));
             socket.on('object_deleted', id => {
                 if (allMapLayers[id]) {
@@ -391,10 +411,10 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null };
 
-            // 💡 在地圖物體中央綁定常駐型半透明黑底綠字標籤，24小時不需點擊直接秀出情資
+            // 在地圖幾何物體正中央綁定常駐型戰術文字標籤，不需要重複點擊圖案
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
 
-            // 📌 錨點流暢拖曳平移與時間連動算法
+            // 📌 錨點流暢拖曳平移與同步算法
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
@@ -427,14 +447,14 @@
                         const dumpPoints = function(points) { return points.map(p => { if (Array.isArray(p)) return dumpPoints(p); return [p.lat, p.lng]; }); };
                         data.coordinates = dumpPoints(mainLayer.getLatLngs());
                     }
-                    data.time = getFormattedTime(); // 移動後重寫最後異動時間
+                    data.time = getFormattedTime(); // 移動圖案完成時連動更新異動時間
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
                 });
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
-                    data.time = getFormattedTime(); // 移動後重寫最後異動時間
+                    data.time = getFormattedTime(); // 移動大頭針完成時連動更新異動時間
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
                 });
             }
@@ -442,7 +462,6 @@
             // 🔒 獨立權限 Popup 對話框判定分流
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
-            
             if (isMyObject) {
                 const isMarker = (data.shapeType === "marker");
                 popupContent = `
@@ -475,6 +494,7 @@
             }
             mainLayer.bindPopup(popupContent);
         }
+
         function deleteObject(objectId) {
             if (confirm("確定要撤銷這個災情回報嗎？")) {
                 if (allMapLayers[objectId]) {
@@ -486,7 +506,7 @@
             }
         }
 
-        // 💡 儲存修改時，自動注入最新異動時間與新顏色，並透過 Socket 秒級刷新
+        // 💡 支援所有圖形（含標點 📍）同時儲存新描述與顏色的數據逆向打包核心
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
@@ -509,7 +529,7 @@
                     coordinates: isMarker || isCircle ? [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng] : null,
                     radius: isCircle ? layerGroup.layer.options.radius : null,
                     message: newMsg, color: newColor, creator: currentUser,
-                    time: getFormattedTime() // 儲存修改時自動注入最新時間戳記
+                    time: getFormattedTime() 
                 };
 
                 if (!isMarker && !isCircle) {
@@ -537,7 +557,7 @@
             }
         }
 
-        // 💡 【全新功能】：索取手機晶片最高精度 GPS 座標，原地畫上雷達波紋圈並推移地圖焦點
+        // 💡 索取本機 GPS，畫出自己綠色追蹤圈，並同步透過 Socket 廣播分發座標給全房間
         let myLocationMarker = null;
         function locateUserGPS() {
             if (!navigator.geolocation) {
@@ -555,14 +575,21 @@
 
                     if (myLocationMarker) map.removeLayer(myLocationMarker);
 
+                    // 1. 在自己畫面上畫出個人綠色追蹤核心點
                     myLocationMarker = L.layerGroup([
-                        L.circle(currentLatLng, { radius: 15, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9 }),
+                        L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }),
                         L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 })
                     ]).addTo(map);
 
+                    // 2. 視角大推移平移
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
                     myLocationMarker.bindPopup(`<b>🛰️ GPS 戰術定位成功</b><br><small style="color:gray;">誤差半徑：約 ${Math.round(accuracy)} 公尺</small>`).openPopup();
                     
+                    // ⚡【核心廣播黑科技】：定位成功當下，秒級向房間廣播：「我小明在線，小圓點釘在這邊！」
+                    if (socket) {
+                        socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
+                    }
+
                     locateBtn.style.background = '#141619';
                 },
                 function(error) {
