@@ -101,7 +101,7 @@
     </style>
 </head>
 <body>
-    <!-- COP SYSTEM 災害情資平台：戰術風應變登入艙介面 -->
+<!-- COP SYSTEM 災害情資平台：戰術風應變登入艙介面 -->
     <div id="login-box">
         <h2>COP SYSTEM情資平台</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
@@ -175,7 +175,7 @@
         </div>
     </div>
     <div id="map"></div>
-    <script>
+        <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
@@ -242,7 +242,7 @@
                 if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
             }
         }
-        function initDrawingEvents() {
+             function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -351,14 +351,60 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-                function renderObjectOnMap(data) {
+              function initSocketAndLayers() {
+            socket = io(SERVER_URL);
+            socket.emit('join_room', { roomName: currentRoom, username: currentUser });
+
+            socket.on('history_objects', function(objects) {
+                if (Array.isArray(objects)) {
+                    objects.forEach(obj => renderObjectOnMap(obj));
+                }
+            });
+
+            socket.on('update_user_count', function(count) {
+                document.getElementById('state-count').innerText = count;
+            });
+
+            let peerGPSMarkers = {}; 
+            socket.on('peer_gps_updated', function(gpsData) {
+                const pName = gpsData.username;
+                const pLatLng = L.latLng(gpsData.lat, gpsData.lng);
+                
+                if (peerGPSMarkers[pName]) {
+                    map.removeLayer(peerGPSMarkers[pName]);
+                }
+                
+                const peerCenterDot = L.circle(pLatLng, { 
+                    radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 
+                }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${pName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { 
+                    permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false 
+                });
+                
+                const peerAccuracyCircle = L.circle(pLatLng, { 
+                    radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 
+                });
+
+                peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
+            });
+
+            socket.on('object_added', data => renderObjectOnMap(data));
+            socket.on('object_deleted', id => {
+                if (allMapLayers[id]) {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    delete allMapLayers[id];
+                }
+            });
+        }
+
+        function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
 
             if (data.shapeType === "marker") {
-                // 💡【終極救贖：大頭針 SVG 魔改】：徹底修正原先空碼導致卡死無法登入的語法 Bug！
-                // 我們直接改用全閉合的 inline 樣式，點調色盤什麼顏色，水滴大頭針就秒變什麼顏色，安全率 100%
+                // 💡【大頭針 SVG 精密修復】：使用完美閉合樣式，移除所有空碼。點調色盤什麼顏色，大頭針本體秒變什麼顏色！
                 const svgColor = data.color || "#3388ff";
                 const customMarkerIcon = L.divIcon({
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
@@ -384,9 +430,9 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
-            // 💡 穿透鎖解鎖：一微秒穿透標籤外殼直接點進大頭針或形狀本體！
+            // 💡 穿透阻擋：加上互動穿透，讓使用者的點擊能一秒點進大頭針或圖形本體
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
-     // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸縮放尺寸
+                        // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
                 // 1. 中心平移針 (📌)
                 const controlPin = L.marker(centerLatLng, {
@@ -499,7 +545,7 @@
             }
             mainLayer.bindPopup(popupContent);
         }
-                function syncGeometryChanges(data, mainLayer) {
+                    function syncGeometryChanges(data, mainLayer) {
             let currentCoordinates = null, currentRadius = null;
             if (data.shapeType === "circle") {
                 currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
