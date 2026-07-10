@@ -17,7 +17,7 @@ let rooms = {
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
-// === 核心修正：100% 完美閉合、安全查重、相容所有版本的登入路由 API ===
+// === 核心修正完全體：相容新舊版 Socket.io，房內沒人時 100% 綠燈放行進房 ===
 app.post('/api/login', (req, res) => {
     const { username, password, roomName, roomPassword } = req.body;
     const rName = roomName ? roomName.trim() : "public_1";
@@ -40,26 +40,30 @@ app.post('/api/login', (req, res) => {
         }
     }
 
-    // 🔥【核心查重黑科技】：同時相容新版（.get）與舊版物件格式，強力攔截重複暱稱
+    // 🔥【終極 Bug 修復】：當頻道沒人（roomSockets 為空）時，100% 放行，絕不誤判攔截第一個進房的人
     let isNameTaken = false;
     try {
         const adapter = io.sockets.adapter;
         let roomSockets = null;
         
         if (adapter && typeof adapter.rooms.get === 'function') {
-            roomSockets = adapter.rooms.get(rName); // 新版 Socket.io 語法
+            roomSockets = adapter.rooms.get(rName); // 新版 Socket.io
         } else if (adapter && adapter.rooms) {
-            roomSockets = adapter.rooms[rName]; // 舊版 Socket.io 語法
+            roomSockets = adapter.rooms[rName]; // 舊版 Socket.io
         }
 
+        // 只有在應變頻道存在、且內部有連線人員時才執行人名查重比對
         if (roomSockets) {
-            // 遍歷目前在該房內的所有連線 ID
             const socketIds = typeof roomSockets.forEach === 'function' ? roomSockets : Object.keys(roomSockets);
-            for (const socketId of socketIds) {
-                const clientSocket = io.sockets.sockets.get ? io.sockets.sockets.get(socketId) : io.sockets.sockets[socketId];
-                if (clientSocket && clientSocket.myName === uName) {
-                    isNameTaken = true;
-                    break;
+            
+            // 防呆判定：確認房內 Socket 數大於 0 才比對，空房直接跳過（安全放行）
+            if (socketIds && (socketIds.size > 0 || socketIds.length > 0)) {
+                for (const socketId of socketIds) {
+                    const clientSocket = io.sockets.sockets.get ? io.sockets.sockets.get(socketId) : io.sockets.sockets[socketId];
+                    if (clientSocket && clientSocket.myName === uName) {
+                        isNameTaken = true;
+                        break;
+                    }
                 }
             }
         }
@@ -105,7 +109,7 @@ io.on('connection', (socket) => {
             delete roomTimers[myRoom];
         }
 
-        // 發送歷史歷史舊物件
+        // 發送歷史舊物件
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
 
         // 廣播即時在線人數
