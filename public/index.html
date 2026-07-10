@@ -50,16 +50,25 @@
         #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
         
-        /* 側邊垂直指管工具列 */
-        #custom-toolbar { position: absolute; top: 25px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px; }
+        /* 💡 1. 左側簡約化垂直工具列風格 */
+        #custom-toolbar { 
+            position: absolute; top: 20px; left: 15px; z-index: 1000; 
+            display: none; flex-direction: column; gap: 6px; 
+            background: rgba(20, 22, 25, 0.85); padding: 6px; 
+            border-radius: 6px; border: 1px solid rgba(45, 55, 72, 0.6); 
+            backdrop-filter: blur(4px);
+        }
         .tool-btn {
-            width: 44px !important; height: 44px !important; background: #141619 !important; background-image: none !important;
-            border: 1px solid #2d3748 !important; border-radius: 4px !important; cursor: pointer;
-            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin: 0 !important; padding: 0 !important; touch-action: button;
+            width: 36px !important; height: 36px !important; 
+            background: transparent !important; background-image: none !important;
+            border: none !important; border-radius: 4px !important; cursor: pointer;
+            display: flex !important; align-items: center; justify-content: center; 
+            margin: 0 !important; padding: 0 !important; color: #a0aec0; font-size: 16px;
+            transition: all 0.15s ease;
         }
         .tool-btn svg { stroke: #a0aec0 !important; }
-        .tool-btn:hover { background: #1a1d21 !important; border-color: #4a5568 !important; }
-        .tool-btn.active { background: #22c55e !important; border-color: #39ff14 !important; }
+        .tool-btn:hover { background: rgba(255, 255, 255, 0.08) !important; color: #fff; }
+        .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; }
         .tool-btn.active svg, #btn-locate.active svg { stroke: #0d0e10 !important; }
         
         /* 💡 戰術 Popup 編輯選單樣式 */
@@ -73,14 +82,21 @@
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
         
+        /* 💡 2. 右下角活動資訊標籤與按鈕 */
         #toggle-info-btn {
-            position: absolute; bottom: 20px; right: 12px; z-index: 1001; width: 38px; height: 34px; background: #141619; 
-            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; font-size: 15px; color: #22c55e; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
+            width: 38px; height: 38px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 16px; color: #22c55e; display: none; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
         }
-        #toggle-info-btn:hover { border-color: #22c55e; }
+        #toggle-info-btn:hover, #toggle-info-btn.active { border-color: #22c55e; background: #1a1d21; }
+        
         #typhoon-info {
-            position: absolute; bottom: 65px; right: 12px; background: #141619; padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
-            border: 2px solid #22c55e; font-size: 12px; display: none !important; max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
+            position: absolute; bottom: 68px; right: 12px; background: #141619; 
+            padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
+            border: 2px solid #22c55e; font-size: 12px; display: none; 
+            max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
 
         /* 戰術常駐標籤 */
@@ -112,7 +128,7 @@
         <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">⬧</button>
-        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 15px !important; border-color: #22c55e !important;">🛰️</button>
+        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 8px !important; color: #22c55e !important;">🛰️</button>
     </div>
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
@@ -120,7 +136,7 @@
         <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b>
         <div style="margin-top: 8px;">
             STATUS: <b style="color:#39ff14;">ACTIVE</b><br>
-            ONLINE MARSHALS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
+            ONLINE OPERATORS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
         </div>
     </div>
     <div id="map"></div>
@@ -149,6 +165,8 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
+            L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
+            L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
@@ -440,7 +458,6 @@
                 if (isCircle) {
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
                 } else if (isRect) {
-                    // 💡 修正：使用 getBounds() 正確抓取矩形邊界，避免呼叫不存在的 getLatLng()
                     const b = cache.layer.getBounds();
                     currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
                 } else if (isMarker) {
@@ -460,13 +477,16 @@
 
         function toggleStatusPanel() {
             const panel = document.getElementById('typhoon-info');
-            panel.style.display = (window.getComputedStyle(panel).display === 'none') ? 'block' : 'none';
+            const btn = document.getElementById('toggle-info-btn');
+            const isHidden = (window.getComputedStyle(panel).display === 'none');
+            panel.style.display = isHidden ? 'block' : 'none';
+            if (isHidden) btn.classList.add('active'); else btn.classList.remove('active');
         }
 
         let myLocationMarker = null;
         function locateUserGPS() {
             if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
-            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.background = '#22c55e';
+            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#fff'; locateBtn.style.background = 'rgba(34, 197, 94, 0.2)';
             navigator.geolocation.getCurrentPosition(
                 function(position) {
                     const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
@@ -477,9 +497,9 @@
                     myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
                     if (socket) socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
-                    locateBtn.style.background = '#141619';
+                    locateBtn.style.color = '#22c55e'; locateBtn.style.background = 'transparent';
                 },
-                function() { locateBtn.style.background = '#141619'; alert("定位失敗：請檢查手機定位權限。"); },
+                function() { locateBtn.style.color = '#22c55e'; locateBtn.style.background = 'transparent'; alert("定位失敗：請檢查手機定位權限。"); },
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
