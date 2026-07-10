@@ -3,122 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>颱風防災分組協同即時地圖</title>
+    <title>戰術防災分組協同即時地圖</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background-color: #121212; }
-        #map { width: 100%; height: 100vh; display: none; background: #1a1a1a; } 
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Courier New', Courier, monospace, sans-serif; background-color: #0d0e10; }
+        #map { width: 100%; height: 100vh; display: none; background: #111214; } 
         
+        /* ⚡ 全新升級：軍用雷達戰術風登入艙 */
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #1e1e1e; padding: 35px 30px; border-radius: 12px; 
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; z-index: 2000;
-            border: 1px solid #333; width: 300px;
+            background: #141619; padding: 40px 30px; border-radius: 4px; 
+            box-shadow: 0 0 25px rgba(34, 197, 94, 0.15); text-align: center; z-index: 2000;
+            border: 2px solid #22c55e; width: 310px;
         }
-        #login-box h2 { color: #ffffff; margin-bottom: 20px; font-weight: 500; font-size: 22px; }
+        #login-box h2 { 
+            color: #22c55e; margin-bottom: 25px; font-weight: bold; font-size: 20px; 
+            letter-spacing: 2px; text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+            text-transform: uppercase;
+        }
         #login-box input, #login-box select { 
-            display: block; margin: 12px auto; padding: 12px; width: 90%; 
-            background: #2a2a2a; border: 1px solid #444; border-radius: 6px; 
-            color: #ffffff; font-size: 14px; outline: none; box-sizing: border-box;
+            display: block; margin: 14px auto; padding: 12px; width: 92%; 
+            background: #1a1d21; border: 1px solid #2d3748; border-radius: 2px; 
+            color: #39ff14; font-size: 14px; outline: none; box-sizing: border-box;
+            font-family: monospace; transition: all 0.2s;
         }
-        #login-box input:focus, #login-box select:focus { border-color: #007bff; }
+        #login-box input:focus, #login-box select:focus { 
+            border-color: #39ff14; box-shadow: 0 0 8px rgba(57, 255, 20, 0.3);
+        }
         #login-box button { 
-            width: 90%; padding: 12px; background: #007bff; color: white; 
-            border: none; border-radius: 6px; cursor: pointer; font-size: 16px; 
-            font-weight: bold; margin-top: 10px;
+            width: 92%; padding: 12px; background: #1b4d22; color: #39ff14; 
+            border: 1px solid #39ff14; border-radius: 2px; cursor: pointer; font-size: 15px; 
+            font-weight: bold; margin-top: 15px; letter-spacing: 1px;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.2); transition: all 0.2s;
         }
-        #login-error { color: #ff4d4d; font-size: 14px; margin-top: 12px; min-height: 20px; }
+        #login-box button:hover { 
+            background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
+        }
+        #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
         
+        /* 側邊自製工具列樣式調校（融入暗色面板） */
         #custom-toolbar {
-            position: absolute; top: 90px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
+            position: absolute; top: 30px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
         .tool-btn {
-            width: 44px !important; height: 44px !important; background: white !important; background-image: none !important;
-            border: 2px solid rgba(0,0,0,0.3) !important; border-radius: 8px !important; cursor: pointer; font-size: 20px;
-            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin: 0 !important; padding: 0 !important; touch-action: button;
+            width: 44px !important; height: 44px !important; background: #141619 !important; background-image: none !important;
+            border: 1px solid #2d3748 !important; border-radius: 4px !important; cursor: pointer;
+            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin: 0 !important; padding: 0 !important; touch-action: button;
         }
-        .tool-btn:hover { background: #f4f4f4 !important; }
-        .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
-        .tool-btn.active svg { stroke: #ffffff !important; }
+        .tool-btn svg { stroke: #a0aec0 !important; }
+        .tool-btn:hover { background: #1a1d21 !important; border-color: #4a5568 !important; }
+        .tool-btn.active { background: #22c55e !important; border-color: #39ff14 !important; }
+        .tool-btn.active svg { stroke: #0d0e10 !important; }
         
-        .popup-menu { font-size: 14px; min-width: 180px; }
-        .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
+        .popup-menu { font-size: 13px; min-width: 180px; font-family: monospace; }
+        .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; background: #f7fafc; border: 1px solid #cbd5e0; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
-        .popup-menu button { width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .popup-menu button { width: 100%; padding: 6px; background: #e53e3e; color: white; border: none; border-radius: 2px; cursor: pointer; }
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         
+        /* ℹ️ 戰術終端機人數面板 */
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001;
-            width: 36px; height: 34px; background: rgba(30, 30, 30, 0.9); 
-            border: 1px solid #444; border-radius: 6px; cursor: pointer; 
-            font-size: 16px; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            width: 38px; height: 34px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 15px; color: #22c55e; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
+        #toggle-info-btn:hover { border-color: #22c55e; }
         #typhoon-info {
-            position: absolute; bottom: 65px; right: 12px; background: rgba(30, 30, 30, 0.9);
-            padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000;
-            border: 1px solid #444; font-size: 13px; display: none !important;
-            max-width: 250px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            position: absolute; bottom: 65px; right: 12px; background: #141619;
+            padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
+            border: 1px solid #22c55e; font-size: 12px; display: none !important;
+            max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
     </style>
 </head>
 <body>
 
-    <!-- 多功能分房登入介面 -->
+    <!-- 戰術風應變登入艙介面 -->
     <div id="login-box">
-        <h2>應變協同中心</h2>
-        <input type="text" id="username" placeholder="請輸入您的通報暱稱">
+        <h2>TAC-MAP SYSTEM</h2>
+        <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         <select id="room-select" onchange="checkRoomType()">
-            <option value="public_1">公開應變頻道 1</option>
-            <option value="public_2">公開應變頻道 2</option>
-            <option value="custom">自訂專屬私有應變房...</option>
+            <option value="public_1">PUBLIC CHANNEL 01</option>
+            <option value="public_2">PUBLIC CHANNEL 02</option>
+            <option value="custom">SECURE PRIVATE ROOM...</option>
         </select>
-        <input type="text" id="custom-room-name" placeholder="請設定您的私有房號 (例: hsinchu_99)" style="display:none;">
-        <input type="password" id="room-password" placeholder="請輸入該房進入密碼 (選填)">
-        <button onclick="login()">進入防災地圖</button>
+        <input type="text" id="custom-room-name" placeholder="ENTER NEW ROOM ID" style="display:none;">
+        <input type="password" id="room-password" placeholder="SECURE ACCESS KEY (密碼)">
+        <button onclick="login()">DEPLOY TO MAP</button>
         <p id="login-error"></p>
     </div>
 
-    <!-- 自製左側簡約細線垂直工具列（已完全拿掉隱藏了 +- 縮放按鍵） -->
+    <!-- 左側工具列 -->
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
             </svg>
         </button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 12h5l4 8 5-16 4 8"></path>
             </svg>
         </button>
         <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             </svg>
         </button>
         <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
-            <svg width="22" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="22" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
             </svg>
         </button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
             </svg>
         </button>
     </div>
 
-    <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ️</button>
+    <!-- 右下角狀態欄 -->
+    <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <div id="typhoon-info">
-        <b style="color: #ffc107; font-size: 14px;">應變頻道：<span id="state-room"></span></b>
-        <div style="margin-top: 6px; line-height: 1.5;">
-            🟢 當前線上人數：<b id="state-count" style="color:#28a745; font-size:15px;">0</b> 人<br>
-            <span style="color:gray; font-size:11px;">⚠️ 提示：若應變房內超過 10 分鐘完全沒有人在線上，伺服器會自動清空並永久銷毀該房。雙擊地圖可滿螢幕操作。</span>
+        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b>
+        <div style="margin-top: 8px;">
+            STATUS: <b style="color:#39ff14;">ACTIVE</b><br>
+            ONLINE MARSHALS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b><br>
+            <span style="color:#718096; font-size:10px; display:block; margin-top:5px; line-height:1.4;">[SYS_WARN] Auto-wipe sequence triggers after 10 mins of total room vacancy.</span>
         </div>
     </div>
     <div id="map"></div>
+
     <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
@@ -147,7 +166,7 @@
             // 建立標準白天版地圖實例並關閉雙擊放大，同時拔除隱藏「+」與「-」縮放按鈕
             map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
+            document.getElementById('custom-toolbar').style.top = '25px';
             const toolbarDiv = document.getElementById('custom-toolbar');
             L.DomEvent.disableClickPropagation(toolbarDiv);
             L.DomEvent.disableScrollPropagation(toolbarDiv);
