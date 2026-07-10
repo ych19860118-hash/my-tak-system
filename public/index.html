@@ -88,11 +88,21 @@
         }
 
         /* 💡 戰術半透明地圖常駐文字標籤 */
+  /* 💡 【終極修正】：強化隊員 GPS 標籤，加入戰術黑底、雷達螢光綠發光邊框，字體加粗跳出畫面 */
         .tactical-tooltip {
-            background: rgba(20, 22, 25, 0.8) !important; border: 1px solid #22c55e !important;
-            color: #39ff14 !important; font-weight: bold; font-family: monospace;
-            border-radius: 4px; padding: 4px 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            background: #141619 !important;               /* 深色戰術背景 */
+            border: 2px solid #39ff14 !important;         /* 亮綠色雷達框線 */
+            color: #39ff14 !important;                    /* 螢光綠文字 */
+            font-weight: 900 !important;                  /* 字體強力加粗 */
+            font-size: 13px !important;                   /* 放大字體方便現地觀看 */
+            font-family: 'Courier New', monospace !important;
+            border-radius: 4px !important;
+            padding: 5px 10px !important;
+            box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; /* 邊框加入綠色發光陰影 */
+            opacity: 1 !important;                        /* 強制 100% 不透明，絕不變淡 */
+            z-index: 10000 !important;                    /* 最高圖層優先級，絕對不被任何形狀壓住 */
         }
+        /* 徹底移除 Leaflet 原生醜陋的白箭頭 */
         .tactical-tooltip::before { display: none !important; }
     </style>
 </head>
