@@ -201,7 +201,7 @@
         function initMapInstance() {
             if (map) return; 
             
-            // 建立白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
+            // 💡 建立白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
             map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
@@ -249,7 +249,7 @@
                 if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
             }
         }
-                       function initDrawingEvents() {
+        function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -275,7 +275,7 @@
                         const lngMin = Math.min(tempPoints[0][1], tempPoints[1][1]);
                         const lngMax = Math.max(tempPoints[0][1], tempPoints[1][1]);
 
-                        // 💡【全面防吞升級】：將坐標轉換為獨立物件，徹底繞開 Markdown 中括號吞字 Bug！
+                        // 💡【全面防消失重構】：用純物件定義矩形的初始四個頂點，完美繞開 Markdown 吞字語法衝突！
                         const data = {
                             id: 'obj_' + Date.now(), shapeType: "rectangle",
                             coordinates: [
@@ -422,7 +422,7 @@
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true, bundlingMouseEvents: false });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                // 💡 純物件升級：將陣列完全改為標準經緯度物件格式，徹底繞開所有 Markdown 吞字語法衝突
+                // 💡 純物件升級：將矩形點陣映射為標準經緯度物件格式，徹底擺脫傳統陣列語法衝突
                 const leafletPoints = pts.map(p => L.latLng(p.lat, p.lng));
                 mainLayer = L.polygon(leafletPoints, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
                 
@@ -443,7 +443,7 @@
 
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
 
-            // 📌 戰術三控制針面板 (平移📌、拉伸📐、旋轉🔄)
+            // 📌 戰術垂直三控制針矩陣 (平移📌、拉伸📐、旋轉🔄)
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
@@ -457,7 +457,7 @@
                     const offsetLat = nextLatLng.lat - startLatLng.lat;
                     const offsetLng = nextLatLng.lng - startLatLng.lng;
 
-                    // 💡 純物件升級：使用標準 lat 與 lng 進行平移偏移計算，絕不破圖消失
+                    // 💡 物件級解鎖：使用標準 .lat 與 .lng 特徵欄位平移計算，座標 100% 絕對穩定不失真
                     allMapLayers[data.id].baseCoords = allMapLayers[data.id].baseCoords.map(p => {
                         return { lat: p.lat + offsetLat, lng: p.lng + offsetLng };
                     });
@@ -545,13 +545,13 @@
             }
         }
 
-        // ⚡【終極 Bug 修正核心】：利用標準 lat/lng 物件屬性進行坐標變換，百分之百避免消失 Bug！
+        // ⚡【核心幾何算法】：利用標準 lat/lng 物件欄位重構，徹底防範一動就消失的漏洞
         function updateRotatedRectPins(objId, center, init = false) {
             const cache = allMapLayers[objId];
             const base = cache.baseCoords;
             const rad = cache.currentAngle * Math.PI / 180;
 
-            // 定位：將旋轉針(🔄)釘在基礎矩形正上方的中點邊緣，將尺寸針(📐)釘在右下角 (頂點 2)
+            // 定位：將旋轉針(🔄)釘在基礎矩形正上方的中點邊緣，將尺寸針(📐)釘在右下角
             const topCenterBase = {
                 lat: (base[0].lat + base[1].lat) / 2,
                 lng: (base[0].lng + base[1].lng) / 2
