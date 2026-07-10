@@ -50,26 +50,26 @@
         #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
         
-        /* 💡 左側簡約化垂直工具列風格 */
+        /* 💡 左側白底黑線簡約化垂直工具列風格 */
         #custom-toolbar { 
             position: absolute; top: 20px; left: 15px; z-index: 1000; 
             display: none; flex-direction: column; gap: 6px; 
-            background: rgba(20, 22, 25, 0.85); padding: 6px; 
-            border-radius: 6px; border: 1px solid rgba(45, 55, 72, 0.6); 
-            backdrop-filter: blur(4px);
+            background: #ffffff; padding: 6px; 
+            border-radius: 6px; border: 1px solid #cbd5e0; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
         }
         .tool-btn {
             width: 36px !important; height: 36px !important; 
-            background: transparent !important; background-image: none !important;
-            border: none !important; border-radius: 4px !important; cursor: pointer;
+            background: #ffffff !important; background-image: none !important;
+            border: 1px solid transparent !important; border-radius: 4px !important; cursor: pointer;
             display: flex !important; align-items: center; justify-content: center; 
-            margin: 0 !important; padding: 0 !important; color: #a0aec0; font-size: 16px;
+            margin: 0 !important; padding: 0 !important; color: #1a202c; font-size: 16px;
             transition: all 0.15s ease;
         }
-        .tool-btn svg { stroke: #a0aec0 !important; }
-        .tool-btn:hover { background: rgba(255, 255, 255, 0.08) !important; color: #fff; }
-        .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; }
-        .tool-btn.active svg, #btn-locate.active svg { stroke: #0d0e10 !important; }
+        .tool-btn svg { stroke: #1a202c !important; fill: none; }
+        .tool-btn:hover { background: #edf2f7 !important; border-color: #e2e8f0 !important; }
+        .tool-btn.active { background: #1a202c !important; color: #ffffff !important; border-radius: 4px !important; }
+        .tool-btn.active svg { stroke: #ffffff !important; }
         
         /* 💡 戰術 Popup 編輯選單樣式 */
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
@@ -123,12 +123,24 @@
     </div>
 
     <div id="custom-toolbar">
-        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
-        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">📈</button>
-        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
-        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
-        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">⬧</button>
-        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 8px !important; color: #22c55e !important;">🛰️</button>
+        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        </button>
+        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        </button>
+        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+        </button>
+        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
+        </button>
+        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
+        </button>
+        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </button>
     </div>
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
@@ -486,7 +498,7 @@
         let myLocationMarker = null;
         function locateUserGPS() {
             if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
-            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#fff'; locateBtn.style.background = 'rgba(34, 197, 94, 0.2)';
+            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#fff'; locateBtn.style.background = '#1a202c';
             navigator.geolocation.getCurrentPosition(
                 function(position) {
                     const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
@@ -497,9 +509,9 @@
                     myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
                     if (socket) socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
-                    locateBtn.style.color = '#22c55e'; locateBtn.style.background = 'transparent';
+                    locateBtn.style.color = '#1a202c'; locateBtn.style.background = '#ffffff';
                 },
-                function() { locateBtn.style.color = '#22c55e'; locateBtn.style.background = 'transparent'; alert("定位失敗：請檢查手機定位權限。"); },
+                function() { locateBtn.style.color = '#1a202c'; locateBtn.style.background = '#ffffff'; alert("定位失敗：請檢查手機定位權限。"); },
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
