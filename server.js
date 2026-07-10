@@ -17,7 +17,7 @@ let rooms = {
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
-// === 核心修正完全體：相容新舊版 Socket.io，房內沒人時 100% 綠燈放行進房 ===
+// === 核心功能：相容新舊版 Socket.io，房內沒人時 100% 綠燈放行進房 ===
 app.post('/api/login', (req, res) => {
     const { username, password, roomName, roomPassword } = req.body;
     const rName = roomName ? roomName.trim() : "public_1";
@@ -40,7 +40,7 @@ app.post('/api/login', (req, res) => {
         }
     }
 
-    // 🔥【終極 Bug 修復】：當頻道沒人（roomSockets 為空）時，100% 放行，絕不誤判攔截第一個進房的人
+    // 檢查：當頻道沒人時，100% 放行，絕不誤判攔截第一個進房的人
     let isNameTaken = false;
     try {
         const adapter = io.sockets.adapter;
@@ -97,7 +97,7 @@ io.on('connection', (socket) => {
         myRoom = data.roomName;
         myName = data.username;
         
-        // 💡 關鍵綁定：寫入連線實例中，方便上方的 API 路由精準查重
+        // 💡 關鍵綁定：寫入連線實例中，方便上方的 API 路由與動態 GPS 追蹤機制精準查重
         socket.myName = myName; 
         socket.myRoom = myRoom;
         
@@ -114,6 +114,12 @@ io.on('connection', (socket) => {
 
         // 廣播即時在線人數
         sendUserCount(myRoom);
+    });
+
+    // 💡【最新功能】：監聽前方回報隊員發送的即時 GPS，並動態轉發給同個應變頻道內的所有人
+    socket.on('share_my_gps', (gpsData) => {
+        gpsData.username = myName; // 塞入該使用者的 OPERATOR ID
+        socket.to(myRoom).emit('peer_gps_updated', gpsData); // 轉發廣播給房間內的其他隊員
     });
 
     // 監聽新增災情
