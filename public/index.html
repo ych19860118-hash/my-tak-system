@@ -280,7 +280,7 @@
             });
         }
 
-function renderObjectOnMap(data) {
+        function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
@@ -317,7 +317,56 @@ function renderObjectOnMap(data) {
                 mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
             }
 
-            if (isMyObject && data.shapeType === "marker") {
+            if (isMyObject && data.shapeType !== "marker") {
+                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) }).addTo(map);
+                allMapLayers[data.id].pin = controlPin;
+
+                controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
+
+                let startLatLng = centerLatLng;
+                controlPin.on('drag', function(e) {
+                    const nextLatLng = e.latlng;
+                    const offsetLat = nextLatLng.lat - startLatLng.lat;
+                    const offsetLng = nextLatLng.lng - startLatLng.lng;
+
+                    if (data.shapeType === "circle") { 
+                        mainLayer.setLatLng(nextLatLng); 
+                        if (allMapLayers[data.id].resizePin) {
+                            allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
+                        }
+                    } else if (data.shapeType === "rectangle") {
+                        const b = mainLayer.getBounds();
+                        mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
+                        if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
+                    } else if (mainLayer.getLatLngs) {
+                        const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
+                        mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
+                    }
+                    startLatLng = nextLatLng; 
+                });
+
+                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+
+                if (data.shapeType === "circle" || data.shapeType === "rectangle") {
+                    const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
+                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) }).addTo(map);
+                    allMapLayers[data.id].resizePin = resizePin;
+
+                    resizePin.on('drag', function(e) {
+                        const newPinLatLng = e.latlng;
+                        if (data.shapeType === "circle") {
+                            const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
+                            if (newRadius > 5) mainLayer.setRadius(newRadius);
+                        } else if (data.shapeType === "rectangle") {
+                            const centerP = controlPin.getLatLng();
+                            const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
+                            const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
+                            mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
+                        }
+                    });
+                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                }
+            } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                     data.time = getFormattedTime();
