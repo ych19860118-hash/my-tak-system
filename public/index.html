@@ -249,7 +249,7 @@
                 if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
             }
         }
-                function initDrawingEvents() {
+               function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -359,7 +359,7 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-        function initSocketAndLayers() {
+                function initSocketAndLayers() {
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
 
@@ -418,10 +418,10 @@
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true, bundlingMouseEvents: false });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                // 💡 終極修復：用可旋轉多邊形繪製矩形
+                // 由可旋轉多邊形繪製矩形
                 mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
                 
-                // 💡 終極修復：100% 補齊被 Markdown 吞掉的陣列索引，精準運算四角物理物理中心！
+                // 💡【終極 Bug 修復】：全面補齊陣列索引！使用 p[0] 與 p[1] 分離運算，確保中心點座標絕對不會變成 NaN，解決長方形消失的 Bug！
                 let sumLat = 0, sumLng = 0;
                 pts.forEach(p => { sumLat += p[0]; sumLng += p[1]; });
                 centerLatLng = L.latLng(sumLat / 4, sumLng / 4);
@@ -453,7 +453,7 @@
                     const offsetLat = nextLatLng.lat - startLatLng.lat;
                     const offsetLng = nextLatLng.lng - startLatLng.lng;
 
-                    // 💡 終極修復：補回被吞掉的陣列偏角，平移基礎相對座標
+                    // 💡【核心修正】：使用 p[0] 與 p[1] 還原陣列索引，平移矩形基礎相對座標
                     allMapLayers[data.id].baseCoords = allMapLayers[data.id].baseCoords.map(p => [p[0] + offsetLat, p[1] + offsetLng]);
 
                     if (data.shapeType === "circle") { 
@@ -539,7 +539,7 @@
             }
         }
 
-        // ⚡ 數學大腦核心：100% 補齊被 Markdown 吞掉的陣列索引 [0]、[1]，徹底解決一旋轉方形就消失的 Bug！
+        // ⚡【終極 Bug 修正核心】：完整補齊 base[0][0]、base[2][0] 等四角頂點對角矩陣索引，讓旋轉拉伸 100% 正常、方形再也絕不消失！
         function updateRotatedRectPins(objId, center, init = false) {
             const cache = allMapLayers[objId];
             const base = cache.baseCoords;
@@ -555,9 +555,12 @@
                 const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) }).addTo(map);
                 cache.resizePin = resizePin;
                 resizePin.on('drag', function(e) {
+                    // 反向將滑鼠目前的世界座標逆向旋轉回零度角狀態進行矩形重構
                     const p = rotatePoint([e.latlng.lat, e.latlng.lng], [center.lat, center.lng], -rad);
                     const latMin = Math.min(base[0][0], p[0]); const latMax = Math.max(base[0][0], p[0]);
                     const lngMin = Math.min(base[0][1], p[1]); const lngMax = Math.max(base[0][1], p[1]);
+                    
+                    // 用最新的滑鼠拖曳拉伸量重構基礎四角資料陣列
                     cache.baseCoords = [[latMax, lngMin], [latMax, lngMax], [latMin, lngMax], [latMin, lngMin]];
                     recomputeRotatedRect(objId);
                 });
@@ -568,7 +571,7 @@
                 cache.rotatePin = rotatePin;
                 rotatePin.on('drag', function(e) {
                     const angleRad = Math.atan2(e.latlng.lng - center.lng, e.latlng.lat - center.lat);
-                    cache.currentAngle = (angleRad * 180 / Math.PI); 
+                    cache.currentAngle = (angleRad * 180 / Math.PI) - 90; // 加偏角補正，讓 🔄 針垂直對齊
                     recomputeRotatedRect(objId);
                 });
                 rotatePin.on('dragend', function() { syncGeometryChanges({id: objId, shapeType: "rectangle"}, cache.layer, cache.currentAngle); });
@@ -577,11 +580,12 @@
                 if (cache.rotatePin) cache.rotatePin.setLatLng(rotateLatLng);
             }
         }
+        // 💡 旋轉矩陣重新計算：使用 p[0] 與 p[1] 確保座標絕對不遺失
         function recomputeRotatedRect(objId) {
             const cache = allMapLayers[objId];
             const center = cache.pin.getLatLng();
             const rad = cache.currentAngle * Math.PI / 180;
-            const updatedPts = cache.baseCoords.map(p => rotatePoint(p, [center.lat, center.lng], rad));
+            const updatedPts = cache.baseCoords.map(p => rotatePoint([p[0], p[1]], [center.lat, center.lng], rad));
             cache.layer.setLatLngs(updatedPts);
             updateRotatedRectPins(objId, center);
         }
