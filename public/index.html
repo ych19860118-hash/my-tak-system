@@ -352,7 +352,7 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-        function initSocketAndLayers() {
+                function initSocketAndLayers() {
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
 
@@ -411,7 +411,6 @@
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                // 💡【物理防線】：用 Leaflet 底層最穩健的原生 L.rectangle 渲染標準對角線兩點格式
                 mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
@@ -426,10 +425,9 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
-            // 💡 在圖形幾何中央綁定常駐型黑底綠字發光戰術標籤
+            // 💡 在幾何圖形正中央綁定永久懸浮的黑底綠框戰術高反差文字標籤
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
-
-            // 📌 雙控制針解鎖大腦：📌負責平移、📐負責手動拉伸放大縮小尺寸
+            // 📌 穩固雙控制針核心：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
                 // 1. 中心平移針 (📌)
                 const controlPin = L.marker(centerLatLng, {
@@ -437,16 +435,12 @@
                     icon: L.divIcon({ html: '📌', className: 'control-pin-icon' })
                 }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
-                // ⚡【終極解鎖連動】：當使用者點選圖形正中央的 📌 針時，強行命令它把底下的 Popup 選單彈出來！
-                // 這能完美解決控制針圖層把點擊事件攔截吃掉、導致調色盤彈不出來的嚴重衝突！
+
+                // ⚡【終極解鎖連動】：當使用者點選圖形正中央的 📌 針時，強行命令它直接代為彈出底下的編輯與調色盤選單！
                 controlPin.on('click', function() {
                     mainLayer.openPopup(centerLatLng);
                 });
-                
-                // 同步防呆：點擊圖形邊緣或內部也可以順暢彈出選單
-                mainLayer.on('click', function() {
-                    mainLayer.openPopup(centerLatLng);
-                });
+
                 let startLatLng = centerLatLng;
                 controlPin.on('drag', function(e) {
                     const nextLatLng = e.latlng;
@@ -471,7 +465,9 @@
                     startLatLng = nextLatLng; 
                 });
 
-                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                controlPin.on('dragend', function() {
+                    syncGeometryChanges(data, mainLayer);
+                });
 
                 // 2. 邊緣尺寸拉伸控制針 (📐)
                 if (data.shapeType === "circle" || data.shapeType === "rectangle") {
@@ -490,7 +486,6 @@
                             const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
                             if (newRadius > 5) mainLayer.setRadius(newRadius);
                         } else if (data.shapeType === "rectangle") {
-                            // 💡【對角幾何反推】：利用中心平移針，完美反推重構長寬尺寸，100% 穩健、絕不消失！
                             const centerP = controlPin.getLatLng();
                             const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
                             const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
@@ -498,7 +493,9 @@
                         }
                     });
 
-                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                    resizePin.on('dragend', function() {
+                        syncGeometryChanges(data, mainLayer);
+                    });
                 }
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
@@ -509,18 +506,40 @@
                 });
             }
 
-            let popupContent = `
-                <div class="popup-menu">
-                    <b>${isMyObject ? '編輯您回報的災情' : '⚠️ 災情回報狀況'}</b><br>
-                    <small style="color:gray;">最後異動：${data.time || '無紀錄'}</small><br><br>
-                    ${isMyObject ? `<input type="text" id="edit-msg-${data.id}" value="${data.message}">` : `<b>內容：</b>${data.message}<br>`}
-                    <div style="margin-bottom: 12px; ${isMarker ? 'display: none;' : 'display: flex; align-items: center; gap: 8px;'}">
-                        <label>戰術調色盤：</label>
-                        <input type="color" id="edit-color-${data.id}" value="${data.color || '#3388ff'}" style="width: 45px; height: 28px; padding: 0; border: 1px solid #2d3748; background: none; cursor: pointer; border-radius: 2px;">
-                    </div>
-                    <button onclick="${isMyObject ? `updateObject('${data.id}')` : `alert('🔒 唯讀模式')`}">${isMyObject ? '儲存修改' : '確定'}</button>
-                    ${isMyObject ? `<button onclick="deleteObject('${data.id}')" style="margin-top:5px; background:#e53e3e;">撤銷回報</button>` : ''}
-                </div>`;
+            // 💡 同步穿透防線：點擊圖形本身或中央，都能無延遲秒級彈出對話框
+            mainLayer.on('click', function() {
+                mainLayer.openPopup(centerLatLng);
+            });
+
+            // 💡【戰術面板注入】：在 Popup 對話框內完美內嵌一個原生 HTML5 數位戰術調色盤
+            let popupContent = "";
+            const displayTime = data.time || "無紀錄";
+            const isMarker = (data.shapeType === "marker");
+
+            if (isMyObject) {
+                popupContent = `
+                    <div class="popup-menu">
+                        <b>編輯您回報的災情</b><br>
+                        <small style="color:#22c55e;">最後異動時間：${displayTime}</small><br><br>
+                        <label>修改描述：</label>
+                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
+                        <div style="margin-bottom: 12px; ${isMarker ? 'display: none;' : 'display: flex; align-items: center; gap: 8px;'}">
+                            <label>戰術調色盤：</label>
+                            <input type="color" id="edit-color-${data.id}" value="${data.color || '#3388ff'}" style="width: 45px; height: 28px; padding: 0; border: 1px solid #2d3748; background: none; cursor: pointer; border-radius: 2px;">
+                        </div>
+                        <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
+                        <button onclick="deleteObject('${data.id}')" style="margin-top:5px; background:#e53e3e;">撤銷回報</button>
+                    </div>`;
+            } else {
+                popupContent = `
+                    <div class="popup-menu">
+                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br>
+                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
+                        <b>內容：</b>${data.message}<br>
+                        <small style="color:gray;">回報人員身分: ${data.creator}</small><br><br>
+                        <small style="color:#ff4d4d;">🔒 唯讀模式：您非創作者，無法修改此處。</small>
+                    </div>`;
+            }
             mainLayer.bindPopup(popupContent);
         }
         function syncGeometryChanges(data, mainLayer) {
@@ -528,7 +547,6 @@
             if (data.shapeType === "circle") {
                 currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
             } else if (data.shapeType === "rectangle") {
-                // 還原為標準對角兩點格式進行 Socket 廣播同步
                 const b = mainLayer.getBounds();
                 currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
             } else if (mainLayer.getLatLngs) {
