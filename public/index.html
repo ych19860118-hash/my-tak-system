@@ -427,6 +427,11 @@
 
             // 📌 錨點流暢拖曳平移與時間連動算法
             if (isMyObject && data.shapeType !== "marker") {
+                                // ⚡【解鎖核心黑科技】：一秒啟動 Leaflet 原生幾何變形大腦！
+                // 這會自動在圓形邊緣、長方形四角、多邊形所有頂點上，吐出淡淡的半透明小虛線點點，讓你可以直接用手指或滑鼠左鍵「抓著任意放大、縮小、拉扯形狀、微調半徑大小」！
+                if (mainLayer.editing && typeof mainLayer.editing.enable === 'function') {
+                    mainLayer.editing.enable();
+                }
                 const controlPin = L.marker(centerLatLng, {
                     draggable: true,
                     icon: L.divIcon({ html: '📌', className: 'control-pin-icon' })
@@ -460,6 +465,24 @@
                     }
                     data.time = getFormattedTime(); // 移動完成重寫最後異動時間
                     socket.emit('delete_object', data.id); socket.emit('new_object', data);
+                });
+                                // 💡 補在 controlPin.on('dragend', function() { ... }); 的正下方：
+                // ⚡ 監聽幾何變形結束：當使用者去拉動圓形半徑、方形四角、或多邊形尖角放開滑鼠時，自動觸報！
+                mainLayer.on('editend', function() {
+                    if (data.shapeType === "circle") {
+                        data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
+                        data.radius = mainLayer.getRadius(); // 抓取最新調整後的半徑
+                    } else if (data.shapeType === "rectangle") {
+                        const b = mainLayer.getBounds();
+                        data.coordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                    } else if (mainLayer.getLatLngs) {
+                        const dumpPoints = function(points) { return points.map(p => { if (Array.isArray(p)) return dumpPoints(p); return [p.lat, p.lng]; }); };
+                        data.coordinates = dumpPoints(mainLayer.getLatLngs());
+                    }
+                    data.time = getFormattedTime(); // 連動刷新最新異動時間
+                    // 瞬間秒發廣播：「所有人，把舊的拿掉，換上我這個最新拉大/縮小尺寸後的完美幾何形狀！」
+                    socket.emit('delete_object', data.id); 
+                    socket.emit('new_object', data);
                 });
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
