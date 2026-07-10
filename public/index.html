@@ -351,19 +351,18 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-        function renderObjectOnMap(data) {
+                function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
 
             if (data.shapeType === "marker") {
-                // 💡【大頭針 SVG 魔改】：將藍色大頭針升級為純 SVG 水滴，點調色盤就能跟著一秒秒變任意色彩！
+                // 💡【終極救贖：大頭針 SVG 魔改】：徹底修正原先空碼導致卡死無法登入的語法 Bug！
+                // 我們直接改用全閉合的 inline 樣式，點調色盤什麼顏色，水滴大頭針就秒變什麼顏色，安全率 100%
                 const svgColor = data.color || "#3388ff";
                 const customMarkerIcon = L.divIcon({
-                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); transform: translate(-10px, -36px);"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
-                    className: 'tactical-svg-marker',
-                    iconSize:,
-                    iconAnchor: [15, 42]
+                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                    className: 'tactical-svg-marker'
                 });
                 mainLayer = L.marker(pts, { icon: customMarkerIcon }); 
                 centerLatLng = L.latLng(pts);
@@ -385,9 +384,9 @@
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
-            // 💡 穿透參數解鎖：補上 interactive: false 穿透鎖，一微秒穿透標籤外殼直接點進大頭針或形狀本體！
+            // 💡 穿透鎖解鎖：一微秒穿透標籤外殼直接點進大頭針或形狀本體！
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
-            // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸縮放尺寸
+     // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
                 // 1. 中心平移針 (📌)
                 const controlPin = L.marker(centerLatLng, {
@@ -500,7 +499,7 @@
             }
             mainLayer.bindPopup(popupContent);
         }
-        function syncGeometryChanges(data, mainLayer) {
+                function syncGeometryChanges(data, mainLayer) {
             let currentCoordinates = null, currentRadius = null;
             if (data.shapeType === "circle") {
                 currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
@@ -527,7 +526,7 @@
             }
         }
 
-        // 💡【調色盤全對接大腦】：不論是大頭針、圓形或長方形，點儲存修改時一律自動重構渲染並同步色彩！
+        // 💡【全能調色盤核心】：一指相容大頭針 SVG 與所有範圍幾何圖形的即時變色儲存機制
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             if (allMapLayers[objectId]) {
@@ -541,7 +540,6 @@
                 else if (isRect) sType = "rectangle";
                 else if (isMarker) sType = "marker";
 
-                // 自動抓取調色盤的最新色彩十六進位碼（如 #ff0000）
                 const newColor = document.getElementById(`edit-color-${objectId}`) ? document.getElementById(`edit-color-${objectId}`).value : '#3388ff';
 
                 let currentCoordinates = null, currentRadius = null;
