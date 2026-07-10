@@ -175,6 +175,156 @@
         </div>
     </div>
     <div id="map"></div>
+    <script>
+        const SERVER_URL = window.location.origin; 
+        let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
+        let currentTool = "pan", tempPoints = [], tempShape = null;
+
+        // 💡 災情時效黑科技：自動抓取當前系統時間，格式化為直覺的「月/日 時:分」
+        function getFormattedTime() {
+            const now = new Date();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            return `${m}/${d} ${h}:${min}`;
+        }
+
+        function checkRoomType() {
+            const select = document.getElementById('room-select').value;
+            const customInput = document.getElementById('custom-room-name');
+            if (select === 'custom') customInput.style.display = 'block';
+            else customInput.style.display = 'none';
+        }
+
+        function initMapInstance() {
+            if (map) return; 
+            
+            // 💡 建立白天版地圖實例並關閉雙擊放大，同時加上 zoomControl: false 拿掉原生縮放鈕
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+            // 將左側工具列位置微調抬高，符合戰術抬頭顯示器（HUD）的緊湊排版
+            document.getElementById('custom-toolbar').style.top = '25px';
+
+            const toolbarDiv = document.getElementById('custom-toolbar');
+            L.DomEvent.disableClickPropagation(toolbarDiv);
+            L.DomEvent.disableScrollPropagation(toolbarDiv);
+
+            map.on('dblclick', function() {
+                const docElm = document.documentElement;
+                const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
+                if (!isFullscreen) {
+                    if (docElm.requestFullscreen) docElm.requestFullscreen();
+                    else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
+                    else if (docElm.mozRequestFullScreen) docElm.mozRequestFullScreen();
+                    else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); 
+                    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                    else if (document.msExitFullscreen) document.msExitFullscreen();
+                }
+            });
+
+            window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
+            initDrawingEvents();
+        }
+
+        function switchTool(tool) {
+            currentTool = tool; 
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
+            tempPoints = [];
+            if (tool !== 'pan' && tool !== 'locate') { 
+                const id = 'btn-' + tool; 
+                if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+            }
+        }
+        function initDrawingEvents() {
+            map.on('click', function(e) {
+                const lat = e.latlng.lat, lng = e.latlng.lng;
+                
+                if (currentTool === 'marker') {
+                    const msg = prompt("請輸入災情或回報狀況說明：") || "未命名災情";
+                    const data = {
+                        id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng],
+                        message: msg, creator: currentUser, color: "#3388ff",
+                        time: getFormattedTime() 
+                    };
+                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'polyline') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 2) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+                } else if (currentTool === 'rectangle') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 2) {
+                        const msg = prompt("請輸入該封鎖區域說明：") || "未命名區域";
+                        
+                        const p1 = tempPoints[0];
+                        const p2 = tempPoints[1];
+                        const latMin = Math.min(p1.lat, p2.lat);
+                        const latMax = Math.max(p1.lat, p2.lat);
+                        const lngMin = Math.min(p1.lng, p2.lng);
+                        const lngMax = Math.max(p1.lng, p2.lng);
+
+                        const data = {
+                            id: 'obj_' + Date.now(), shapeType: "rectangle",
+                            coordinates: [[latMin, lngMin], [latMax, lngMax]], 
+                            message: msg, creator: currentUser, color: "#3388ff",
+                            time: getFormattedTime() 
+                        };
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                    }
+                } else if (currentTool === 'circle') {
+                    if (tempPoints.length === 0) {
+                        tempPoints.push({ lat: lat, lng: lng });
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
+                    } else if (tempPoints.length === 1) {
+                        const firstPoint = tempPoints.shift(); 
+                        const centerPoint = L.latLng(firstPoint.lat, firstPoint.lng);
+                        const radius = map.distance(centerPoint, L.latLng(lat, lng));
+                        const msg = prompt("請輸入圓形影響範圍說明：") || "未命名圓形區域";
+                        const data = {
+                            id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [firstPoint.lat, firstPoint.lng], 
+                            radius: radius, message: msg, creator: currentUser, color: "#3388ff",
+                            time: getFormattedTime() 
+                        };
+                        if (tempShape) map.removeLayer(tempShape); 
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                    }
+                } else if (currentTool === 'polygon') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff'}).addTo(map);
+                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length >= 3) tempShape.bindTooltip("右鍵結束繪製", {permanent: true}).openTooltip();
+                }
+            });
+
+            map.on('contextmenu', function() {
+                if (currentTool === 'polyline' && tempPoints.length >= 2) {
+                    const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
+                    const data = {
+                        id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        message: msg, creator: currentUser, color: "#3388ff",
+                        time: getFormattedTime() 
+                    };
+                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
+                    const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
+                    const data = {
+                        id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
+                        message: msg, creator: currentUser, color: "#3388ff",
+                        time: getFormattedTime() 
+                    };
+                    if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                }
+            });
+        }
+
         async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('room-password').value;
@@ -201,61 +351,13 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-
-        function initSocketAndLayers() {
-            socket = io(SERVER_URL);
-            socket.emit('join_room', { roomName: currentRoom, username: currentUser });
-
-            socket.on('history_objects', function(objects) {
-                if (Array.isArray(objects)) {
-                    objects.forEach(obj => renderObjectOnMap(obj));
-                }
-            });
-
-            socket.on('update_user_count', function(count) {
-                document.getElementById('state-count').innerText = count;
-            });
-
-            // 💡【核心防護】：將別人位置的戰術標籤直接綁在核心小圓點身上，並掛上極簡細線向量雷達波
-            let peerGPSMarkers = {}; 
-            socket.on('peer_gps_updated', function(gpsData) {
-                const pName = gpsData.username;
-                const pLatLng = L.latLng(gpsData.lat, gpsData.lng);
-                
-                if (peerGPSMarkers[pName]) {
-                    map.removeLayer(peerGPSMarkers[pName]);
-                }
-                
-                const peerCenterDot = L.circle(pLatLng, { 
-                    radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 
-                }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${pName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { 
-                    permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false 
-                });
-                
-                const peerAccuracyCircle = L.circle(pLatLng, { 
-                    radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 
-                });
-
-                peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
-            });
-
-            socket.on('object_added', data => renderObjectOnMap(data));
-            socket.on('object_deleted', id => {
-                if (allMapLayers[id]) {
-                    map.removeLayer(allMapLayers[id].layer);
-                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                    delete allMapLayers[id];
-                }
-            });
-        }
         function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
 
             if (data.shapeType === "marker") {
-                // 💡【大頭針 SVG 魔改】：將死板的藍色大頭針升級為純 SVG 水滴，點調色盤什麼顏色就一微秒秒變什麼顏色！
+                // 💡【大頭針 SVG 魔改】：將藍色大頭針升級為純 SVG 水滴，點調色盤就能跟著一秒秒變任意色彩！
                 const svgColor = data.color || "#3388ff";
                 const customMarkerIcon = L.divIcon({
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); transform: translate(-10px, -36px);"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
@@ -285,7 +387,6 @@
 
             // 💡 穿透參數解鎖：補上 interactive: false 穿透鎖，一微秒穿透標籤外殼直接點進大頭針或形狀本體！
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
-
             // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
                 // 1. 中心平移針 (📌)
@@ -365,7 +466,7 @@
                 });
             }
 
-            // 不管是點擊物件本體、大頭針本身，都能原地無延遲秒級彈出 Popup 編輯窗
+            // 不管是點擊幾何本體、大頭針本身，都能原地秒級彈出 Popup 編輯窗
             mainLayer.on('click', function() {
                 mainLayer.openPopup(centerLatLng);
             });
@@ -426,7 +527,7 @@
             }
         }
 
-        // 💡【全能調色盤核心】：一指相容大頭針 SVG 與所有範圍幾何圖形的即時變色儲存機制
+        // 💡【調色盤全對接大腦】：不論是大頭針、圓形或長方形，點儲存修改時一律自動重構渲染並同步色彩！
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             if (allMapLayers[objectId]) {
@@ -440,6 +541,7 @@
                 else if (isRect) sType = "rectangle";
                 else if (isMarker) sType = "marker";
 
+                // 自動抓取調色盤的最新色彩十六進位碼（如 #ff0000）
                 const newColor = document.getElementById(`edit-color-${objectId}`) ? document.getElementById(`edit-color-${objectId}`).value : '#3388ff';
 
                 let currentCoordinates = null, currentRadius = null;
@@ -471,7 +573,7 @@
         function toggleStatusPanel() {
             const panel = document.getElementById('typhoon-info');
             if (window.getComputedStyle(panel).display === 'none') panel.style.setProperty('display', 'block', 'important');
-            else panel.style.setProperty('important', 'display', 'none');
+            else panel.style.setProperty('display', 'none', 'important');
         }
 
         let myLocationMarker = null;
