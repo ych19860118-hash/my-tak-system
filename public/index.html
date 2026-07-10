@@ -41,7 +41,7 @@
         }
         .tool-btn:hover { background: #f4f4f4 !important; }
         .tool-btn.active { background: #007bff !important; color: white !important; border-color: #0056b3 !important; }
-        
+        .tool-btn.active svg {stroke: #ffffff !important;}
         .popup-menu { font-size: 14px; min-width: 180px; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; }
         .popup-menu select { width: 96%; padding: 4px; margin-bottom: 8px; }
@@ -81,11 +81,41 @@
 
     <!-- 自製左側垂直工具列 -->
     <div id="custom-toolbar">
-        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
-        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">↗</button>
-        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
-        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
-        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">▰</button>
+        <!-- 1. 標記點 -->
+        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+        </button>
+        
+        <!-- 2. 線條 -->
+        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12h5l4 8 5-16 4 8"></path>
+            </svg>
+        </button>
+        
+        <!-- 3. 方形 -->
+        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            </svg>
+        </button>
+        
+        <!-- 4. 圓形 -->
+        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
+            <svg width="22" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+            </svg>
+        </button>
+        
+        <!-- 5. 多邊形 -->
+        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#212529" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
+            </svg>
+        </button>
     </div>
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ️</button>
@@ -113,7 +143,7 @@
             if (map) return; 
             
             // 建立標準白天版地圖實例並關閉雙擊放大
-            map = L.map('map', { doubleClickZoom: false }).setView([23.6, 121], 8);
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
             // 手機端工具列觸控防穿透攔截
