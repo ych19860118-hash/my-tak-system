@@ -8,7 +8,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
-        /* 💡 戰術雷達網格花紋背景 */
+        /* 💡 戰術雷達網格花紋背景：每 30 像素產生一條微弱的螢光綠電子定位線，防刺眼且極具戰術高質感 */
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
             font-family: 'Courier New', Courier, monospace, sans-serif; 
@@ -50,23 +50,26 @@
         #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
         
-        /* 側邊垂直工具列 */
+        /* 側邊垂直指管工具列 */
         #custom-toolbar { position: absolute; top: 25px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px; }
         .tool-btn {
             width: 44px !important; height: 44px !important; background: #141619 !important; background-image: none !important;
             border: 1px solid #2d3748 !important; border-radius: 4px !important; cursor: pointer;
-            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin: 0 !important; padding: 0 !important;
+            display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin: 0 !important; padding: 0 !important; touch-action: button;
         }
         .tool-btn svg { stroke: #a0aec0 !important; }
         .tool-btn:hover { background: #1a1d21 !important; border-color: #4a5568 !important; }
         .tool-btn.active { background: #22c55e !important; border-color: #39ff14 !important; }
         .tool-btn.active svg, #btn-locate.active svg { stroke: #0d0e10 !important; }
         
+        /* 💡 戰術 Popup 編輯選單樣式 */
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
+        .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; }
         .popup-menu button.del-btn { background: #e53e3e; margin-top: 5px; }
         
+        /* 雙控制針樣式 */
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
         
@@ -77,8 +80,10 @@
         #toggle-info-btn:hover { border-color: #22c55e; }
         #typhoon-info {
             position: absolute; bottom: 65px; right: 12px; background: #141619; padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
-            border: 1px solid #22c55e; font-size: 12px; display: none !important; max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
+            border: 2px solid #22c55e; font-size: 12px; display: none !important; max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
+
+        /* 戰術常駐標籤 */
         .tactical-tooltip {
             background: #141619 !important; border: 2px solid #39ff14 !important; color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
             font-family: 'Courier New', monospace !important; border-radius: 4px !important; padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; opacity: 1 !important; z-index: 10000 !important;
@@ -87,7 +92,8 @@
     </style>
 </head>
 <body>
-        <div id="login-box">
+    <!-- COP SYSTEM 災害情資平台：戰術應變登入艙介面 -->
+    <div id="login-box">
         <h2>COP SYSTEM情資平台</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         <select id="room-select" onchange="checkRoomType()">
@@ -101,22 +107,27 @@
         <p id="login-error"></p>
     </div>
 
+    <!-- 自製左側垂直指管工具列 -->
     <div id="custom-toolbar">
-        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')">📍</button>
-        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')">📈</button>
-        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')">⬜</button>
-        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')">⭕</button>
-        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')">⬧</button>
-        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" style="margin-top:15px!important;border-color:#22c55e!important;">🛰️</button>
+        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">📍</button>
+        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">📈</button>
+        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">⬜</button>
+        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">⭕</button>
+        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">⬧</button>
+        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 15px !important; border-color: #22c55e !important;">🛰️</button>
     </div>
 
+    <!-- ℹ️ 戰術終端機人數面板隱藏標籤 -->
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <div id="typhoon-info">
-        <b style="color:#22c55e;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b><br>
-        ONLINE: <b id="state-count" style="color:#39ff14;">0</b>
+        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">NET NODE: <span id="state-room" style="color:#39ff14;"></span></b>
+        <div style="margin-top: 8px;">
+            STATUS: <b style="color:#39ff14;">ACTIVE</b><br>
+            ONLINE MARSHALS: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
+        </div>
     </div>
     <div id="map"></div>
-        <script>
+     <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
@@ -156,14 +167,18 @@
         function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
+                
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入災情狀況：") || "未命名災情";
                     const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map);
-                    else tempShape.setLatLngs(tempPoints);
+                    if (tempPoints.length === 1) {
+                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff'}).addTo(map);
+                    } else {
+                        tempShape.setLatLngs(tempPoints);
+                    }
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push({ lat: lat, lng: lng });
                     if (tempPoints.length === 2) {
@@ -181,9 +196,9 @@
                         tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff'}).addTo(map);
                     } else {
                         const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
-                        const msg = prompt("請輸入圓形影響範圍：") || "未命名區域";
+                        const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
                         const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
-                        if (tempShape) map.removeLayer(tempShape); 
+                        if (tempShape) map.removeLayer(tempShape);
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 }
@@ -192,12 +207,13 @@
             map.on('contextmenu', function() {
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
+                if (type !== 'polyline' && type !== 'polygon') return;
                 const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入多邊形說明：") || "未命名圖形";
-                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: [...tempPoints], message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
+                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
                 if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
             });
         }
-            async function login() {
+          async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('room-password').value;
             const roomSel = document.getElementById('room-select').value;
@@ -246,7 +262,7 @@
                 }
             });
         }
-                    function renderObjectOnMap(data) {
+         function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
@@ -353,27 +369,33 @@
                 popupContent = `
                     <div class="popup-menu">
                         <b>編輯您回報的災情</b><br>
-                        <small style="color:#22c55e;">最後異動：${displayTime}</small><br><br>
+                        <small style="color:gray;">最後異動：${displayTime}</small><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        <div style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-                            <label>戰術調色盤：</label>
-                            <input type="color" id="edit-color-${data.id}" value="${data.color || '#3388ff'}" style="width:45px; height:28px; padding:0; border:1px solid #2d3748; background:none; cursor:pointer; border-radius:2px;">
+                        <div>
+                            <label>等級變更：</label>
+                            <select id="edit-color-${data.id}">
+                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般回報)</option>
+                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (嚴重中斷)</option>
+                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (道路搶通)</option>
+                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (積水警告)</option>
+                            </select>
                         </div>
-                        <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
-                        <button onclick="deleteObject('${data.id}')" style="margin-top:5px; background:#e53e3e;">撤銷此回報</button>
+                        <button onclick="updateObject('${data.id}')">儲存修改</button>
+                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此回報</button>
                     </div>`;
             } else {
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br><br>
+                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br>
+                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報身分: ${data.creator}</small>
                     </div>`;
             }
             mainLayer.bindPopup(popupContent);
         }
-                    function syncGeometryChanges(data, mainLayer) {
+                 function syncGeometryChanges(data, mainLayer) {
             let currentCoordinates = null, currentRadius = null;
             if (data.shapeType === "circle") {
                 currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
@@ -384,7 +406,7 @@
                 currentCoordinates = mainLayer.getLatLngs().map(p => [p.lat, p.lng]);
             }
             data.time = getFormattedTime();
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, creator: currentUser, time: data.time };
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, creator: currentUser, time: data.time };
             socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
 
@@ -402,6 +424,7 @@
 
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
+            const newColor = document.getElementById(`edit-color-${objectId}`).value;
             if (allMapLayers[objectId]) {
                 const cache = allMapLayers[objectId];
                 const isCircle = !!cache.layer.options.radius;
@@ -410,9 +433,7 @@
                 let sType = "polygon"; 
                 if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = "marker";
 
-                const newColor = document.getElementById(`edit-color-${objectId}`) ? document.getElementById(`edit-color-${objectId}`).value : '#3388ff';
                 let currentCoordinates = null, currentRadius = null;
-
                 if (isCircle) {
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
                 } else if (isRect || isMarker) {
@@ -425,7 +446,7 @@
                     currentCoordinates = cache.layer.getLatLngs().map(p => [p.lat, p.lng]);
                 }
 
-                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: newMsg, color: newColor, creator: currentUser, time: getFormattedTime() };
+                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, creator: currentUser, time: getFormattedTime() };
                 map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
                 delete allMapLayers[objectId];
                 renderObjectOnMap(updatedData);
@@ -440,14 +461,14 @@
 
         let myLocationMarker = null;
         function locateUserGPS() {
-            if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位！"); return; }
+            if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
             const locateBtn = document.getElementById('btn-locate'); locateBtn.style.background = '#22c55e';
             navigator.geolocation.getCurrentPosition(
                 function(position) {
                     const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
                     const currentLatLng = L.latLng(userLat, userLng);
                     if (myLocationMarker) map.removeLayer(myLocationMarker);
-                    const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(currentUser + " (您)", { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
+                    const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(currentUser + " (您)", { permanent: true, direction: 'top', className: 'tactical-tooltip' });
                     const myAccuracyCircle = L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 });
                     myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
