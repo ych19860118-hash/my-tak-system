@@ -51,7 +51,7 @@
             background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
         }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
-        /* 側邊極簡向量垂直工具列 */
+  /* 側邊極簡向量垂直工具列 */
         #custom-toolbar {
             position: absolute; top: 25px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
         }
@@ -101,7 +101,7 @@
     </style>
 </head>
 <body>
-<!-- COP SYSTEM 災害情資平台：戰術風應變登入艙介面 -->
+        <!-- COP SYSTEM 災害情資平台：戰術風應變登入艙介面 -->
     <div id="login-box">
         <h2>COP SYSTEM情資平台</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
@@ -175,7 +175,7 @@
         </div>
     </div>
     <div id="map"></div>
-        <script>
+    <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
@@ -242,7 +242,7 @@
                 if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
             }
         }
-                    function initDrawingEvents() {
+                function initDrawingEvents() {
             map.on('click', function(e) {
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -254,7 +254,6 @@
                     };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline') {
-                    // 💡【線條防卡死重構】：精準儲存為獨立新陣列，絕不與全域快取產生底層引用衝突
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) tempShape = L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map);
                     else tempShape.setLatLngs(tempPoints);
@@ -302,14 +301,14 @@
                 if (currentTool === 'polyline' && tempPoints.length >= 2) {
                     const msg = prompt("請輸入封路/積水線條說明：") || "未命名線條";
                     const data = {
-                        id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: [...tempPoints],
+                        id: 'obj_' + Date.now(), shapeType: "polyline", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() 
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polygon' && tempPoints.length >= 3) {
                     const msg = prompt("請輸入淹水區域範圍說明：") || "未命名多邊形";
                     const data = {
-                        id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: [...tempPoints],
+                        id: 'obj_' + Date.now(), shapeType: "polygon", coordinates: JSON.parse(JSON.stringify(tempPoints)),
                         message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() 
                     };
                     if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
@@ -325,6 +324,7 @@
             let targetRoom = roomSel === 'custom' ? customRoom : roomSel;
 
             if(!userIn) { document.getElementById('login-error').innerText = "請輸入您的通報暱稱！"; return; }
+            if(roomSel === 'custom' && !customRoom) { document.getElementById('login-error').innerText = "請輸入自訂房間名稱！"; return; }
             
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
@@ -342,21 +342,40 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-
-        function initSocketAndLayers() {
+                function initSocketAndLayers() {
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
-            socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
-            socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
 
+            socket.on('history_objects', function(objects) {
+                if (Array.isArray(objects)) {
+                    objects.forEach(obj => renderObjectOnMap(obj));
+                }
+            });
+
+            socket.on('update_user_count', function(count) {
+                document.getElementById('state-count').innerText = count;
+            });
+
+            // 💡【核心防護】：將別人的戰術位置與高反差發光標籤直接導流同步
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
-                const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
-                if (peerGPSMarkers[pName]) map.removeLayer(peerGPSMarkers[pName]);
+                const pName = gpsData.username;
+                const pLatLng = L.latLng(gpsData.lat, gpsData.lng);
                 
-                const peerCenterDot = L.circle(pLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
-                    .bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${pName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
-                const peerAccuracyCircle = L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 });
+                if (peerGPSMarkers[pName]) {
+                    map.removeLayer(peerGPSMarkers[pName]);
+                }
+                
+                const peerCenterDot = L.circle(pLatLng, { 
+                    radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 
+                }).bindTooltip(`<span style="display:flex; align-items:center; gap:5px;">${pName} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 6a6 6 0 0 1 6 6"></path><circle cx="12" cy="12" r="1"></circle></svg></span>`, { 
+                    permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false 
+                });
+                
+                const peerAccuracyCircle = L.circle(pLatLng, { 
+                    radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 
+                });
+
                 peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
             });
 
@@ -370,12 +389,13 @@
                 }
             });
         }
-function renderObjectOnMap(data) {
+        function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) return;
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
 
             if (data.shapeType === "marker") {
+                // 💡【大頭針 SVG 向量重構】：使用完全閉合樣式，點調色盤什麼顏色，大頭針本體一微秒秒變什麼顏色！
                 const svgColor = data.color || "#3388ff";
                 const customMarkerIcon = L.divIcon({
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
@@ -401,8 +421,13 @@ function renderObjectOnMap(data) {
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
-            // 💡 穿透參數解鎖：補上 interactive: false 穿透鎖，一微秒穿透標籤外殼直接點進大頭針或形狀本體！
-            mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
+            // 💡【大頭針點擊彈窗修正】：大頭針移除 direction: 'center' 參數（因為 L.marker 不支援此預設置中會造成崩潰）
+            // 幾何形狀則保留文字置中。同時全面補上 interactive: false 穿透鎖，一秒穿透文字框直點本體！
+            if (data.shapeType === "marker") {
+                mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
+            } else {
+                mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
+            }
 
             // 📌 穩固雙控制針系統：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
@@ -483,7 +508,7 @@ function renderObjectOnMap(data) {
                 });
             }
 
-            // 💡【分流彈窗防線】：修正大頭針不支援指定中心點的 Bug。如果是 marker 則原地開啟，幾何圖形則強制傳入中心座標
+            // 💡【穿透彈窗分流】：如果是大頭針直接開啟 Popup，如果是幾何物件則傳入中心點座標，100% 流暢彈出！
             mainLayer.on('click', function() {
                 if (data.shapeType === "marker") {
                     mainLayer.openPopup();
@@ -494,14 +519,14 @@ function renderObjectOnMap(data) {
 
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
-                if (isMyObject) {
+                        if (isMyObject) {
                 popupContent = `
                     <div class="popup-menu">
                         <b>編輯您回報的災情</b><br>
                         <small style="color:#22c55e;">最後異動時間：${displayTime}</small><br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        <div style="margin-bottom: 12px; ${data.shapeType === 'marker' ? 'display: none;' : 'display: flex; align-items: center; gap: 8px;'}">
+                        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                             <label>戰術調色盤：</label>
                             <input type="color" id="edit-color-${data.id}" value="${data.color || '#3388ff'}" style="width: 45px; height: 28px; padding: 0; border: 1px solid #2d3748; background: none; cursor: pointer; border-radius: 2px;">
                         </div>
@@ -548,6 +573,7 @@ function renderObjectOnMap(data) {
             }
         }
 
+        // 💡【全能調色盤核心】：一指相容大頭針 SVG 與所有範圍幾何圖形的即時變色儲存機制
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             if (allMapLayers[objectId]) {
