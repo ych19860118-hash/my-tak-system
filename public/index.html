@@ -51,7 +51,6 @@
             background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
         }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
-        
         /* 側邊極簡向量垂直工具列 */
         #custom-toolbar {
             position: absolute; top: 25px; left: 12px; z-index: 1000; display: none; flex-direction: column; gap: 10px;
@@ -65,7 +64,6 @@
         .tool-btn:hover { background: #1a1d21 !important; border-color: #4a5568 !important; }
         .tool-btn.active { background: #22c55e !important; border-color: #39ff14 !important; }
         .tool-btn.active svg, #btn-locate.active svg { stroke: #0d0e10 !important; }
-        .tool-btn.active svg, #btn-locate.active svg { stroke: #ffffff !important; }
         
         .popup-menu { font-size: 13px; min-width: 180px; font-family: monospace; }
         .popup-menu input[type="text"] { width: 90%; padding: 4px; margin-bottom: 8px; background: #f7fafc; border: 1px solid #cbd5e0; }
@@ -88,7 +86,7 @@
             max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
 
-        /* 💡 【全新優化】：強化戰術常駐標籤，融入發光綠框、字體強力加粗且置於最高圖層，絕對不被覆蓋吃掉 */
+        /* 💡 強化戰術常駐標籤，融入發光綠框、字體強力加粗且置於最高圖層，絕對不被覆蓋吃掉 */
         .tactical-tooltip {
             background: #141619 !important; border: 2px solid #39ff14 !important;
             color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
@@ -217,9 +215,13 @@
                 if (!isFullscreen) {
                     if (docElm.requestFullscreen) docElm.requestFullscreen();
                     else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
+                    else if (docElm.mozRequestFullScreen) docElm.mozRequestFullScreen();
+                    else if (docElm.msRequestFullscreen) docElm.msRequestFullscreen();
                 } else {
                     if (document.exitFullscreen) document.exitFullscreen();
                     else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); 
+                    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                    else if (document.msExitFullscreen) document.msExitFullscreen();
                 }
             });
 
@@ -358,13 +360,13 @@
                 document.getElementById('state-count').innerText = count;
             });
 
-            // 💡【終極 Bug 修復核心】：將別人位置的戰術標籤「直接綁在核心小圓點」身上，徹底攻克 ID 標籤被隱藏的容器衝突！
+            // 💡【核心防護】：將別人位置的戰術標籤「直接綁在核心小圓點」身上，徹底攻克 ID 標籤被隱藏的容器衝突！
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username;
                 const pLatLng = L.latLng(gpsData.lat, gpsData.lng);
                 
-                // 1. 如果地圖上已有該隊員的老定位點，先從地圖上拔除
+                // 1. 防呆：如果地圖上已有該隊員的老定位點，先從地圖上拔除
                 if (peerGPSMarkers[pName]) {
                     map.removeLayer(peerGPSMarkers[pName]);
                 }
@@ -515,6 +517,7 @@
             }
         }
 
+        // 💡【終極重寫完全體】：抓取最新拉拉動半徑與外框，支援圓形半徑、方形外框、多邊形 📌 錨點儲存後無限次二次調整大小與平移
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
@@ -532,20 +535,30 @@
                 else if (isRect) sType = "rectangle";
                 else if (layerGroup.layer instanceof L.Polyline && !(layerGroup.layer instanceof L.Polygon)) sType = "polyline";
 
-                const updatedData = {
-                    id: objectId, shapeType: sType,
-                    coordinates: isMarker || isCircle ? [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng] : null,
-                    radius: isCircle ? layerGroup.layer.options.radius : null,
-                    message: newMsg, color: newColor, creator: currentUser,
-                    time: getFormattedTime() 
-                };
+                let currentCoordinates = null;
+                let currentRadius = null;
 
-                if (!isMarker && !isCircle) {
+                if (isMarker) {
+                    currentCoordinates = [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng];
+                } else if (isCircle) {
+                    currentCoordinates = [layerGroup.layer.getLatLng().lat, layerGroup.layer.getLatLng().lng];
+                    currentRadius = layerGroup.layer.getRadius(); // 💡 抓取當前最新被拉大或縮小的半徑！
+                } else if (isRect) {
+                    const b = layerGroup.layer.getBounds();
+                    currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                } else {
                     const dumpPoints = function(points) {
                         return points.map(p => { if (Array.isArray(p)) return dumpPoints(p); return [p.lat, p.lng]; });
                     };
-                    updatedData.coordinates = dumpPoints(layerGroup.layer.getLatLngs());
+                    currentCoordinates = dumpPoints(layerGroup.layer.getLatLngs());
                 }
+
+                const updatedData = {
+                    id: objectId, shapeType: sType,
+                    coordinates: currentCoordinates, radius: currentRadius,
+                    message: newMsg, color: newColor, creator: currentUser,
+                    time: getFormattedTime() 
+                };
 
                 map.removeLayer(layerGroup.layer);
                 if (layerGroup.pin) map.removeLayer(layerGroup.pin);
