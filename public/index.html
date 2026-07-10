@@ -352,7 +352,7 @@
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
-        function initSocketAndLayers() {
+                function initSocketAndLayers() {
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
 
@@ -366,7 +366,6 @@
                 document.getElementById('state-count').innerText = count;
             });
 
-            // 💡【核心防護】：將別人位置的戰術標籤直接綁在核心小圓點身上，並掛上極簡細線向量雷達波
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username;
@@ -411,7 +410,6 @@
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                // 💡【物理防線】：用 Leaflet 底層最穩健的原生 L.rectangle 渲染對角兩點格式
                 mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.4, weight: 4 });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
@@ -425,17 +423,10 @@
             mainLayer.addTo(map);
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
-
-            // 💡 在圖形幾何中央綁定常駐型黑底綠字發光戰術標籤
             mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip' });
 
-            // 📌 雙控制針解鎖大腦：📌負責平移、📐負責手動拉伸縮放尺寸
             if (isMyObject && data.shapeType !== "marker") {
-                // 1. 中心平移針 (📌)
-                const controlPin = L.marker(centerLatLng, {
-                    draggable: true,
-                    icon: L.divIcon({ html: '📌', className: 'control-pin-icon' })
-                }).addTo(map);
+                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
 
                 let startLatLng = centerLatLng;
@@ -464,33 +455,8 @@
 
                 controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
 
-                // 2. 邊緣尺寸拉伸控制針 (📐)
-                if (data.shapeType === "circle" || data.shapeType === "rectangle") {
-                    const resizeLatLng = (data.shapeType === "circle") ? 
-                        L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-
-                    const resizePin = L.marker(resizeLatLng, {
-                        draggable: true,
-                        icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' })
-                    }).addTo(map);
-                    allMapLayers[data.id].resizePin = resizePin;
-
-                    resizePin.on('drag', function(e) {
-                        const newPinLatLng = e.latlng;
-                        if (data.shapeType === "circle") {
-                            const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
-                            if (newRadius > 5) mainLayer.setRadius(newRadius);
-                        } else if (data.shapeType === "rectangle") {
-                            // 💡【對角幾何反推】：利用中心平移針，完美反推重構長寬尺寸，100% 穩健、絕不消失！
-                            const centerP = controlPin.getLatLng();
-                            const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
-                            const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
-                            mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
-                        }
-                    });
-
-                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
-                }
+                if (data.shapeType === "circle") updateCirclePins(data.id, centerLatLng, data.radius, true);
+                if (data.shapeType === "rectangle") updateRotatedRectPins(data.id, centerLatLng, true);
             } else if (isMyObject && data.shapeType === "marker") {
                 mainLayer.dragging.enable();
                 mainLayer.on('dragend', function() {
@@ -500,14 +466,35 @@
                 });
             }
 
-            let popupContent = `
-                <div class="popup-menu">
-                    <b>${isMyObject ? '編輯您回報的災情' : '⚠️ 災情回報狀況'}</b><br>
-                    <small style="color:gray;">最後異動：${data.time || '無紀錄'}</small><br><br>
-                    ${isMyObject ? `<input type="text" id="edit-msg-${data.id}" value="${data.message}">` : `<b>內容：</b>${data.message}<br>`}
-                    <button onclick="${isMyObject ? `updateObject('${data.id}')` : `alert('🔒 唯讀模式')`}">${isMyObject ? '儲存修改' : '確定'}</button>
-                    ${isMyObject ? `<button onclick="deleteObject('${data.id}')" style="margin-top:5px;">撤銷回報</button>` : ''}
-                </div>`;
+            // 💡【調色盤 HUD 注入】：如果是創作者，直接在 Popup 裡埋入一個高質感的原生網頁調色盤
+            let popupContent = "";
+            const displayTime = data.time || "無紀錄";
+            const isMarker = (data.shapeType === "marker");
+
+            if (isMyObject) {
+                popupContent = `
+                    <div class="popup-menu">
+                        <b>編輯您回報的災情</b><br>
+                        <small style="color:#22c55e;">最後異動時間：${displayTime}</small><br><br>
+                        <label>修改描述：</label>
+                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
+                        <div style="margin-bottom: 12px; ${isMarker ? 'display: none;' : 'display: flex; align-items: center; gap: 8px;'}">
+                            <label>戰術調色盤：</label>
+                            <input type="color" id="edit-color-${data.id}" value="${data.color || '#3388ff'}" style="width: 45px; height: 28px; padding: 0; border: 1px solid #2d3748; background: none; cursor: pointer; border-radius: 2px;">
+                        </div>
+                        <button onclick="updateObject('${data.id}')" style="background:#007bff; margin-bottom:5px;">儲存修改</button>
+                        <button onclick="deleteObject('${data.id}')">撤銷此回報</button>
+                    </div>`;
+            } else {
+                popupContent = `
+                    <div class="popup-menu">
+                        <b style="color:#ffc107;">⚠️ 災情回報狀況</b><br>
+                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
+                        <b>內容：</b>${data.message}<br>
+                        <small style="color:gray;">回報人員身分: ${data.creator}</small><br><br>
+                        <small style="color:#ff4d4d;">🔒 唯讀模式：您非創作者，無法修改此處。</small>
+                    </div>`;
+            }
             mainLayer.bindPopup(popupContent);
         }
         function syncGeometryChanges(data, mainLayer) {
@@ -515,7 +502,6 @@
             if (data.shapeType === "circle") {
                 currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
             } else if (data.shapeType === "rectangle") {
-                // 還原為標準對角兩點格式進行 Socket 廣播同步
                 const b = mainLayer.getBounds();
                 currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
             } else if (mainLayer.getLatLngs) {
@@ -538,6 +524,7 @@
             }
         }
 
+        // 💡【調色盤資料對接大腦】：精準讀取 HTML5 Color Picker 選中的顏色，並逆向同步給全房間
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             if (allMapLayers[objectId]) {
@@ -545,6 +532,9 @@
                 const isCircle = !!cache.layer.options.radius;
                 const isRect = !isCircle && cache.layer instanceof L.Rectangle;
                 let sType = "polygon"; if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle";
+
+                // 💡 核心行：如果不是 Marker 大頭針，就自動抓取調色盤的最新色彩十六進位碼（如 #ff0000）
+                const newColor = !isCircle && !isRect && !(cache.layer instanceof L.Polyline) ? '#3388ff' : (document.getElementById(`edit-color-${objectId}`) ? document.getElementById(`edit-color-${objectId}`).value : '#3388ff');
 
                 let currentCoordinates = null, currentRadius = null;
                 if (isCircle) {
@@ -556,7 +546,7 @@
                     currentCoordinates = cache.layer.getLatLngs().map(p => [p.lat, p.lng]);
                 }
 
-                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: newMsg, color: cache.layer.options.color, creator: currentUser, time: getFormattedTime() };
+                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, angle: 0, message: newMsg, color: newColor, creator: currentUser, time: getFormattedTime() };
                 map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
                 delete allMapLayers[objectId];
                 renderObjectOnMap(updatedData);
