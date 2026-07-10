@@ -437,7 +437,16 @@
                     icon: L.divIcon({ html: '📌', className: 'control-pin-icon' })
                 }).addTo(map);
                 allMapLayers[data.id].pin = controlPin;
-
+                // ⚡【終極解鎖連動】：當使用者點選圖形正中央的 📌 針時，強行命令它把底下的 Popup 選單彈出來！
+                // 這能完美解決控制針圖層把點擊事件攔截吃掉、導致調色盤彈不出來的嚴重衝突！
+                controlPin.on('click', function() {
+                    mainLayer.openPopup(centerLatLng);
+                });
+                
+                // 同步防呆：點擊圖形邊緣或內部也可以順暢彈出選單
+                mainLayer.on('click', function() {
+                    mainLayer.openPopup(centerLatLng);
+                });
                 let startLatLng = centerLatLng;
                 controlPin.on('drag', function(e) {
                     const nextLatLng = e.latlng;
