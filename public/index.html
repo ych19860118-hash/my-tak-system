@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>指管協作平台</title>
+    <title>COP System情資平台</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
@@ -83,7 +83,7 @@
 
     <!-- 戰術風應變登入艙介面 -->
     <div id="login-box">
-        <h2>COP System災害情資平台</h2>
+        <h2>COP System情資平台</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
         <select id="room-select" onchange="checkRoomType()">
             <option value="public_1">公開頻道(風災)</option>
@@ -92,7 +92,7 @@
         </select>
         <input type="text" id="custom-room-name" placeholder="輸入頻道名稱" style="display:none;">
         <input type="password" id="room-password" placeholder="輸入頻道密碼">
-        <button onclick="login()"ENTER</button>
+        <button onclick="login()">ENTER</button>
         <p id="login-error"></p>
     </div>
 
