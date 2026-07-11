@@ -1,7 +1,9 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const io = require('socket.io')(http, {
+    maxHttpBufferSize: 10 * 1024 * 1024 // 將 Socket.io 接收上限提升至 10MB，避免清晰照片因過大而傳輸失敗
+});
 const path = require('path');
 
 app.use(express.json());
