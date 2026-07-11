@@ -12,17 +12,17 @@ app.use('/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet
 
 // 核心記憶體資料庫
 let rooms = {
-    "public_1": { password: "", objects: [] },
-    "public_2": { password: "", objects: [] }
+    "公開頻道(風災)": { password: "", objects: [] },
+    "公開頻道(震災)": { password: "", objects: [] }
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
-// 🔐 定義最高指揮官專屬密鑰（已更新為 adminyu）
+// 🔐 定義最高指揮官專屬密鑰
 const ADMIN_SECRET = "adminyu"; 
 
 app.post('/api/login', (req, res) => {
     const { username, password, roomName, roomPassword, adminSecret } = req.body;
-    const rName = roomName ? roomName.trim() : "public_1";
+    const rName = roomName ? roomName.trim() : "公開頻道(風災)";
     let uName = username ? username.trim() : "";
 
     if (uName === "") {
@@ -34,7 +34,6 @@ app.post('/api/login', (req, res) => {
         if (!adminSecret || adminSecret.trim() !== ADMIN_SECRET) {
             return res.json({ success: false, message: "登入失敗：管理者身份驗證密鑰錯誤！" });
         }
-        // 通過後給予標準化格式
         uName = "管理者[Admin]";
     }
 
@@ -102,6 +101,7 @@ io.on('connection', (socket) => {
         
         socket.myName = myName; 
         socket.myRoom = myRoom;
+        socket.roomName = myRoom; // 綁定 roomName 屬性供 broadcast 使用
         
         socket.join(myRoom);
 
@@ -126,10 +126,20 @@ io.on('connection', (socket) => {
         const chatData = {
             sender: myName,
             message: messageText.trim(),
-            // 強制設定為台灣時區 (Asia/Taipei)
             time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
         };
         io.to(myRoom).emit('receive_chat', chatData);
+    });
+
+    // 📷 接收並廣播其他用戶分享的照片/影片檔
+    socket.on('share_media', (data) => {
+        if (!myRoom || !myName) return;
+        io.to(myRoom).emit('receive_media', {
+            sender: myName,
+            mediaType: data.mediaType,
+            mediaData: data.mediaData,
+            fileName: data.fileName
+        });
     });
 
     socket.on('new_object', (objData) => {
@@ -142,7 +152,6 @@ io.on('connection', (socket) => {
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
-            // 🔐 判斷刪除權限：包含 [Admin] 字眼即具備管理者刪除權
             const isAdmin = (myName.includes('[Admin]'));
             
             if (isAdmin || (targetObj && targetObj.creator === myName)) {
@@ -175,7 +184,7 @@ io.on('connection', (socket) => {
             
             roomTimers[myRoom] = setTimeout(() => {
                 if (rooms[myRoom]) {
-                    if (myRoom === "public_1" || myRoom === "public_2") {
+                    if (myRoom === "公開頻道(風災)" || myRoom === "公開頻道(震災)") {
                         rooms[myRoom].objects = [];
                     } else {
                         delete rooms[myRoom];
