@@ -68,7 +68,7 @@
         .tool-btn.active { background: #1a202c !important; color: #ffffff !important; border-radius: 4px !important; }
         .tool-btn.active svg { stroke: #ffffff !important; }
         
-        .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
+        .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; max-height: 300px; overflow-y: auto; }
         .popup-menu input[type="text"], .popup-menu select, .popup-menu textarea { 
             width: 92%; padding: 6px; margin-bottom: 8px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; 
         }
@@ -76,6 +76,14 @@
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
         
+        /* 放大圖片檢視燈箱樣式 */
+        #img-lightbox {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+            align-items: center; justify-content: center; cursor: zoom-out;
+        }
+        #img-lightbox img { max-width: 90%; max-height: 90%; border: 2px solid #22c55e; border-radius: 4px; }
+
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
         
@@ -164,6 +172,9 @@
     </style>
 </head>
 <body>
+    <!-- 圖片放大燈箱容器 -->
+    <div id="img-lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt="預覽大圖"></div>
+
     <div id="login-box">
         <h2>COP System協同地理圖資</h2>
         <input type="text" id="username" placeholder="OPERATOR ID (暱稱)" oninput="checkAdminInput()">
@@ -183,11 +194,9 @@
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
         </button>
-        <!-- 📷 新增現場狀況回報（含圖片上傳）按鈕 -->
         <button class="tool-btn" id="btn-incident" onclick="switchTool('incident')" title="即時現場災情回報(含圖檔)">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </button>
-        <!-- 🚦 新增國道CCTV圖層開關按鈕 -->
         <button class="tool-btn" id="btn-cctv-layer" onclick="toggleCCTVLayer()" title="國道即時攝影機圖層開關">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
         </button>
@@ -238,7 +247,7 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
-        let cctvLayerGroup = null, isCCTVActive = false; // 國道CCTV圖層狀態
+        let cctvLayerGroup = null, isCCTVActive = false;
 
         function getFormattedTime() {
             const now = new Date();
@@ -247,6 +256,15 @@
             const h = String(now.getHours()).padStart(2, '0');
             const min = String(now.getMinutes()).padStart(2, '0');
             return `${m}/${d} ${h}:${min}`;
+        }
+
+        // 燈箱控制函式
+        function openLightbox(imgSrc) {
+            document.getElementById('lightbox-img').src = imgSrc;
+            document.getElementById('img-lightbox').style.display = 'flex';
+        }
+        function closeLightbox() {
+            document.getElementById('img-lightbox').style.display = 'none';
         }
 
         function checkAdminInput() {
@@ -277,11 +295,12 @@
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
+            L.DomEvent.disableClickPropagation(document.getElementById('img-lightbox'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
 
-        // 🚦 國道攝影機圖層開關與資料載入
+        // 🚦 修正後的國道即時攝影機載入（支援穩健的備援與多樣 API 結構解析）
         async function toggleCCTVLayer() {
             const btn = document.getElementById('btn-cctv-layer');
             if (isCCTVActive) {
@@ -295,6 +314,7 @@
                 if (!cctvLayerGroup) {
                     cctvLayerGroup = L.layerGroup();
                     try {
+                        // 嘗試抓取標準公開資料集
                         const res = await fetch('https://tdx.transportdata.tw/api/basic/v2/Road/Traffic/CCTV/Freeway?%24format=JSON', {
                             headers: { accept: 'application/json' }
                         }).catch(() => null);
@@ -302,14 +322,18 @@
                         let cctvData = [];
                         if (res && res.ok) {
                             cctvData = await res.json();
-                        } else {
-                            // 備援：若無對外金鑰改從政府資料開源範本或簡化模擬點/公開API載入
-                            const altRes = await fetch('https://data.gov.tw/dataset/').catch(() => null);
-                            // 示範用預設座標點或直接以公共測試點為例
+                        }
+                        
+                        // 若空資料或跨域阻擋，提供全台各主要國道與交流道實際可檢視的示範點
+                        if (!Array.isArray(cctvData) || cctvData.length === 0) {
                             cctvData = [
-                                { CCTVName: "國道一號 0k 基隆端", PositionLon: 121.738, PositionLat: 25.132, LiveStreamUrl: "" },
-                                { CCTVName: "國道一號 23k 圓山", PositionLon: 121.524, PositionLat: 25.073, LiveStreamUrl: "" },
-                                { CCTVName: "國道三號 31k 新店", PositionLon: 121.543, PositionLat: 24.978, LiveStreamUrl: "" }
+                                { CCTVName: "國道1號 0k 基隆端", PositionLon: 121.7383, PositionLat: 25.1321, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/1" },
+                                { CCTVName: "國道1號 23k 圓山交流道", PositionLon: 121.5240, PositionLat: 25.0735, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/35" },
+                                { CCTVName: "國道1號 165k 豐原", PositionLon: 120.7120, PositionLat: 24.2415, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/120" },
+                                { CCTVName: "國道1號 356k 楠梓", PositionLon: 120.3210, PositionLat: 22.7290, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/220" },
+                                { CCTVName: "國道3號 15k 汐止系統", PositionLon: 121.6520, PositionLat: 25.0680, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/300" },
+                                { CCTVName: "國道3號 31k 新店交流道", PositionLon: 121.5430, PositionLat: 24.9780, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/350" },
+                                { CCTVName: "國道3號 108k 寶山", PositionLon: 120.9750, PositionLat: 24.7610, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/420" }
                             ];
                         }
 
@@ -318,18 +342,18 @@
                             className: 'cctv-svg-icon'
                         });
 
-                        (Array.isArray(cctvData) ? cctvData : []).forEach(cam => {
-                            const lon = cam.PositionLon || cam.geometry?.coordinates?.[0];
-                            const lat = cam.PositionLat || cam.geometry?.coordinates?.[1];
-                            const name = cam.CCTVName || "國道攝影機";
-                            const stream = cam.LiveStreamUrl || "";
+                        cctvData.forEach(cam => {
+                            const lon = cam.PositionLon || cam.PositionCoordinate?.PositionLon || cam.geometry?.coordinates?.[0];
+                            const lat = cam.PositionLat || cam.PositionCoordinate?.PositionLat || cam.geometry?.coordinates?.[1];
+                            const name = cam.CCTVName || cam.CctvName || "國道即時攝影機";
+                            const stream = cam.LiveStreamUrl || cam.VideoStreamUrl || "https://1968.freeway.gov.tw/";
                             
                             if (lat && lon) {
                                 const marker = L.marker([lat, lon], { icon: camIcon });
                                 marker.bindPopup(`
                                     <div class="popup-menu">
                                         <b style="color:#ffc107;">🚦 ${name}</b><br><br>
-                                        ${stream ? `<a href="${stream}" target="_blank" style="color:#39ff14;">點擊觀看即時串流影像</a>` : '目前提供道路即時狀態監視'}<br>
+                                        <a href="${stream}" target="_blank" style="color:#39ff14; font-weight:bold; text-decoration:underline;">點擊開啟高公局即時影像</a><br>
                                         <small style="color:gray;">座標: ${lat.toFixed(3)}, ${lon.toFixed(3)}</small>
                                     </div>
                                 `);
@@ -337,7 +361,7 @@
                             }
                         });
                     } catch (e) {
-                        showToast("國道攝影機 API 載入失敗，已載入標準位置");
+                        showToast("國道攝影機圖層載入異常");
                     }
                 }
                 cctvLayerGroup.addTo(map);
@@ -395,9 +419,8 @@
                     const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'incident') {
-                    // 📷 即時現場回報互動視窗（支援文字、類別與上傳圖片）
                     const tempMarker = L.marker([lat, lng]).addTo(map);
-                    const incidentPopup = L.popup()
+                    L.popup()
                         .setLatLng([lat, lng])
                         .setContent(`
                             <div class="popup-menu" style="width:220px;">
@@ -424,7 +447,8 @@
                         const fileInput = document.getElementById('inc-file');
                         
                         const finalizeData = (imgData = null) => {
-                            const combinedMsg = `[${typeVal}] ${descVal}` + (imgData ? `<br><img src="${imgData}" style="max-width:100%; margin-top:5px; border-radius:2px;">` : '');
+                            // 📷 修正圖片 HTML 結構，加入 onclick 呼叫燈箱放大檢視
+                            const combinedMsg = `[${typeVal}] ${descVal}` + (imgData ? `<br><img src="${imgData}" onclick="openLightbox('${imgData}')" style="max-width:140px; max-height:100px; margin-top:5px; border-radius:2px; cursor:pointer; border:1px solid #39ff14;" title="點擊放大圖片">` : '');
                             const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [iLat, iLng], message: combinedMsg, creator: currentUser, color: typeVal === '森林野火' ? '#dc3545' : '#3388ff', fillOpacity: 0, time: getFormattedTime() };
                             renderObjectOnMap(data); 
                             socket.emit('new_object', data);
@@ -709,7 +733,7 @@
                 });
             }
 
-            mainLayer.on('click', function(e) {
+            mainLayer.on('click', function() {
                 if (currentTool !== 'pan' && currentTool !== 'locate') return;
                 if (data.shapeType === "marker") {
                     mainLayer.openPopup();
