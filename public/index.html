@@ -74,7 +74,6 @@
         .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
-        .popup-menu button.media-btn { background: #28a745; margin-bottom: 5px; }
         
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
@@ -96,22 +95,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
         }
         #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
-
-        #media-modal {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #141619; border: 2px solid #22c55e; border-radius: 6px;
-            z-index: 10005; display: none; flex-direction: column; width: 360px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.8); font-family: monospace;
-        }
-        #media-header {
-            background: #1a1d21; padding: 10px 14px; color: #22c55e; font-weight: bold;
-            display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748;
-        }
-        #media-container { width: 100%; height: 260px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-        #shared-media-view { width: 100%; height: 100%; object-fit: contain; }
-        #media-footer { padding: 10px; background: #1a1d21; display: flex; justify-content: space-between; border-top: 1px solid #2d3748; align-items: center; }
-        #media-footer button { padding: 6px 12px; background: #e53e3e; color: #fff; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; }
-        #upload-media-input { display: none; }
 
         #chat-panel {
             position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
@@ -214,23 +197,6 @@
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
 
-    <div id="media-modal">
-        <div id="media-header">
-            <span>📷 頻道協同多媒體檢視</span>
-            <span style="cursor:pointer;" onclick="closeMediaModal()">✖</span>
-        </div>
-        <div id="media-container">
-            <div id="media-display-area" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
-                <span style="color:#718096; font-size:12px;">尚無載入的媒體</span>
-            </div>
-        </div>
-        <div id="media-footer">
-            <input type="file" id="upload-media-input" accept="image/*,video/*" onchange="handleMediaUpload(event)">
-            <button onclick="document.getElementById('upload-media-input').click()" style="background:#1b4d22; border:1px solid #39ff14; color:#39ff14;">上傳照片/影片</button>
-            <button onclick="closeMediaModal()">關閉視窗</button>
-        </div>
-    </div>
-
     <div id="chat-panel">
         <div id="chat-header">
             <span>頻道聊天室</span>
@@ -295,7 +261,6 @@
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
-            L.DomEvent.disableClickPropagation(document.getElementById('media-modal'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
@@ -430,12 +395,6 @@
                 appendChatMessage(data.sender, data.message, data.time);
             });
 
-            // 接收其他用戶廣播的媒體檔案 (照片或影片)
-            socket.on('receive_media', function(data) {
-                displaySharedMedia(data.sender, data.mediaType, data.mediaData, data.fileName);
-                showToast(`[頻道通知] ${data.sender} 上傳並分享了媒體檔案`);
-            });
-
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
@@ -455,43 +414,6 @@
                     delete allMapLayers[id];
                 }
             });
-        }
-
-        function openMediaModal() {
-            document.getElementById('media-modal').style.display = 'flex';
-        }
-
-        function closeMediaModal() {
-            document.getElementById('media-modal').style.display = 'none';
-        }
-
-        function handleMediaUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            const isVideo = file.type.startsWith('video');
-            const mediaType = isVideo ? 'video' : 'image';
-
-            reader.onload = function(e) {
-                const base64Data = e.target.result;
-                displaySharedMedia(currentUser, mediaType, base64Data, file.name);
-                // 廣播給其他頻道用戶
-                if (socket) {
-                    socket.emit('share_media', { mediaType: mediaType, mediaData: base64Data, fileName: file.name });
-                }
-                showToast("已成功分享照片/影片至頻道");
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function displaySharedMedia(sender, mediaType, mediaData, fileName) {
-            const area = document.getElementById('media-display-area');
-            if (mediaType === 'video') {
-                area.innerHTML = `<video id="shared-media-view" controls autoplay playsinline src="${mediaData}"></video>`;
-            } else {
-                area.innerHTML = `<img id="shared-media-view" src="${mediaData}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
-            }
-            openMediaModal();
         }
 
         function toggleChatPanel() {
@@ -669,7 +591,6 @@
                     <div class="popup-menu">
                         <b>編輯您回報的圖形/災情</b><br>
                         <small style="color:gray;">最後異動：${displayTime}</small><br><br>
-                        <button onclick="openMediaModal()" class="media-btn">📷 上傳/分享多媒體檔案</button>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
                         <div>
@@ -697,7 +618,6 @@
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報員: ${data.creator}</small>
-                        <button onclick="openMediaModal()" class="media-btn" style="margin-top:8px;">📷 查看頻道多媒體</button>
                         ${adminDeleteBlock}
                     </div>`;
             }
