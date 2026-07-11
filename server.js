@@ -27,36 +27,30 @@ app.post('/api/login', (req, res) => {
         return res.json({ success: false, message: "登入失敗：請輸入有效的通報暱稱！" });
     }
 
-    // 1. 如果是新房間，直接初始化
     if (!rooms[rName]) {
         rooms[rName] = {
             password: roomPassword ? roomPassword.trim() : "",
             objects: []
         };
     } else {
-        // 2. 如果是現有房間，先驗證管理密碼是否正確
         if (rooms[rName].password !== "" && rooms[rName].password !== roomPassword.trim()) {
             return res.json({ success: false, message: "登入失敗：該應變房間密碼錯誤！" });
         }
     }
 
-    // 檢查：當頻道沒人時，100% 放行，絕不誤判攔截第一個進房的人
     let isNameTaken = false;
     try {
         const adapter = io.sockets.adapter;
         let roomSockets = null;
         
         if (adapter && typeof adapter.rooms.get === 'function') {
-            roomSockets = adapter.rooms.get(rName); // 新版 Socket.io
+            roomSockets = adapter.rooms.get(rName); 
         } else if (adapter && adapter.rooms) {
-            roomSockets = adapter.rooms[rName]; // 舊版 Socket.io
+            roomSockets = adapter.rooms[rName]; 
         }
 
-        // 只有在應變頻道存在、且內部有連線人員時才執行人名查重比對
         if (roomSockets) {
             const socketIds = typeof roomSockets.forEach === 'function' ? roomSockets : Object.keys(roomSockets);
-            
-            // 防呆判定：確認房內 Socket 數大於 0 才比對，空房直接跳過（安全放行）
             if (socketIds && (socketIds.size > 0 || socketIds.length > 0)) {
                 for (const socketId of socketIds) {
                     const clientSocket = io.sockets.sockets.get ? io.sockets.sockets.get(socketId) : io.sockets.sockets[socketId];
@@ -78,7 +72,6 @@ app.post('/api/login', (req, res) => {
         });
     }
 
-    // 3. 取消該房的無人自毀倒數
     if (roomTimers[rName]) {
         clearTimeout(roomTimers[rName]);
         delete roomTimers[rName];
@@ -92,38 +85,42 @@ io.on('connection', (socket) => {
     let myRoom = "";
     let myName = "";
 
-    // 監聽加入房間
     socket.on('join_room', (data) => {
         myRoom = data.roomName;
         myName = data.username;
         
-        // 💡 關鍵綁定：寫入連線實例中，方便上方的 API 路由與動態 GPS 追蹤機制精準查重
         socket.myName = myName; 
         socket.myRoom = myRoom;
         
         socket.join(myRoom);
 
-        // 取消倒數計時
         if (roomTimers[myRoom]) {
             clearTimeout(roomTimers[myRoom]);
             delete roomTimers[myRoom];
         }
 
-        // 發送歷史舊物件
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
 
-        // 廣播即時在線人數與進場通知
         sendUserCount(myRoom);
         io.to(myRoom).emit('user_notification', { name: myName, action: 'joined' });
     });
 
-    // 💡【最新功能】：監聽前方回報隊員發送的即時 GPS，並動態轉發給同個應變頻道內的所有人
     socket.on('share_my_gps', (gpsData) => {
-        gpsData.username = myName; // 塞入該使用者的 OPERATOR ID
-        socket.to(myRoom).emit('peer_gps_updated', gpsData); // 轉發廣播給房間內的其他隊員
+        gpsData.username = myName; 
+        socket.to(myRoom).emit('peer_gps_updated', gpsData); 
     });
 
-    // 監聽新增災情
+    // 💡【新增】：監聽前端傳來的聊天訊息並廣播給同房間的人
+    socket.on('send_chat', (messageText) => {
+        if (!myRoom || !myName || !messageText.trim()) return;
+        const chatData = {
+            sender: myName,
+            message: messageText.trim(),
+            time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+        };
+        io.to(myRoom).emit('receive_chat', chatData);
+    });
+
     socket.on('new_object', (objData) => {
         if (rooms[myRoom]) {
             rooms[myRoom].objects.push(objData);
@@ -131,10 +128,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 監聽撤銷/平移災情（加入管理員權限判定：若為 admin 則強制允許刪除任意物件）
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
-            // 檢查是否為 admin 或是該物件的建立者（若您的物件資料有紀錄 sender / username）
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
             const isAdmin = (myName === 'admin');
             
@@ -145,11 +140,9 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 監聽斷線事件（啟動 10 分鐘無人清除計時器）
     socket.on('disconnect', () => {
         if (!myRoom) return;
         
-        // 廣播離開通知
         if (myName) {
             io.to(myRoom).emit('user_notification', { name: myName, action: 'left' });
         }
@@ -165,7 +158,6 @@ io.on('connection', (socket) => {
             currentCount = Object.keys(adapter.rooms[myRoom]).length;
         }
 
-        // 如果房間完全空無一人，啟動 10 分鐘毀滅清除計時器！
         if (currentCount === 0) {
             if (roomTimers[myRoom]) clearTimeout(roomTimers[myRoom]);
             
@@ -184,7 +176,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// 封裝函數：計算並廣播即時線上人數
 function sendUserCount(roomName) {
     const adapter = io.sockets.adapter;
     let count = 0;
