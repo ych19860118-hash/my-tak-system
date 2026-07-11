@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>COP System 協同地理圖資 - 救災與交通強化版</title>
+    <title>COP System 協同地理圖資 - 原始基礎版</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- 引入 Google Maps API (請替換 YOUR_GOOGLE_MAPS_API_KEY 為您實際的金鑰) -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=visualization"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -84,35 +82,8 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
         }
         .cop-btn:hover, .cop-btn.active { border-color: #22c55e; background: #1a1d21; }
-        #toggle-traffic-btn { color: #f59e0b; }
-        #toggle-traffic-btn:hover, #toggle-traffic-btn.active { border-color: #f59e0b; }
         #toggle-chat-btn { color: #39ff14; }
         #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; }
-        #btn-report-toggle { color: #38ef7d; }
-        #btn-report-toggle.active { background: #1a73e8; border-color: #1a73e8; color: #fff; }
-
-        /* 現場回報互動面板 */
-        #report-panel {
-            position: absolute; top: 20px; right: 20px; width: 320px;
-            background: rgba(20, 22, 25, 0.95); backdrop-filter: blur(10px);
-            border: 2px solid #22c55e; border-radius: 4px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.7); z-index: 1002;
-            padding: 16px; display: none; box-sizing: border-box;
-            color: #cbd5e0; font-size: 12px;
-        }
-        #report-panel h3 {
-            margin-top: 0; font-size: 14px; color: #22c55e;
-            border-bottom: 1px solid #2d3748; padding-bottom: 8px;
-        }
-        .form-group { margin-bottom: 10px; }
-        .form-group label { display: block; font-size: 11px; color: #a0aec0; margin-bottom: 3px; }
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100%; padding: 6px; background: #1a1d21; border: 1px solid #2d3748;
-            border-radius: 2px; color: #39ff14; font-family: monospace; box-sizing: border-box; font-size: 12px;
-        }
-        .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-        .btn-submit { background: #1b4d22; color: #39ff14; border: 1px solid #39ff14; padding: 6px 12px; cursor: pointer; font-weight: bold; border-radius: 2px; }
-        .btn-cancel { background: #1a1d21; color: #a0aec0; border: 1px solid #2d3748; padding: 6px 10px; cursor: pointer; border-radius: 2px; }
 
         #chat-panel {
             position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
@@ -169,7 +140,6 @@
         <select id="room-select" onchange="checkRoomType()">
             <option value="公開頻道(風災)">公開頻道(風災)</option>
             <option value="公開頻道(震災)">公開頻道(震災)</option>
-            <option value="公開頻道(林火)">公開頻道(林火)</option>
             <option value="custom">新增私用頻道...</option>
         </select>
         <input type="text" id="custom-room-name" placeholder="ENTER NEW ROOM ID" style="display:none;">
@@ -179,7 +149,7 @@
     </div>
 
     <div id="custom-toolbar">
-        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增一般標記">
+        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增標記">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
         </button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
@@ -201,42 +171,8 @@
 
     <!-- 右下角控制按鈕區 -->
     <div class="bottom-right-controls" id="bottom-controls">
-        <button class="cop-btn" id="btn-report-toggle" title="新增現場回報 (含救災/交通圖示)">📷</button>
-        <button class="cop-btn" id="toggle-traffic-btn" onclick="toggleTrafficLayer()" title="即時路況圖層">🚗</button>
         <button class="cop-btn" id="toggle-chat-btn" onclick="toggleChatPanel()" title="聊天室">💬</button>
         <button class="cop-btn" id="toggle-info-btn" onclick="toggleStatusPanel()" title="系統狀態">ℹ</button>
-    </div>
-
-    <!-- 現場回報互動面板 (擴充都市救災與森林救火) -->
-    <div id="report-panel">
-        <h3>📍 現場即時狀況回報</h3>
-        <div class="form-group">
-            <label>回報座標 (自動鎖定)</label>
-            <input type="text" id="report-coords" readonly placeholder="請點擊地圖選取位置">
-        </div>
-        <div class="form-group">
-            <label>狀況類型 (含救災/交通/林火)</label>
-            <select id="report-type">
-                <option value="traffic">🚗 交通中斷/塞車/事故</option>
-                <option value="urban_rescue">🏚️ 都市搜救/建物倒塌</option>
-                <option value="forest_fire">🔥 森林大火/燃燒熱點</option>
-                <option value="danger">⚠️ 一般警告/障礙</option>
-                <option value="flood">🌊 積水/淹水</option>
-                <option value="medical">🚑 醫療救護需求</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>現場照片上傳</label>
-            <input type="file" id="report-photo" accept="image/*">
-        </div>
-        <div class="form-group">
-            <label>狀況說明</label>
-            <textarea id="report-desc" rows="3" placeholder="簡述現場嚴重程度與需求..."></textarea>
-        </div>
-        <div class="form-actions">
-            <button class="btn-cancel" id="btn-cancel-report">取消</button>
-            <button class="btn-submit" id="btn-submit-report">確認送出</button>
-        </div>
     </div>
 
     <div id="chat-panel">
@@ -266,12 +202,6 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
-        let googleMap = null, trafficLayer = null, isTrafficActive = false;
-        let selectedLatLng = null, isReportingMode = false;
-
-        const reportPanel = document.getElementById('report-panel');
-        const btnToggle = document.getElementById('btn-report-toggle');
-        const coordsInput = document.getElementById('report-coords');
 
         function getFormattedTime() {
             const now = new Date();
@@ -306,42 +236,12 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([24.9936, 121.2299], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-            if (typeof google !== 'undefined' && google.maps) {
-                googleMap = new google.maps.Map(document.createElement('div'), {
-                    center: { lat: 24.9936, lng: 121.2299 },
-                    zoom: 15
-                });
-                trafficLayer = new google.maps.TrafficLayer();
-            }
-
             L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
             L.DomEvent.disableClickPropagation(document.getElementById('bottom-controls'));
             L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
-            L.DomEvent.disableClickPropagation(reportPanel);
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
-            initReportingEvents();
-        }
-
-        function toggleTrafficLayer() {
-            const btn = document.getElementById('toggle-traffic-btn');
-            isTrafficActive = !isTrafficActive;
-            if (isTrafficActive) {
-                btn.classList.add('active');
-                if (trafficLayer && googleMap) {
-                    trafficLayer.setMap(googleMap);
-                    showToast("已啟動 Google 即時路況功能");
-                } else {
-                    showToast("載入中或未取得 Google API 金鑰");
-                }
-            } else {
-                btn.classList.remove('active');
-                if (trafficLayer) {
-                    trafficLayer.setMap(null);
-                    showToast("已關閉即時路況");
-                }
-            }
         }
 
         function switchTool(tool) {
@@ -356,87 +256,14 @@
 
         function initDrawingEvents() {
             map.on('click', function(e) {
-                if (isReportingMode) return;
                 if (currentTool === 'pan' || currentTool === 'locate') return;
 
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入位置狀況：") || "未命名位置";
-                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, icon: '📍', color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 }
-            });
-        }
-
-        function initReportingEvents() {
-            btnToggle.addEventListener('click', () => {
-                isReportingMode = !isReportingMode;
-                if (isReportingMode) {
-                    btnToggle.classList.add('active');
-                    showToast('請直接在圖面上點擊您要回報的「現場位置」');
-                } else {
-                    btnToggle.classList.remove('active');
-                    reportPanel.style.display = 'none';
-                }
-            });
-
-            map.on('click', (e) => {
-                if (!isReportingMode) return;
-                selectedLatLng = e.latlng;
-                coordsInput.value = `${selectedLatLng.lat.toFixed(5)}, ${selectedLatLng.lng.toFixed(5)}`;
-                reportPanel.style.display = 'block';
-            });
-
-            document.getElementById('btn-cancel-report').addEventListener('click', () => {
-                reportPanel.style.display = 'none';
-                selectedLatLng = null;
-            });
-
-            document.getElementById('btn-submit-report').addEventListener('click', () => {
-                if (!selectedLatLng) return;
-
-                const type = document.getElementById('report-type').value;
-                const desc = document.getElementById('report-desc').value || '無詳細說明';
-                const photoInput = document.getElementById('report-photo');
-                
-                let photoHtml = '無影像紀錄';
-                if (photoInput.files && photoInput.files[0]) {
-                    const fakeUrl = URL.createObjectURL(photoInput.files[0]);
-                    photoHtml = `<img src="${fakeUrl}" style="width:100%; max-height:100px; object-fit:cover; border-radius:2px; margin-top:4px;">`;
-                }
-
-                const typeConfig = {
-                    traffic: { emoji: '🚗', title: '交通狀況' },
-                    urban_rescue: { emoji: '🏚️', title: '都市搜救' },
-                    forest_fire: { emoji: '🔥', title: '森林火災' },
-                    danger: { emoji: '⚠️', title: '危險障礙' },
-                    flood: { emoji: '🌊', title: '積水回報' },
-                    medical: { emoji: '🚑', title: '醫療需求' }
-                };
-                const config = typeConfig[type] || { emoji: '📌', title: '現場回報' };
-
-                const data = {
-                    id: 'obj_' + Date.now(),
-                    shapeType: 'marker',
-                    coordinates: [selectedLatLng.lat, selectedLatLng.lng],
-                    message: `${config.title}: ${desc}<br>${photoHtml}`,
-                    creator: currentUser,
-                    icon: config.emoji,
-                    color: '#22c55e',
-                    fillOpacity: 0,
-                    time: getFormattedTime()
-                };
-
-                renderObjectOnMap(data);
-                if (socket) socket.emit('new_object', data);
-
-                reportPanel.style.display = 'none';
-                isReportingMode = false;
-                btnToggle.classList.remove('active');
-                document.getElementById('report-desc').value = '';
-                photoInput.value = '';
-                selectedLatLng = null;
-                showToast('現場即時回報已成功同步！');
             });
         }
 
@@ -514,13 +341,8 @@
                 delete allMapLayers[data.id];
             }
             const pts = data.coordinates;
-            const iconSymbol = data.icon || '📍';
-            const customMarkerIcon = L.divIcon({
-                html: `<div style="background:#141619; border:2px solid #22c55e; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 0 10px rgba(34,197,94,0.4);">${iconSymbol}</div>`,
-                className: 'custom-pin'
-            });
-            const mainLayer = L.marker(pts, { icon: customMarkerIcon }).addTo(map);
-            mainLayer.bindPopup(`<b>現場回報</b><br>${data.message}<br><small>${data.time}</small>`);
+            const mainLayer = L.marker(pts).addTo(map);
+            mainLayer.bindPopup(`<b>位置回報</b><br>${data.message}<br><small>${data.time}</small>`);
             allMapLayers[data.id] = { layer: mainLayer };
         }
 
