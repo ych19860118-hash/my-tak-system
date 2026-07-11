@@ -152,11 +152,16 @@ io.on('connection', (socket) => {
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
-            const isAdmin = (myName.includes('[Admin]'));
             
-            if (isAdmin || (targetObj && targetObj.creator === myName)) {
+            // 修正後的管理者與建立者嚴格驗證邏輯
+            const isAdmin = myName === "管理者[Admin]" || (socket.myName && socket.myName.includes('[Admin]'));
+            const isCreator = targetObj && targetObj.creator === myName;
+            
+            if (isAdmin || isCreator) {
                 rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
                 io.to(myRoom).emit('object_deleted', objectId);
+            } else {
+                console.log(`刪除被拒絕：${myName} 既非物件建立者 (${targetObj ? targetObj.creator : '未知'}) 也非管理者`);
             }
         }
     });
