@@ -155,6 +155,11 @@
             font-family: 'Courier New', monospace !important; border-radius: 4px !important; padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; opacity: 1 !important; z-index: 10000 !important;
         }
         .tactical-tooltip::before { display: none !important; }
+        
+        #admin-clear-btn {
+            background: #9b1c1c !important; border-color: #ef4444 !important; color: #fca5a5 !important; margin-top: 10px !important; display: none;
+        }
+        #admin-clear-btn:hover { background: #ef4444 !important; color: #0d0e10 !important; }
     </style>
 </head>
 <body>
@@ -215,6 +220,7 @@
             狀態: <b style="color:#39ff14;">ACTIVE</b><br>
             在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
         </div>
+        <button id="admin-clear-btn" onclick="adminClearAllObjects()">🚨 清除所有圖資 (最高權限)</button>
     </div>
     <div id="toast-container"></div>
     <div id="map"></div>
@@ -375,6 +381,11 @@
                     document.getElementById('toggle-info-btn').style.display = 'flex';
                     document.getElementById('toggle-chat-btn').style.display = 'flex';
                     document.getElementById('state-room').innerText = currentRoom;
+                    
+                    if (currentUser.trim().toLowerCase() === 'admin') {
+                        document.getElementById('admin-clear-btn').style.display = 'block';
+                    }
+                    
                     initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
@@ -413,6 +424,16 @@
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
                     delete allMapLayers[id];
                 }
+            });
+            
+            socket.on('clear_all_objects', () => {
+                Object.keys(allMapLayers).forEach(id => {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                });
+                allMapLayers = {};
+                showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資！");
             });
         }
 
@@ -648,6 +669,26 @@
                     delete allMapLayers[objectId];
                 }
                 socket.emit('delete_object', objectId);
+            }
+        }
+
+        function adminClearAllObjects() {
+            if (currentUser.trim().toLowerCase() !== 'admin') {
+                alert("權限不足：僅限 admin 帳號執行全圖資清空！");
+                return;
+            }
+            if (confirm("🚨 警告：您即將以最高指揮官 (admin) 權限，刪除地圖上「所有頻道」或當前頻道的所有圖資！此操作無法復原，確定執行？")) {
+                Object.keys(allMapLayers).forEach(id => {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    socket.emit('delete_object', id);
+                });
+                allMapLayers = {};
+                if (socket) {
+                    socket.emit('admin_clear_all');
+                }
+                showToast("🚨 您已成功清除所有圖資！");
             }
         }
 
