@@ -97,7 +97,6 @@
         }
         #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
 
-        /* 現場即時視訊懸浮窗 */
         #video-modal {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #141619; border: 2px solid #22c55e; border-radius: 6px;
@@ -214,7 +213,6 @@
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
 
-    <!-- 現場即時視訊懸浮窗 -->
     <div id="video-modal">
         <div id="video-header">
             <span>🔴 現場即時視訊串流</span>
@@ -450,7 +448,6 @@
             });
         }
 
-        // 🔴 開啟現場即時視訊串流
         async function openLiveVideo() {
             const modal = document.getElementById('video-modal');
             const videoElem = document.getElementById('live-video');
@@ -556,7 +553,7 @@
             if (!isCurrentlyDrawing) {
                 mainLayer.addTo(map);
             }
-            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
+            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
 
             if (data.shapeType === "marker") {
                 mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
@@ -704,8 +701,6 @@
         }
 
         function deleteObject(objectId) {
-            const isAdmin = currentUser.trim().toLowerCase() === 'admin';
-            const isMyObject = allMapLayers[objectId] && allMapLayers[objectId].creator === currentUser; // or check via stored creator if needed
             if (confirm("確定要刪除/撤銷這個圖形回報嗎？")) {
                 if (allMapLayers[objectId]) {
                     map.removeLayer(allMapLayers[objectId].layer);
