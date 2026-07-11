@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>COP System協同地理圖資</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <script src="/socket.io/socket.io.js"></script>
@@ -194,7 +194,7 @@
 
         function initMapInstance() {
             if (map) return; 
-            map = L.map('map', { doubleClickZoom: false, zoomControl: false }).setView([23.6, 121], 8);
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
             L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
@@ -203,7 +203,7 @@
             initDrawingEvents();
         }
 
-        // 💡 終極解法：進入繪圖模式時，將所有既有圖層、釘選直接暫時從地圖移除；離開時重新加回
+        // 💡 手機最佳化解法：保持圖層在畫面上，但透過設定 interactive 與開關控制，不採用移除圖層的方式
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -216,28 +216,40 @@
             
             Object.values(allMapLayers).forEach(item => {
                 if (item.layer) {
+                    if (typeof item.layer.setInteractive === 'function') {
+                        item.layer.setInteractive(!isDrawing);
+                    }
+                    if (item.layer.options) {
+                        item.layer.options.interactive = !isDrawing;
+                        item.layer.options.bubblingMouseEvents = !isDrawing;
+                    }
                     if (isDrawing) {
                         try { item.layer.closePopup(); } catch(err) {}
-                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
-                        if (item.pin && map.hasLayer(item.pin)) map.removeLayer(item.pin);
-                        if (item.resizePin && map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin);
-                    } else {
-                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
-                        if (item.pin && !map.hasLayer(item.pin)) item.pin.addTo(map);
-                        if (item.resizePin && !map.hasLayer(item.resizePin)) item.resizePin.addTo(map);
+                    }
+                    // 控制控制點與調整點在繪圖時暫時隱藏
+                    if (item.pin) {
+                        if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
+                        else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
+                    }
+                    if (item.resizePin) {
+                        if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
+                        else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
                     }
                 }
             });
 
             if (isDrawing) {
-                showToast("已進入繪圖模式，現有圖層已暫時隱藏，可任意在地圖上繪製");
+                showToast("已進入繪圖模式，現有物件點擊已鎖定");
             } else {
-                showToast("已返回導覽模式，圖層已恢復");
+                showToast("已返回導覽模式");
             }
         }
 
         function initDrawingEvents() {
             map.on('click', function(e) {
+                // 如果目前是瀏覽或導覽模式，不執行繪圖動作
+                if (currentTool === 'pan' || currentTool === 'locate') return;
+
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
@@ -247,7 +259,7 @@
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
-                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6, interactive: true}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', interactive: true}).addTo(map);
+                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6, interactive: false}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', interactive: false}).addTo(map);
                     } else {
                         tempShape.setLatLngs(tempPoints);
                     }
@@ -265,7 +277,7 @@
                 } else if (currentTool === 'circle') {
                     if (tempPoints.length === 0) {
                         tempPoints.push({ lat: lat, lng: lng });
-                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', interactive: true}).addTo(map);
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', interactive: false}).addTo(map);
                     } else {
                         const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
                         const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
@@ -276,7 +288,8 @@
                 }
             });
 
-            map.on('contextmenu', function() {
+            map.on('contextmenu', function(e) {
+                if (currentTool === 'pan' || currentTool === 'locate') return;
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
@@ -351,6 +364,8 @@
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
+            const layerInteractive = !isCurrentlyDrawing;
 
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
@@ -358,29 +373,24 @@
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
                     className: 'tactical-svg-marker'
                 });
-                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject }); 
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject, interactive: layerInteractive, bubblingMouseEvents: layerInteractive }); 
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
-                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
+                mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3 });
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
-                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3 });
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polygon") {
-                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3 });
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
             }
             if (!mainLayer) return;
 
-            // 💡 若當前為繪圖模式，不直接上圖層到畫布，避免攔截點擊
-            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
-            if (!isCurrentlyDrawing) {
-                mainLayer.addTo(map);
-            }
-
+            mainLayer.addTo(map);
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
             if (data.shapeType === "marker") {
@@ -450,6 +460,7 @@
             }
 
             mainLayer.on('click', function(e) {
+                if (currentTool !== 'pan' && currentTool !== 'locate') return;
                 if (data.shapeType === "marker") {
                     mainLayer.openPopup();
                 } else {
