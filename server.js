@@ -112,8 +112,9 @@ io.on('connection', (socket) => {
         // 發送歷史舊物件
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
 
-        // 廣播即時在線人數
+        // 廣播即時在線人數與進場通知
         sendUserCount(myRoom);
+        io.to(myRoom).emit('user_notification', { name: myName, action: 'joined' });
     });
 
     // 💡【最新功能】：監聽前方回報隊員發送的即時 GPS，並動態轉發給同個應變頻道內的所有人
@@ -130,17 +131,28 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 監聽撤銷/平移災情
+    // 監聽撤銷/平移災情（加入管理員權限判定：若為 admin 則強制允許刪除任意物件）
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
-            rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
-            io.to(myRoom).emit('object_deleted', objectId);
+            // 檢查是否為 admin 或是該物件的建立者（若您的物件資料有紀錄 sender / username）
+            const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
+            const isAdmin = (myName === 'admin');
+            
+            if (isAdmin || (targetObj && targetObj.username === myName)) {
+                rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
+                io.to(myRoom).emit('object_deleted', objectId);
+            }
         }
     });
 
     // 監聽斷線事件（啟動 10 分鐘無人清除計時器）
     socket.on('disconnect', () => {
         if (!myRoom) return;
+        
+        // 廣播離開通知
+        if (myName) {
+            io.to(myRoom).emit('user_notification', { name: myName, action: 'left' });
+        }
         
         sendUserCount(myRoom);
 
