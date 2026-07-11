@@ -153,15 +153,17 @@ io.on('connection', (socket) => {
         if (rooms[myRoom]) {
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
             
-            // 修正後的管理者與建立者嚴格驗證邏輯
-            const isAdmin = myName === "管理者[Admin]" || (socket.myName && socket.myName.includes('[Admin]'));
-            const isCreator = targetObj && targetObj.creator === myName;
+            // 🔐 終極防禦性驗證：結合 socket.myName 與區域變數 myName 進行判定
+            const activeName = socket.myName || myName;
+            const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('[Admin]'));
+            const isCreator = targetObj && targetObj.creator === activeName;
             
             if (isAdmin || isCreator) {
                 rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
                 io.to(myRoom).emit('object_deleted', objectId);
+                console.log(`【刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
             } else {
-                console.log(`刪除被拒絕：${myName} 既非物件建立者 (${targetObj ? targetObj.creator : '未知'}) 也非管理者`);
+                console.log(`刪除被拒絕：操作者 (${activeName}) 權限不足`);
             }
         }
     });
