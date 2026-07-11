@@ -50,31 +50,21 @@ app.post('/api/login', (req, res) => {
         }
     }
 
+    // 檢查房內是否有相同暱稱（已簡化與修正防呆邏輯）
     let isNameTaken = false;
     try {
-        const adapter = io.sockets.adapter;
-        let roomSockets = null;
-        
-        if (adapter && typeof adapter.rooms.get === 'function') {
-            roomSockets = adapter.rooms.get(rName); 
-        } else if (adapter && adapter.rooms) {
-            roomSockets = adapter.rooms[rName]; 
-        }
-
+        const roomSockets = io.sockets.adapter.rooms.get(rName);
         if (roomSockets) {
-            const socketIds = typeof roomSockets.forEach === 'function' ? roomSockets : Object.keys(roomSockets);
-            if (socketIds && (socketIds.size > 0 || socketIds.length > 0)) {
-                for (const socketId of socketIds) {
-                    const clientSocket = io.sockets.sockets.get ? io.sockets.sockets.get(socketId) : io.sockets.sockets[socketId];
-                    if (clientSocket && clientSocket.myName === uName) {
-                        isNameTaken = true;
-                        break;
-                    }
+            for (const socketId of roomSockets) {
+                const clientSocket = io.sockets.sockets.get(socketId);
+                if (clientSocket && clientSocket.myName === uName) {
+                    isNameTaken = true;
+                    break;
                 }
             }
         }
     } catch (e) {
-        console.log("暱稱查重執行時發生跳過，安全放行中...");
+        console.log("暱稱查重執行時發生例外，安全放行中...");
     }
 
     if (isNameTaken) {
@@ -179,14 +169,8 @@ io.on('connection', (socket) => {
         
         sendUserCount(myRoom);
 
-        const adapter = io.sockets.adapter;
-        let currentCount = 0;
-        if (adapter && typeof adapter.rooms.get === 'function') {
-            const clients = adapter.rooms.get(myRoom);
-            currentCount = clients ? clients.size : 0;
-        } else if (adapter && adapter.rooms && adapter.rooms[myRoom]) {
-            currentCount = Object.keys(adapter.rooms[myRoom]).length;
-        }
+        const clients = io.sockets.adapter.rooms.get(myRoom);
+        const currentCount = clients ? clients.size : 0;
 
         if (currentCount === 0) {
             if (roomTimers[myRoom]) clearTimeout(roomTimers[myRoom]);
@@ -207,14 +191,8 @@ io.on('connection', (socket) => {
 });
 
 function sendUserCount(roomName) {
-    const adapter = io.sockets.adapter;
-    let count = 0;
-    if (adapter && typeof adapter.rooms.get === 'function') {
-        const clients = adapter.rooms.get(roomName);
-        count = clients ? clients.size : 0;
-    } else if (adapter && adapter.rooms && adapter.rooms[roomName]) {
-        count = Object.keys(adapter.rooms[roomName]).length;
-    }
+    const clients = io.sockets.adapter.rooms.get(roomName);
+    const count = clients ? clients.size : 0;
     io.to(roomName).emit('update_user_count', count);
 }
 
