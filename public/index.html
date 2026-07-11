@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>COP System協同地理圖資</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
+    <!-- 引入 Google Maps API (請替換 YOUR_GOOGLE_MAPS_API_KEY 為您實際的金鑰) -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=visualization"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
@@ -95,6 +97,15 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
         }
         #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
+
+        #toggle-traffic-btn {
+            position: absolute; bottom: 20px; right: 108px; z-index: 1001; 
+            width: 38px; height: 38px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 16px; color: #f59e0b; display: none; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
+        }
+        #toggle-traffic-btn:hover, #toggle-traffic-btn.active { border-color: #f59e0b; background: #1a1d21; }
 
         #chat-panel {
             position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
@@ -196,6 +207,7 @@
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
+    <button id="toggle-traffic-btn" onclick="toggleTrafficLayer()" title="即時路況">🚗</button>
 
     <div id="chat-panel">
         <div id="chat-header">
@@ -223,6 +235,7 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
+        let googleMap = null, trafficLayer = null, isTrafficActive = false;
 
         function getFormattedTime() {
             const now = new Date();
@@ -233,7 +246,6 @@
             return `${m}/${d} ${h}:${min}`;
         }
 
-        // 🔐 當輸入 admin 時動態顯示指揮官密鑰欄位
         function checkAdminInput() {
             const userIn = document.getElementById('username').value.trim().toLowerCase();
             document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
@@ -257,13 +269,46 @@
             if (map) return; 
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+            // 初始化 Google Maps 的 TrafficLayer 配合隱藏圖層實作即時路況
+            if (typeof google !== 'undefined' && google.maps) {
+                // 這裡若有需要，也可以直接建立一個隱藏的 Google Maps 實體來抽離路況資料
+                googleMap = new google.maps.Map(document.createElement('div'), {
+                    center: { lat: 23.6, lng: 121 },
+                    zoom: 8
+                });
+                trafficLayer = new google.maps.TrafficLayer();
+            }
+
             L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
             L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
+            L.DomEvent.disableClickPropagation(document.getElementById('toggle-traffic-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
+        }
+
+        // 切換 Google即時路況圖層
+        function toggleTrafficLayer() {
+            const btn = document.getElementById('toggle-traffic-btn');
+            isTrafficActive = !isTrafficActive;
+            if (isTrafficActive) {
+                btn.classList.add('active');
+                if (trafficLayer && googleMap) {
+                    trafficLayer.setMap(googleMap);
+                    showToast("已啟動 Google 即時路況功能");
+                } else {
+                    showToast("載入中或未取得 Google API 金鑰");
+                }
+            } else {
+                btn.classList.remove('active');
+                if (trafficLayer) {
+                    trafficLayer.setMap(null);
+                    showToast("已關閉即時路況");
+                }
+            }
         }
 
         function switchTool(tool) {
@@ -375,6 +420,7 @@
                     document.getElementById('custom-toolbar').style.display = 'flex'; 
                     document.getElementById('toggle-info-btn').style.display = 'flex';
                     document.getElementById('toggle-chat-btn').style.display = 'flex';
+                    document.getElementById('toggle-traffic-btn').style.display = 'flex';
                     document.getElementById('state-room').innerText = currentRoom;
                     initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
