@@ -17,7 +17,7 @@ let rooms = {
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
-// 🔐 定義最高指揮官專屬密鑰（可在此修改你的管理者安全通行碼）
+// 🔐 定義最高指揮官專屬密鑰（已更新為 adminyu）
 const ADMIN_SECRET = "adminyu"; 
 
 app.post('/api/login', (req, res) => {
@@ -126,7 +126,8 @@ io.on('connection', (socket) => {
         const chatData = {
             sender: myName,
             message: messageText.trim(),
-            time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+            // 強制設定為台灣時區 (Asia/Taipei)
+            time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
         };
         io.to(myRoom).emit('receive_chat', chatData);
     });
