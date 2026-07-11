@@ -327,12 +327,18 @@
             });
         }
 
-        function renderObjectOnMap(data) {
-            if (allMapLayers[data.id]) return;
+function renderObjectOnMap(data) {
+            // 💡 如果該圖層已經存在，必須先將舊的移除，才能順利即時更新/修改別人的最新圖資！
+            if (allMapLayers[data.id]) {
+                map.removeLayer(allMapLayers[data.id].layer);
+                if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
+                if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
+                delete allMapLayers[data.id];
+            }
+
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
 
-            // 💡 確保圖層支援點擊穿透與互動 (interactive: true 讓底圖事件可以疊加與順利在內框新增)
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
                 const customMarkerIcon = L.divIcon({
@@ -450,9 +456,9 @@
                         <button onclick="updateObject('${data.id}')">儲存修改</button>
                         <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
-           } else {
-                // 💡 判斷是否為最高權限管理者 admin，若是則額外提供強制刪除按鈕
-                const adminDeleteBlock = (currentUser === 'admin') ? `
+            } else {
+                // 💡 支援不分大小寫比對 admin，確保最高權限能刪除
+                const adminDeleteBlock = (currentUser.trim().toLowerCase() === 'admin') ? `
                     <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除錯誤回報 (Admin)</button>
                 ` : "";
 
