@@ -365,7 +365,8 @@ function renderObjectOnMap(data) {
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
-            if (data.shapeType === "marker") {
+if (data.shapeType === "marker") {
+                // 💡 允許 Tooltip 穿透，避免阻擋點擊
                 mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
             } else {
                 mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
@@ -429,9 +430,13 @@ function renderObjectOnMap(data) {
                 });
             }
 
-            mainLayer.on('click', function() {
-                if (data.shapeType === "marker") mainLayer.openPopup();
-                else mainLayer.openPopup(centerLatLng);
+// 💡 不分 shapeType，一律使用明確的點擊開啟 Popup 邏輯
+            mainLayer.on('click', function(e) {
+                if (data.shapeType === "marker") {
+                    mainLayer.openPopup();
+                } else {
+                    mainLayer.openPopup(centerLatLng);
+                }
             });
 
             let popupContent = "";
