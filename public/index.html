@@ -716,7 +716,8 @@
                 currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
             }
             data.time = getFormattedTime();
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: currentUser, time: data.time };
+            const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: currentUser, time: data.time };
             socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
 
