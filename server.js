@@ -18,7 +18,7 @@ let rooms = {
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
 // 🔐 定義最高指揮官專屬密鑰（可在此修改你的管理者安全通行碼）
-const ADMIN_SECRET = "admin_sec999"; 
+const ADMIN_SECRET = "adminyu"; 
 
 app.post('/api/login', (req, res) => {
     const { username, password, roomName, roomPassword, adminSecret } = req.body;
@@ -32,10 +32,10 @@ app.post('/api/login', (req, res) => {
     // 🔐 管理員身份嚴格驗證
     if (uName.toLowerCase() === 'admin') {
         if (!adminSecret || adminSecret.trim() !== ADMIN_SECRET) {
-            return res.json({ success: false, message: "登入失敗：指揮官身份驗證密鑰錯誤！" });
+            return res.json({ success: false, message: "登入失敗：管理者身份驗證密鑰錯誤！" });
         }
         // 通過後給予標準化格式
-        uName = "指揮官[Admin]";
+        uName = "管理者[Admin]";
     }
 
     if (!rooms[rName]) {
