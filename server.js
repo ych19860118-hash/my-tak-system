@@ -17,14 +17,25 @@ let rooms = {
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
-// === 核心功能：相容新舊版 Socket.io，房內沒人時 100% 綠燈放行進房 ===
+// 🔐 定義最高指揮官專屬密鑰（可在此修改你的管理者安全通行碼）
+const ADMIN_SECRET = "admin_sec999"; 
+
 app.post('/api/login', (req, res) => {
-    const { username, password, roomName, roomPassword } = req.body;
+    const { username, password, roomName, roomPassword, adminSecret } = req.body;
     const rName = roomName ? roomName.trim() : "public_1";
-    const uName = username ? username.trim() : "";
+    let uName = username ? username.trim() : "";
 
     if (uName === "") {
         return res.json({ success: false, message: "登入失敗：請輸入有效的通報暱稱！" });
+    }
+
+    // 🔐 管理員身份嚴格驗證
+    if (uName.toLowerCase() === 'admin') {
+        if (!adminSecret || adminSecret.trim() !== ADMIN_SECRET) {
+            return res.json({ success: false, message: "登入失敗：指揮官身份驗證密鑰錯誤！" });
+        }
+        // 通過後給予標準化格式
+        uName = "指揮官[Admin]";
     }
 
     if (!rooms[rName]) {
@@ -110,7 +121,6 @@ io.on('connection', (socket) => {
         socket.to(myRoom).emit('peer_gps_updated', gpsData); 
     });
 
-    // 💡【新增】：監聽前端傳來的聊天訊息並廣播給同房間的人
     socket.on('send_chat', (messageText) => {
         if (!myRoom || !myName || !messageText.trim()) return;
         const chatData = {
@@ -131,9 +141,10 @@ io.on('connection', (socket) => {
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
-            const isAdmin = (myName === 'admin');
+            // 🔐 判斷刪除權限：包含 [Admin] 字眼即具備管理者刪除權
+            const isAdmin = (myName.includes('[Admin]'));
             
-            if (isAdmin || (targetObj && targetObj.username === myName)) {
+            if (isAdmin || (targetObj && targetObj.creator === myName)) {
                 rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
                 io.to(myRoom).emit('object_deleted', objectId);
             }
