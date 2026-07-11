@@ -329,15 +329,20 @@ function openLightbox(imgSrc) {
                         className: 'cctv-svg-icon'
                     });
 
-                    cctvData.forEach(cam => {
-                        const marker = L.marker([cam.PositionLat, cam.PositionLon], { icon: camIcon });
-                        marker.bindPopup(`
-                            <div class="popup-menu">
-                                <b style="color:#ffc107;">🚦 ${cam.CCTVName}</b><br><br>
-                                <a href="https://1968.freeway.gov.tw/" target="_blank" style="color:#39ff14; font-weight:bold; text-decoration:underline;">點擊開啟高速公路 1968 即時路況網</a><br>
-                                <small style="color:gray;">座標: ${cam.PositionLat.toFixed(3)}, ${cam.PositionLon.toFixed(3)}</small>
-                            </div>
-                        `);
+cctvData.forEach(cam => {
+    const marker = L.marker([cam.PositionLat, cam.PositionLon], { icon: camIcon });
+    marker.bindPopup(`
+        <div class="popup-menu" style="min-width: 220px;">
+            <b style="color:#ffc107;">🚦 ${cam.CCTVName}</b><br><br>
+            <div style="background:#000; padding:4px; text-align:center; border:1px solid #4a5568;">
+                <img src="https://tisv.freeway.gov.tw/stream/cctv/${cam.PositionLat}_${cam.PositionLon}.jpg" style="max-width:100%; height:auto;" onerror="this.src='/leaflet/images/marker-icon.png'; this.title='目前影像無法載入';">
+            </div>
+            <a href="https://1968.freeway.gov.tw/" target="_blank" style="color:#39ff14; font-weight:bold; text-decoration:underline; display:block; margin-top:6px;">前往 [高速公路1968] 查詢更多細節</a>
+            <small style="color:gray;">座標: ${cam.PositionLat.toFixed(3)}, ${cam.PositionLon.toFixed(3)}</small>
+        </div>
+    `);
+    cctvLayerGroup.addLayer(marker);
+});
                         cctvLayerGroup.addLayer(marker);
                     });
                 }
@@ -730,7 +735,7 @@ function openLightbox(imgSrc) {
             // 📷 修正圖片顯示：透過獨立的 DOM 縮圖與安全處理，確保點擊縮圖可穩定展開燈箱
 let imgHtml = "";
 if (data.imageData) {
-    // 確保點擊時能直接呼叫全螢幕預覽燈箱
+    // 加上 onerror 避免 Base64 格式損毀時報錯，並確保 click 事件能觸發
     imgHtml = `<br><img src="${data.imageData}" onclick="openLightbox('${data.imageData}')" style="max-width:140px; max-height:100px; margin-top:5px; border-radius:2px; cursor:pointer; border:1px solid #39ff14;" title="點擊放大圖片">`;
 }
 
