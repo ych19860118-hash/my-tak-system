@@ -74,6 +74,7 @@
         .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
+        .popup-menu button.video-btn { background: #28a745; margin-bottom: 5px; }
         
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
@@ -95,6 +96,22 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
         }
         #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
+
+        /* 現場即時視訊懸浮窗 */
+        #video-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #141619; border: 2px solid #22c55e; border-radius: 6px;
+            z-index: 10005; display: none; flex-direction: column; width: 340px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8); font-family: monospace;
+        }
+        #video-header {
+            background: #1a1d21; padding: 10px 14px; color: #22c55e; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748;
+        }
+        #video-container { width: 100%; height: 240px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
+        #live-video { width: 100%; height: 100%; object-fit: cover; }
+        #video-footer { padding: 10px; background: #1a1d21; display: flex; justify-content: space-between; border-top: 1px solid #2d3748; }
+        #video-footer button { padding: 6px 12px; background: #e53e3e; color: #fff; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; }
 
         #chat-panel {
             position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
@@ -197,6 +214,21 @@
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
 
+    <!-- 現場即時視訊懸浮窗 -->
+    <div id="video-modal">
+        <div id="video-header">
+            <span>🔴 現場即時視訊串流</span>
+            <span style="cursor:pointer;" onclick="closeLiveVideo()">✖</span>
+        </div>
+        <div id="video-container">
+            <video id="live-video" autoplay playsinline muted></video>
+        </div>
+        <div id="video-footer">
+            <span id="video-status" style="color:#39ff14; font-size:11px; align-self:center;">連線中...</span>
+            <button onclick="closeLiveVideo()">關閉影像</button>
+        </div>
+    </div>
+
     <div id="chat-panel">
         <div id="chat-header">
             <span>頻道聊天室</span>
@@ -223,6 +255,7 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
+        let localStream = null;
 
         function getFormattedTime() {
             const now = new Date();
@@ -233,7 +266,6 @@
             return `${m}/${d} ${h}:${min}`;
         }
 
-        // 🔐 當輸入 admin 時動態顯示指揮官密鑰欄位
         function checkAdminInput() {
             const userIn = document.getElementById('username').value.trim().toLowerCase();
             document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
@@ -262,6 +294,7 @@
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
+            L.DomEvent.disableClickPropagation(document.getElementById('video-modal'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
@@ -415,6 +448,33 @@
                     delete allMapLayers[id];
                 }
             });
+        }
+
+        // 🔴 開啟現場即時視訊串流
+        async function openLiveVideo() {
+            const modal = document.getElementById('video-modal');
+            const videoElem = document.getElementById('live-video');
+            const statusElem = document.getElementById('video-status');
+            modal.style.display = 'flex';
+            statusElem.innerText = '請求相機權限中...';
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                videoElem.srcObject = localStream;
+                statusElem.innerText = '🔴 現場串流播送中 (直播)';
+                showToast("已成功啟動現場即時影像回傳");
+            } catch (err) {
+                statusElem.innerText = '無法存取相機！';
+                alert("無法存取相機裝置，請確認相機權限。");
+            }
+        }
+
+        function closeLiveVideo() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            document.getElementById('live-video').srcObject = null;
+            document.getElementById('video-modal').style.display = 'none';
         }
 
         function toggleChatPanel() {
@@ -592,6 +652,7 @@
                     <div class="popup-menu">
                         <b>編輯您回報的圖形/災情</b><br>
                         <small style="color:gray;">最後異動：${displayTime}</small><br><br>
+                        <button onclick="openLiveVideo()" class="video-btn">🔴 開啟現場即時視訊</button>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
                         <div>
@@ -608,7 +669,8 @@
                         <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
             } else {
-                const adminDeleteBlock = currentUser.includes('[Admin]') ? `
+                const isAdmin = currentUser.trim().toLowerCase() === 'admin';
+                const adminDeleteBlock = isAdmin ? `
                     <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除錯誤回報 (Admin)</button>
                 ` : "";
 
@@ -618,6 +680,7 @@
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報員: ${data.creator}</small>
+                        <button onclick="openLiveVideo()" class="video-btn" style="margin-top:8px;">🔴 觀看現場視訊</button>
                         ${adminDeleteBlock}
                     </div>`;
             }
@@ -641,6 +704,8 @@
         }
 
         function deleteObject(objectId) {
+            const isAdmin = currentUser.trim().toLowerCase() === 'admin';
+            const isMyObject = allMapLayers[objectId] && allMapLayers[objectId].creator === currentUser; // or check via stored creator if needed
             if (confirm("確定要刪除/撤銷這個圖形回報嗎？")) {
                 if (allMapLayers[objectId]) {
                     map.removeLayer(allMapLayers[objectId].layer);
