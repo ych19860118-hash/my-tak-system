@@ -8,7 +8,6 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
-        /* 💡 戰術雷達網格花紋背景 */
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
             font-family: 'Courier New', Courier, monospace, sans-serif; 
@@ -20,7 +19,6 @@
         }
         #map { width: 100%; height: 100vh; display: none; background: #111214; } 
         
-        /* 軍用雷達戰術風登入艙 */
         #login-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #141619; padding: 40px 30px; border-radius: 4px; 
@@ -50,7 +48,6 @@
         #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
         #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
         
-        /* 💡 左側白底黑線簡約化垂直工具列風格 */
         #custom-toolbar { 
             position: absolute; top: 20px; left: 15px; z-index: 1000; 
             display: none; flex-direction: column; gap: 6px; 
@@ -71,18 +68,15 @@
         .tool-btn.active { background: #1a202c !important; color: #ffffff !important; border-radius: 4px !important; }
         .tool-btn.active svg { stroke: #ffffff !important; }
         
-        /* 💡 戰術 Popup 編輯選單樣式 */
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; }
         .popup-menu button.del-btn { background: #e53e3e; margin-top: 5px; }
         
-        /* 雙控制針樣式 */
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
         
-        /* 💡 右下角活動資訊標籤與按鈕 */
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
             width: 38px; height: 38px; background: #141619; 
@@ -99,7 +93,6 @@
             max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
 
-        /* 💡 Toast 浮動提示訊息樣式 */
         #toast-container {
             position: absolute; bottom: 20px; left: 70px; z-index: 9999;
             display: flex; flex-direction: column; gap: 8px; pointer-events: none;
@@ -117,7 +110,6 @@
             100% { opacity: 0; transform: translateY(-10px); display: none; }
         }
 
-        /* 戰術常駐標籤 */
         .tactical-tooltip {
             background: #141619 !important; border: 2px solid #39ff14 !important; color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
             font-family: 'Courier New', monospace !important; border-radius: 4px !important; padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; opacity: 1 !important; z-index: 10000 !important;
@@ -191,7 +183,6 @@
             document.getElementById('custom-room-name').style.display = (select === 'custom') ? 'block' : 'none';
         }
 
-        // 💡 顯示畫面浮動提示訊息 (Toast)
         function showToast(message) {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -212,55 +203,38 @@
             initDrawingEvents();
         }
 
-        // 💡 切換繪圖工具，並自動將既有圖層設為不可互動（點擊穿透）或恢復
-// 💡 更新後的 switchTool：切換工具時強制開關所有既有圖層的滑鼠穿透
-function switchTool(tool) {
-    currentTool = tool; 
-    document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-    if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
-    tempPoints = [];
-    const id = 'btn-' + tool; 
-    if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+        // 💡 終極解法：進入繪圖模式時，將所有既有圖層、釘選直接暫時從地圖移除；離開時重新加回
+        function switchTool(tool) {
+            currentTool = tool; 
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
+            tempPoints = [];
+            const id = 'btn-' + tool; 
+            if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
-    // 當選擇的是繪圖工具時，將既有圖層設為不可互動（穿透點擊）；若是 pan 或 locate 則恢復互動
-    const isDrawing = (tool !== 'pan' && tool !== 'locate');
-    
-    Object.values(allMapLayers).forEach(item => {
-        if (item.layer) {
-            if (typeof item.layer.setInteractive === 'function') {
-                item.layer.setInteractive(!isDrawing);
-            }
-            if (item.layer.options) {
-                item.layer.options.interactive = !isDrawing;
-                item.layer.options.bubblingMouseEvents = !isDrawing;
-            }
+            const isDrawing = (tool !== 'pan' && tool !== 'locate');
+            
+            Object.values(allMapLayers).forEach(item => {
+                if (item.layer) {
+                    if (isDrawing) {
+                        try { item.layer.closePopup(); } catch(err) {}
+                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
+                        if (item.pin && map.hasLayer(item.pin)) map.removeLayer(item.pin);
+                        if (item.resizePin && map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin);
+                    } else {
+                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
+                        if (item.pin && !map.hasLayer(item.pin)) item.pin.addTo(map);
+                        if (item.resizePin && !map.hasLayer(item.resizePin)) item.resizePin.addTo(map);
+                    }
+                }
+            });
+
             if (isDrawing) {
-                try { item.layer.closePopup(); } catch(err) {}
+                showToast("已進入繪圖模式，現有圖層已暫時隱藏，可任意在地圖上繪製");
+            } else {
+                showToast("已返回導覽模式，圖層已恢復");
             }
         }
-    });
-
-    if (isDrawing) {
-        showToast("已切換至繪圖模式，現有圖層已暫時穿透，可直接在上方繪圖");
-    }
-}
-
-function setLayersInteractive(isInteractive) {
-    Object.values(allMapLayers).forEach(item => {
-        if (item.layer) {
-            if (typeof item.layer.setInteractive === 'function') {
-                item.layer.setInteractive(isInteractive);
-            }
-            if (item.layer.options) {
-                item.layer.options.interactive = isInteractive;
-                item.layer.options.bubblingMouseEvents = isInteractive;
-            }
-            if (!isInteractive) {
-                try { item.layer.closePopup(); } catch(err) {}
-            }
-        }
-    });
-}
 
         function initDrawingEvents() {
             map.on('click', function(e) {
@@ -341,7 +315,6 @@ function setLayersInteractive(isInteractive) {
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
             
-            // 💡 監聽人員進出畫面提示
             socket.on('user_notification', function(data) {
                 const actionText = data.action === 'joined' ? '進入' : '離開';
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
@@ -378,33 +351,35 @@ function setLayersInteractive(isInteractive) {
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
-            // 💡 根據當前繪圖狀態決定是否預設開啟互動
-           // 💡 取得當前是否允許互動（如果是繪圖工具啟動中，則為 false）
-const layerInteractive = (currentTool === 'pan' || currentTool === 'locate');
 
-if (data.shapeType === "marker") {
-    const svgColor = data.color || "#3388ff";
-    const customMarkerIcon = L.divIcon({
-        html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
-        className: 'tactical-svg-marker'
-    });
-    mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject, interactive: layerInteractive, bubblingMouseEvents: layerInteractive }); 
-    centerLatLng = L.latLng(pts);
-} else if (data.shapeType === "polyline") {
-    mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
-    centerLatLng = L.polyline(pts).getBounds().getCenter();
-} else if (data.shapeType === "rectangle") {
-    mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
-    centerLatLng = L.rectangle(pts).getBounds().getCenter();
-} else if (data.shapeType === "circle") {
-    mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
-    centerLatLng = L.latLng(pts);
-} else if (data.shapeType === "polygon") {
-    mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
-    centerLatLng = L.polygon(pts).getBounds().getCenter();
-}
+            if (data.shapeType === "marker") {
+                const svgColor = data.color || "#3388ff";
+                const customMarkerIcon = L.divIcon({
+                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                    className: 'tactical-svg-marker'
+                });
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject }); 
+                centerLatLng = L.latLng(pts);
+            } else if (data.shapeType === "polyline") {
+                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
+                centerLatLng = L.polyline(pts).getBounds().getCenter();
+            } else if (data.shapeType === "rectangle") {
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3 });
+                centerLatLng = L.rectangle(pts).getBounds().getCenter();
+            } else if (data.shapeType === "circle") {
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3 });
+                centerLatLng = L.latLng(pts);
+            } else if (data.shapeType === "polygon") {
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3 });
+                centerLatLng = L.polygon(pts).getBounds().getCenter();
+            }
             if (!mainLayer) return;
-            mainLayer.addTo(map);
+
+            // 💡 若當前為繪圖模式，不直接上圖層到畫布，避免攔截點擊
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
+            if (!isCurrentlyDrawing) {
+                mainLayer.addTo(map);
+            }
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
@@ -415,7 +390,8 @@ if (data.shapeType === "marker") {
             }
 
             if (isMyObject && data.shapeType !== "marker") {
-                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) }).addTo(map);
+                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
+                if (!isCurrentlyDrawing) controlPin.addTo(map);
                 allMapLayers[data.id].pin = controlPin;
 
                 controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
@@ -446,7 +422,8 @@ if (data.shapeType === "marker") {
 
                 if (data.shapeType === "circle" || data.shapeType === "rectangle") {
                     const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) }).addTo(map);
+                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) });
+                    if (!isCurrentlyDrawing) resizePin.addTo(map);
                     allMapLayers[data.id].resizePin = resizePin;
 
                     resizePin.on('drag', function(e) {
