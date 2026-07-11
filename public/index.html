@@ -212,6 +212,7 @@
             initDrawingEvents();
         }
 
+        // 💡 切換繪圖工具，並自動將既有圖層設為不可互動（點擊穿透）或恢復
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -219,6 +220,23 @@
             tempPoints = [];
             const id = 'btn-' + tool; 
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+
+            // 當切換到繪圖工具時，關閉現有圖層互動；切回 pan 時恢復互動
+            const isDrawing = (tool !== 'pan' && tool !== 'locate');
+            setLayersInteractive(!isDrawing);
+        }
+
+        // 💡 統一設定地圖上所有圖層的互動性（支援穿透點擊）
+        function setLayersInteractive(isInteractive) {
+            Object.values(allMapLayers).forEach(item => {
+                if (item.layer) {
+                    if (typeof item.layer.setStyle === 'function') {
+                        item.layer.setStyle({ interactive: isInteractive });
+                    } else if (typeof item.layer.setInteractive === 'function') {
+                        item.layer.setInteractive(isInteractive);
+                    }
+                }
+            });
         }
 
         function initDrawingEvents() {
@@ -327,8 +345,7 @@
             });
         }
 
-function renderObjectOnMap(data) {
-            // 💡 如果該圖層已經存在，必須先將舊的移除，才能順利即時更新/修改別人的最新圖資！
+        function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) {
                 map.removeLayer(allMapLayers[data.id].layer);
                 if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
@@ -338,6 +355,8 @@ function renderObjectOnMap(data) {
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
+            // 💡 根據當前繪圖狀態決定是否預設開啟互動
+            const layerInteractive = (currentTool === 'pan' || currentTool === 'locate');
 
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
@@ -345,19 +364,19 @@ function renderObjectOnMap(data) {
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
                     className: 'tactical-svg-marker'
                 });
-                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject, interactive: true }); 
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject, interactive: layerInteractive }); 
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
-                mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: true, bubblingMouseEvents: true });
+                mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: layerInteractive, bubblingMouseEvents: true });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: true, bubblingMouseEvents: true });
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: true });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
-                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: true, bubblingMouseEvents: true });
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: true });
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polygon") {
-                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: true, bubblingMouseEvents: true });
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: true });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
             }
             if (!mainLayer) return;
@@ -365,8 +384,7 @@ function renderObjectOnMap(data) {
 
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
-if (data.shapeType === "marker") {
-                // 💡 允許 Tooltip 穿透，避免阻擋點擊
+            if (data.shapeType === "marker") {
                 mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
             } else {
                 mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
@@ -430,7 +448,6 @@ if (data.shapeType === "marker") {
                 });
             }
 
-// 💡 不分 shapeType，一律使用明確的點擊開啟 Popup 邏輯
             mainLayer.on('click', function(e) {
                 if (data.shapeType === "marker") {
                     mainLayer.openPopup();
@@ -462,7 +479,6 @@ if (data.shapeType === "marker") {
                         <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
             } else {
-                // 💡 支援不分大小寫比對 admin，確保最高權限能刪除
                 const adminDeleteBlock = (currentUser.trim().toLowerCase() === 'admin') ? `
                     <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除錯誤回報 (Admin)</button>
                 ` : "";
