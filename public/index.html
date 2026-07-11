@@ -68,16 +68,14 @@
         .tool-btn.active { background: #1a202c !important; color: #ffffff !important; border-radius: 4px !important; }
         .tool-btn.active svg { stroke: #ffffff !important; }
         
-        .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
+        .popup-menu { font-size: 13px; min-width: 210px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
-        .popup-menu button.media-btn { background: #28a745; margin-bottom: 5px; }
         
-        .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
-        .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
+        .popup-photo-preview { max-width: 100%; max-height: 140px; margin-top: 8px; border-radius: 2px; object-fit: contain; display: block; }
         
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
@@ -96,22 +94,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
         }
         #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
-
-        #media-modal {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #141619; border: 2px solid #22c55e; border-radius: 6px;
-            z-index: 10005; display: none; flex-direction: column; width: 360px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.8); font-family: monospace;
-        }
-        #media-header {
-            background: #1a1d21; padding: 10px 14px; color: #22c55e; font-weight: bold;
-            display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748;
-        }
-        #media-container { width: 100%; height: 260px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-        #shared-media-view { width: 100%; height: 100%; object-fit: contain; }
-        #media-footer { padding: 10px; background: #1a1d21; display: flex; justify-content: space-between; border-top: 1px solid #2d3748; align-items: center; }
-        #media-footer button { padding: 6px 12px; background: #e53e3e; color: #fff; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; }
-        #upload-media-input { display: none; }
 
         #chat-panel {
             position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
@@ -191,20 +173,11 @@
     </div>
 
     <div id="custom-toolbar">
-        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
+        <button class="tool-btn active" id="btn-pan" onclick="switchTool('pan')" title="導覽模式">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"></path></svg>
+        </button>
+        <button class="tool-btn" id="btn-event" onclick="switchTool('event')" title="新增事件回報點 (可上傳照片)">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-        </button>
-        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-        </button>
-        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-        </button>
-        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
-        </button>
-        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
         </button>
         <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
@@ -213,23 +186,6 @@
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
-
-    <div id="media-modal">
-        <div id="media-header">
-            <span>📷 頻道協同多媒體檢視</span>
-            <span style="cursor:pointer;" onclick="closeMediaModal()">✖</span>
-        </div>
-        <div id="media-container">
-            <div id="media-display-area" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
-                <span style="color:#718096; font-size:12px;">尚無載入的媒體</span>
-            </div>
-        </div>
-        <div id="media-footer">
-            <input type="file" id="upload-media-input" accept="image/*,video/*" onchange="handleMediaUpload(event)">
-            <button onclick="document.getElementById('upload-media-input').click()" style="background:#1b4d22; border:1px solid #39ff14; color:#39ff14;">上傳照片/影片</button>
-            <button onclick="closeMediaModal()">關閉視窗</button>
-        </div>
-    </div>
 
     <div id="chat-panel">
         <div id="chat-header">
@@ -256,7 +212,7 @@
     <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
-        let currentTool = "pan", tempPoints = [], tempShape = null;
+        let currentTool = "pan";
 
         function getFormattedTime() {
             const now = new Date();
@@ -295,7 +251,6 @@
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
-            L.DomEvent.disableClickPropagation(document.getElementById('media-modal'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
@@ -303,90 +258,61 @@
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
-            tempPoints = [];
             const id = 'btn-' + tool; 
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
-            const isDrawing = (tool !== 'pan' && tool !== 'locate');
-            
-            Object.values(allMapLayers).forEach(item => {
-                if (item.layer) {
-                    if (isDrawing) {
-                        try { item.layer.closePopup(); } catch(err) {}
-                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
-                    } else {
-                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
-                    }
-                }
-                if (item.pin) {
-                    if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
-                    else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
-                }
-                if (item.resizePin) {
-                    if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
-                    else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
-                }
-            });
-
-            if (isDrawing) {
-                showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
+            if (tool === 'event') {
+                showToast("已切換至「新增事件」模式：請在地圖上點擊位置以建立回報點");
             } else {
-                showToast("已返回導覽模式");
+                showToast("已切換至導覽模式");
             }
         }
 
         function initDrawingEvents() {
             map.on('click', function(e) {
-                if (currentTool === 'pan' || currentTool === 'locate') return;
+                if (currentTool !== 'event') return;
 
                 const lat = e.latlng.lat, lng = e.latlng.lng;
+                const msg = prompt("請輸入事件狀況描述：") || "未命名事件";
                 
-                if (currentTool === 'marker') {
-                    const msg = prompt("請輸入位置狀況：") || "未命名位置";
-                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                } else if (currentTool === 'polyline' || currentTool === 'polygon') {
-                    tempPoints.push([lat, lng]);
-                    if (tempPoints.length === 1) {
-                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
-                    } else {
-                        tempShape.setLatLngs(tempPoints);
-                    }
-                } else if (currentTool === 'rectangle') {
-                    tempPoints.push({ lat: lat, lng: lng });
-                    if (tempPoints.length === 2) {
-                        const msg = prompt("請輸入區域說明：") || "未命名區域";
-                        const latMin = Math.min(tempPoints[0].lat, tempPoints[1].lat);
-                        const latMax = Math.max(tempPoints[0].lat, tempPoints[1].lat);
-                        const lngMin = Math.min(tempPoints[0].lng, tempPoints[1].lng);
-                        const lngMax = Math.max(tempPoints[0].lng, tempPoints[1].lng);
-                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                    }
-                } else if (currentTool === 'circle') {
-                    if (tempPoints.length === 0) {
-                        tempPoints.push({ lat: lat, lng: lng });
-                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', fillOpacity: 0}).addTo(map);
-                    } else {
-                        const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
-                        const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
-                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                        if (tempShape) map.removeLayer(tempShape);
-                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                    }
+                // 詢問是否順便上傳照片
+                if (confirm("是否要為此事件上傳照片？(點選確定選擇圖片)")) {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = function(evt) {
+                        const file = evt.target.files[0];
+                        if (!file) {
+                            createEventPoint(lat, lng, msg, "");
+                            return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = function(readerEvent) {
+                            createEventPoint(lat, lng, msg, readerEvent.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                    };
+                    input.click();
+                } else {
+                    createEventPoint(lat, lng, msg, "");
                 }
             });
+        }
 
-            map.on('contextmenu', function(e) {
-                if (currentTool === 'pan' || currentTool === 'locate') return;
-                if (tempPoints.length < 2) return;
-                const type = currentTool;
-                if (type !== 'polyline' && type !== 'polygon') return;
-                const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-            });
+        function createEventPoint(lat, lng, msg, photoData) {
+            const data = { 
+                id: 'obj_' + Date.now(), 
+                shapeType: "marker", 
+                coordinates: [lat, lng], 
+                message: msg, 
+                photo: photoData || "",
+                creator: currentUser, 
+                color: "#3388ff", 
+                time: getFormattedTime() 
+            };
+            renderObjectOnMap(data); 
+            socket.emit('new_object', data); 
+            switchTool('pan');
         }
 
         async function login() {
@@ -430,12 +356,6 @@
                 appendChatMessage(data.sender, data.message, data.time);
             });
 
-            // 接收其他用戶廣播的媒體檔案 (照片或影片)
-            socket.on('receive_media', function(data) {
-                displaySharedMedia(data.sender, data.mediaType, data.mediaData, data.fileName);
-                showToast(`[頻道通知] ${data.sender} 上傳並分享了媒體檔案`);
-            });
-
             let peerGPSMarkers = {}; 
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
@@ -450,48 +370,9 @@
             socket.on('object_deleted', id => {
                 if (allMapLayers[id]) {
                     map.removeLayer(allMapLayers[id].layer);
-                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
                     delete allMapLayers[id];
                 }
             });
-        }
-
-        function openMediaModal() {
-            document.getElementById('media-modal').style.display = 'flex';
-        }
-
-        function closeMediaModal() {
-            document.getElementById('media-modal').style.display = 'none';
-        }
-
-        function handleMediaUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            const isVideo = file.type.startsWith('video');
-            const mediaType = isVideo ? 'video' : 'image';
-
-            reader.onload = function(e) {
-                const base64Data = e.target.result;
-                displaySharedMedia(currentUser, mediaType, base64Data, file.name);
-                // 廣播給其他頻道用戶
-                if (socket) {
-                    socket.emit('share_media', { mediaType: mediaType, mediaData: base64Data, fileName: file.name });
-                }
-                showToast("已成功分享照片/影片至頻道");
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function displaySharedMedia(sender, mediaType, mediaData, fileName) {
-            const area = document.getElementById('media-display-area');
-            if (mediaType === 'video') {
-                area.innerHTML = `<video id="shared-media-view" controls autoplay playsinline src="${mediaData}"></video>`;
-            } else {
-                area.innerHTML = `<img id="shared-media-view" src="${mediaData}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
-            }
-            openMediaModal();
         }
 
         function toggleChatPanel() {
@@ -537,102 +418,24 @@
         function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) {
                 map.removeLayer(allMapLayers[data.id].layer);
-                if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
-                if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
                 delete allMapLayers[data.id];
             }
 
-            let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
+            let mainLayer, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
-            const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
-            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
 
-            if (data.shapeType === "marker") {
-                const svgColor = data.color || "#3388ff";
-                const customMarkerIcon = L.divIcon({
-                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
-                    className: 'tactical-svg-marker'
-                });
-                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject }); 
-                centerLatLng = L.latLng(pts);
-            } else if (data.shapeType === "polyline") {
-                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
-                centerLatLng = L.polyline(pts).getBounds().getCenter();
-            } else if (data.shapeType === "rectangle") {
-                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
-                centerLatLng = L.rectangle(pts).getBounds().getCenter();
-            } else if (data.shapeType === "circle") {
-                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
-                centerLatLng = L.latLng(pts);
-            } else if (data.shapeType === "polygon") {
-                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
-                centerLatLng = L.polygon(pts).getBounds().getCenter();
-            }
-            if (!mainLayer) return;
+            const svgColor = data.color || "#3388ff";
+            const customMarkerIcon = L.divIcon({
+                html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                className: 'tactical-svg-marker'
+            });
+            mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject }); 
+            mainLayer.addTo(map);
+            allMapLayers[data.id] = { layer: mainLayer, creator: data.creator };
 
-            if (!isCurrentlyDrawing) {
-                mainLayer.addTo(map);
-            }
-            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
+            mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
 
-            if (data.shapeType === "marker") {
-                mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
-            } else {
-                mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
-            }
-
-            if (isMyObject && data.shapeType !== "marker") {
-                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
-                if (!isCurrentlyDrawing) controlPin.addTo(map);
-                allMapLayers[data.id].pin = controlPin;
-
-                controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
-
-                let startLatLng = centerLatLng;
-                controlPin.on('drag', function(e) {
-                    const nextLatLng = e.latlng;
-                    const offsetLat = nextLatLng.lat - startLatLng.lat;
-                    const offsetLng = nextLatLng.lng - startLatLng.lng;
-
-                    if (data.shapeType === "circle") { 
-                        mainLayer.setLatLng(nextLatLng); 
-                        if (allMapLayers[data.id].resizePin) {
-                            allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
-                        }
-                    } else if (data.shapeType === "rectangle") {
-                        const b = mainLayer.getBounds();
-                        mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
-                        if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
-                    } else if (mainLayer.getLatLngs) {
-                        const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
-                        mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
-                    }
-                    startLatLng = nextLatLng; 
-                });
-
-                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
-
-                if (data.shapeType === "circle" || data.shapeType === "rectangle") {
-                    const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) });
-                    if (!isCurrentlyDrawing) resizePin.addTo(map);
-                    allMapLayers[data.id].resizePin = resizePin;
-
-                    resizePin.on('drag', function(e) {
-                        const newPinLatLng = e.latlng;
-                        if (data.shapeType === "circle") {
-                            const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
-                            if (newRadius > 5) mainLayer.setRadius(newRadius);
-                        } else if (data.shapeType === "rectangle") {
-                            const centerP = controlPin.getLatLng();
-                            const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
-                            const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
-                            mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
-                        }
-                    });
-                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
-                }
-            } else if (isMyObject && data.shapeType === "marker") {
+            if (isMyObject) {
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                     data.time = getFormattedTime();
@@ -641,91 +444,49 @@
                 });
             }
 
-            mainLayer.on('click', function(e) {
-                if (currentTool !== 'pan' && currentTool !== 'locate') return;
-                if (data.shapeType === "marker") {
-                    mainLayer.openPopup();
-                } else {
-                    mainLayer.openPopup(centerLatLng);
-                }
+            mainLayer.on('click', function() {
+                mainLayer.openPopup();
             });
 
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
+            const photoHTML = data.photo ? `<img src="${data.photo}" class="popup-photo-preview">` : `<small style="color:gray;">無附帶照片</small>`;
 
             if (isMyObject) {
-                let fillOptionHTML = "";
-                if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
-                    fillOptionHTML = `
-                        <label>填滿模式：</label>
-                        <select id="edit-fill-${data.id}">
-                            <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
-                            <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
-                            <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
-                        </select>`;
-                }
-
                 popupContent = `
                     <div class="popup-menu">
-                        <b>編輯您回報的圖形/災情</b><br>
+                        <b>編輯事件回報</b><br>
                         <small style="color:gray;">最後異動：${displayTime}</small><br><br>
-                        <button onclick="openMediaModal()" class="media-btn">📷 上傳/分享多媒體檔案</button>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        <div>
-                            <label>邊框顏色變更：</label>
-                            <select id="edit-color-${data.id}">
-                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
-                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
-                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
-                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
-                            </select>
-                        </div>
-                        ${fillOptionHTML}
+                        <label>現有照片：</label>
+                        ${photoHTML}
                         <button onclick="updateObject('${data.id}')">儲存修改</button>
-                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
+                        <button onclick="deleteObject('${data.id}')" class="del-btn">刪除事件</button>
                     </div>`;
             } else {
-                const isAdmin = currentUser.trim().toLowerCase() === 'admin';
+                const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
                 const adminDeleteBlock = isAdmin ? `
-                    <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除錯誤回報 (Admin)</button>
+                    <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除事件 (Admin)</button>
                 ` : "";
 
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
+                        <b style="color:#ffc107;">⚠️ 事件回報狀況</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
-                        <small style="color:gray;">回報員: ${data.creator}</small>
-                        <button onclick="openMediaModal()" class="media-btn" style="margin-top:8px;">📷 查看頻道多媒體</button>
+                        <small style="color:gray;">回報員: ${data.creator}</small><br><br>
+                        ${photoHTML}
                         ${adminDeleteBlock}
                     </div>`;
             }
             mainLayer.bindPopup(popupContent);
         }
 
-        function syncGeometryChanges(data, mainLayer) {
-            let currentCoordinates = null, currentRadius = null;
-            if (data.shapeType === "circle") {
-                currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
-            } else if (data.shapeType === "rectangle") {
-                const b = mainLayer.getBounds();
-                currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-            } else if (mainLayer.getLatLngs) {
-                const rawLatLngs = mainLayer.getLatLngs();
-                currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
-            }
-            data.time = getFormattedTime();
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: currentUser, time: data.time };
-            socket.emit('delete_object', data.id); socket.emit('new_object', payload);
-        }
-
         function deleteObject(objectId) {
-            if (confirm("確定要刪除/撤銷這個圖形回報嗎？")) {
+            if (confirm("確定要刪除這個事件回報嗎？")) {
                 if (allMapLayers[objectId]) {
                     map.removeLayer(allMapLayers[objectId].layer);
-                    if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
-                    if (allMapLayers[objectId].resizePin) map.removeLayer(allMapLayers[objectId].resizePin);
                     delete allMapLayers[objectId];
                 }
                 socket.emit('delete_object', objectId);
@@ -734,37 +495,30 @@
 
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
-            const newColor = document.getElementById(`edit-color-${objectId}`).value;
-            const fillSelect = document.getElementById(`edit-fill-${objectId}`);
-            const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
-
             if (allMapLayers[objectId]) {
                 const cache = allMapLayers[objectId];
-                const isCircle = !!cache.layer.options.radius;
-                const isRect = !isCircle && cache.layer instanceof L.Rectangle;
-                const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
-                const isPolyline = cache.layer instanceof L.Polyline && !(cache.layer instanceof L.Polygon);
-                let sType = "polygon"; 
-                if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = "marker"; else if (isPolyline) sType = "polyline";
+                const currentCoords = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
+                
+                // 保留原本的照片
+                const existingPopupDiv = cache.layer.getPopup().getContent();
+                // 簡易從DOM或原資料取得
+                const imgTag = document.querySelector(`#edit-msg-${objectId}`).parentNode.querySelector('img');
+                const photoSrc = imgTag ? imgTag.src : "";
 
-                let currentCoordinates = null, currentRadius = null;
-                if (isCircle) {
-                    currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
-                } else if (isRect) {
-                    const b = cache.layer.getBounds();
-                    currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-                } else if (isMarker) {
-                    currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
-                } else {
-                    const rawLatLngs = cache.layer.getLatLngs();
-                    currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
-                }
-
-                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: currentUser, time: getFormattedTime() };
-                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
+                const updatedData = { 
+                    id: objectId, 
+                    shapeType: "marker", 
+                    coordinates: currentCoords, 
+                    message: newMsg, 
+                    photo: photoSrc.startsWith('data:') ? photoSrc : "", 
+                    creator: currentUser, 
+                    time: getFormattedTime() 
+                };
+                map.removeLayer(cache.layer);
                 delete allMapLayers[objectId];
                 renderObjectOnMap(updatedData);
-                socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
+                socket.emit('delete_object', objectId); 
+                socket.emit('new_object', updatedData);
             }
         }
 
