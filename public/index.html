@@ -71,8 +71,9 @@
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
-        .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; }
-        .popup-menu button.del-btn { background: #e53e3e; margin-top: 5px; }
+        .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
+        .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        .popup-menu button.del-btn { background: #e53e3e; }
         
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
@@ -203,7 +204,6 @@
             initDrawingEvents();
         }
 
-        // 💡 手機最佳化解法：保持圖層在畫面上，但透過設定 interactive 與開關控制，不採用移除圖層的方式
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -216,17 +216,9 @@
             
             Object.values(allMapLayers).forEach(item => {
                 if (item.layer) {
-                    if (typeof item.layer.setInteractive === 'function') {
-                        item.layer.setInteractive(!isDrawing);
-                    }
-                    if (item.layer.options) {
-                        item.layer.options.interactive = !isDrawing;
-                        item.layer.options.bubblingMouseEvents = !isDrawing;
-                    }
                     if (isDrawing) {
                         try { item.layer.closePopup(); } catch(err) {}
                     }
-                    // 控制控制點與調整點在繪圖時暫時隱藏
                     if (item.pin) {
                         if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
                         else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
@@ -239,7 +231,7 @@
             });
 
             if (isDrawing) {
-                showToast("已進入繪圖模式，現有物件點擊已鎖定");
+                showToast("已進入繪圖模式");
             } else {
                 showToast("已返回導覽模式");
             }
@@ -247,19 +239,18 @@
 
         function initDrawingEvents() {
             map.on('click', function(e) {
-                // 如果目前是瀏覽或導覽模式，不執行繪圖動作
                 if (currentTool === 'pan' || currentTool === 'locate') return;
 
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入位置狀況：") || "未命名位置";
-                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
+                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
-                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6, interactive: false}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', interactive: false}).addTo(map);
+                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
                     } else {
                         tempShape.setLatLngs(tempPoints);
                     }
@@ -271,17 +262,17 @@
                         const latMax = Math.max(tempPoints[0].lat, tempPoints[1].lat);
                         const lngMin = Math.min(tempPoints[0].lng, tempPoints[1].lng);
                         const lngMax = Math.max(tempPoints[0].lng, tempPoints[1].lng);
-                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
+                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 } else if (currentTool === 'circle') {
                     if (tempPoints.length === 0) {
                         tempPoints.push({ lat: lat, lng: lng });
-                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', interactive: false}).addTo(map);
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', fillOpacity: 0}).addTo(map);
                     } else {
                         const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
                         const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
-                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
+                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                         if (tempShape) map.removeLayer(tempShape);
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
@@ -294,7 +285,7 @@
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
                 const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", time: getFormattedTime() };
+                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                 if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
             });
         }
@@ -364,8 +355,8 @@
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
-            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
-            const layerInteractive = !isCurrentlyDrawing;
+            // 預設填滿透明度採用自訂值，若無則預設為 0 (不填滿/透明)
+            const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
 
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
@@ -373,19 +364,19 @@
                     html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
                     className: 'tactical-svg-marker'
                 });
-                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject, interactive: layerInteractive, bubblingMouseEvents: layerInteractive }); 
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: isMyObject }); 
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
-                mainLayer = L.polyline(pts, { color: data.color, weight: 6, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
+                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
-                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polygon") {
-                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: 0.3, weight: 3, interactive: layerInteractive, bubblingMouseEvents: layerInteractive });
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
             }
             if (!mainLayer) return;
@@ -398,6 +389,8 @@
             } else {
                 mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
             }
+
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
 
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
@@ -472,6 +465,17 @@
             const displayTime = data.time || "無紀錄";
 
             if (isMyObject) {
+                let fillOptionHTML = "";
+                if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
+                    fillOptionHTML = `
+                        <label>填滿模式：</label>
+                        <select id="edit-fill-${data.id}">
+                            <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
+                            <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
+                            <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
+                        </select>`;
+                }
+
                 popupContent = `
                     <div class="popup-menu">
                         <b>編輯您回報的圖形/災情</b><br>
@@ -479,7 +483,7 @@
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message}">
                         <div>
-                            <label>等級/顏色變更：</label>
+                            <label>邊框顏色變更：</label>
                             <select id="edit-color-${data.id}">
                                 <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
                                 <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
@@ -487,6 +491,7 @@
                                 <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
                             </select>
                         </div>
+                        ${fillOptionHTML}
                         <button onclick="updateObject('${data.id}')">儲存修改</button>
                         <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
@@ -519,7 +524,7 @@
                 currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
             }
             data.time = getFormattedTime();
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, creator: currentUser, time: data.time };
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: mainLayer.getTooltip().getContent(), color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: currentUser, time: data.time };
             socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
 
@@ -538,6 +543,9 @@
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
+            const fillSelect = document.getElementById(`edit-fill-${objectId}`);
+            const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
+
             if (allMapLayers[objectId]) {
                 const cache = allMapLayers[objectId];
                 const isCircle = !!cache.layer.options.radius;
@@ -560,7 +568,7 @@
                     currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
                 }
 
-                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, creator: currentUser, time: getFormattedTime() };
+                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: currentUser, time: getFormattedTime() };
                 map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
                 delete allMapLayers[objectId];
                 renderObjectOnMap(updatedData);
