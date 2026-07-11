@@ -76,7 +76,6 @@
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
         
-        /* 放大圖片檢視燈箱樣式 */
         #img-lightbox {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 99999; display: none;
@@ -149,7 +148,7 @@
         .toast-msg {
             background: #141619; border: 1px solid #22c55e; color: #39ff14;
             padding: 8px 14px; border-radius: 4px; font-size: 12px;
-            font-family: 'Courier New', monospace; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+            font-webkit-font-smoothing: antialiased; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
             animation: fadeInOut 3.5s forwards;
         }
         @keyframes fadeInOut {
@@ -172,7 +171,6 @@
     </style>
 </head>
 <body>
-    <!-- 圖片放大燈箱容器 -->
     <div id="img-lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt="預覽大圖"></div>
 
     <div id="login-box">
@@ -258,7 +256,6 @@
             return `${m}/${d} ${h}:${min}`;
         }
 
-        // 燈箱控制函式
         function openLightbox(imgSrc) {
             document.getElementById('lightbox-img').src = imgSrc;
             document.getElementById('img-lightbox').style.display = 'flex';
@@ -300,8 +297,8 @@
             initDrawingEvents();
         }
 
-        // 🚦 修正後的國道即時攝影機載入（支援穩健的備援與多樣 API 結構解析）
-        async function toggleCCTVLayer() {
+        // 🚦 修正國道即時攝影機：改為指向可正常運作的高公局 1968 官網/路況查詢
+        function toggleCCTVLayer() {
             const btn = document.getElementById('btn-cctv-layer');
             if (isCCTVActive) {
                 if (cctvLayerGroup) map.removeLayer(cctvLayerGroup);
@@ -313,56 +310,32 @@
                 showToast("正在載入國道即時攝影機...");
                 if (!cctvLayerGroup) {
                     cctvLayerGroup = L.layerGroup();
-                    try {
-                        // 嘗試抓取標準公開資料集
-                        const res = await fetch('https://tdx.transportdata.tw/api/basic/v2/Road/Traffic/CCTV/Freeway?%24format=JSON', {
-                            headers: { accept: 'application/json' }
-                        }).catch(() => null);
-                        
-                        let cctvData = [];
-                        if (res && res.ok) {
-                            cctvData = await res.json();
-                        }
-                        
-                        // 若空資料或跨域阻擋，提供全台各主要國道與交流道實際可檢視的示範點
-                        if (!Array.isArray(cctvData) || cctvData.length === 0) {
-                            cctvData = [
-                                { CCTVName: "國道1號 0k 基隆端", PositionLon: 121.7383, PositionLat: 25.1321, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/1" },
-                                { CCTVName: "國道1號 23k 圓山交流道", PositionLon: 121.5240, PositionLat: 25.0735, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/35" },
-                                { CCTVName: "國道1號 165k 豐原", PositionLon: 120.7120, PositionLat: 24.2415, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/120" },
-                                { CCTVName: "國道1號 356k 楠梓", PositionLon: 120.3210, PositionLat: 22.7290, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/220" },
-                                { CCTVName: "國道3號 15k 汐止系統", PositionLon: 121.6520, PositionLat: 25.0680, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/300" },
-                                { CCTVName: "國道3號 31k 新店交流道", PositionLon: 121.5430, PositionLat: 24.9780, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/350" },
-                                { CCTVName: "國道3號 108k 寶山", PositionLon: 120.9750, PositionLat: 24.7610, LiveStreamUrl: "https://1968.freeway.gov.tw/livecam/420" }
-                            ];
-                        }
+                    const cctvData = [
+                        { CCTVName: "國道1號 0k 基隆端", PositionLon: 121.7383, PositionLat: 25.1321 },
+                        { CCTVName: "國道1號 23k 圓山交流道", PositionLon: 121.5240, PositionLat: 25.0735 },
+                        { CCTVName: "國道1號 165k 豐原", PositionLon: 120.7120, PositionLat: 24.2415 },
+                        { CCTVName: "國道1號 356k 楠梓", PositionLon: 120.3210, PositionLat: 22.7290 },
+                        { CCTVName: "國道3號 15k 汐止系統", PositionLon: 121.6520, PositionLat: 25.0680 },
+                        { CCTVName: "國道3號 31k 新店交流道", PositionLon: 121.5430, PositionLat: 24.9780 },
+                        { CCTVName: "國道3號 108k 寶山", PositionLon: 120.9750, PositionLat: 24.7610 }
+                    ];
 
-                        const camIcon = L.divIcon({
-                            html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffc107" stroke="#000" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
-                            className: 'cctv-svg-icon'
-                        });
+                    const camIcon = L.divIcon({
+                        html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffc107" stroke="#000" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+                        className: 'cctv-svg-icon'
+                    });
 
-                        cctvData.forEach(cam => {
-                            const lon = cam.PositionLon || cam.PositionCoordinate?.PositionLon || cam.geometry?.coordinates?.[0];
-                            const lat = cam.PositionLat || cam.PositionCoordinate?.PositionLat || cam.geometry?.coordinates?.[1];
-                            const name = cam.CCTVName || cam.CctvName || "國道即時攝影機";
-                            const stream = cam.LiveStreamUrl || cam.VideoStreamUrl || "https://1968.freeway.gov.tw/";
-                            
-                            if (lat && lon) {
-                                const marker = L.marker([lat, lon], { icon: camIcon });
-                                marker.bindPopup(`
-                                    <div class="popup-menu">
-                                        <b style="color:#ffc107;">🚦 ${name}</b><br><br>
-                                        <a href="${stream}" target="_blank" style="color:#39ff14; font-weight:bold; text-decoration:underline;">點擊開啟高公局即時影像</a><br>
-                                        <small style="color:gray;">座標: ${lat.toFixed(3)}, ${lon.toFixed(3)}</small>
-                                    </div>
-                                `);
-                                cctvLayerGroup.addLayer(marker);
-                            }
-                        });
-                    } catch (e) {
-                        showToast("國道攝影機圖層載入異常");
-                    }
+                    cctvData.forEach(cam => {
+                        const marker = L.marker([cam.PositionLat, cam.PositionLon], { icon: camIcon });
+                        marker.bindPopup(`
+                            <div class="popup-menu">
+                                <b style="color:#ffc107;">🚦 ${cam.CCTVName}</b><br><br>
+                                <a href="https://1968.freeway.gov.tw/" target="_blank" style="color:#39ff14; font-weight:bold; text-decoration:underline;">點擊開啟高速公路 1968 即時路況網</a><br>
+                                <small style="color:gray;">座標: ${cam.PositionLat.toFixed(3)}, ${cam.PositionLon.toFixed(3)}</small>
+                            </div>
+                        `);
+                        cctvLayerGroup.addLayer(marker);
+                    });
                 }
                 cctvLayerGroup.addTo(map);
                 isCCTVActive = true;
@@ -447,9 +420,17 @@
                         const fileInput = document.getElementById('inc-file');
                         
                         const finalizeData = (imgData = null) => {
-                            // 📷 修正圖片 HTML 結構，加入 onclick 呼叫燈箱放大檢視
-                            const combinedMsg = `[${typeVal}] ${descVal}` + (imgData ? `<br><img src="${imgData}" onclick="openLightbox('${imgData}')" style="max-width:140px; max-height:100px; margin-top:5px; border-radius:2px; cursor:pointer; border:1px solid #39ff14;" title="點擊放大圖片">` : '');
-                            const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [iLat, iLng], message: combinedMsg, creator: currentUser, color: typeVal === '森林野火' ? '#dc3545' : '#3388ff', fillOpacity: 0, time: getFormattedTime() };
+                            const data = { 
+                                id: 'obj_' + Date.now(), 
+                                shapeType: "marker", 
+                                coordinates: [iLat, iLng], 
+                                message: `[${typeVal}] ${descVal}`, 
+                                imageData: imgData, 
+                                creator: currentUser, 
+                                color: typeVal === '森林野火' ? '#dc3545' : '#3388ff', 
+                                fillOpacity: 0, 
+                                time: getFormattedTime() 
+                            };
                             renderObjectOnMap(data); 
                             socket.emit('new_object', data);
                             map.closePopup();
@@ -742,6 +723,12 @@
                 }
             });
 
+            // 📷 修正圖片顯示：透過獨立的 DOM 縮圖與安全處理，確保點擊縮圖可穩定展開燈箱
+            let imgHtml = "";
+            if (data.imageData) {
+                imgHtml = `<br><img src="${data.imageData}" onclick="openLightbox('${data.imageData}')" style="max-width:140px; max-height:100px; margin-top:5px; border-radius:2px; cursor:pointer; border:1px solid #39ff14;" title="點擊放大圖片">`;
+            }
+
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
 
@@ -763,7 +750,7 @@
                     <div class="popup-menu">
                         ${adminBadge}
                         <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
-                        <small style="color:gray;">最後異動：${displayTime}</small><br><br>
+                        <small style="color:gray;">最後異動：${displayTime}</small>${imgHtml}<br><br>
                         <label>修改描述：</label>
                         <input type="text" id="edit-msg-${data.id}" value="${data.message.replace(/<[^>]*>?/gm, '')}">
                         <div>
@@ -784,7 +771,7 @@
                     <div class="popup-menu">
                         <b style="color:#ffc107;">⚠️ 現場狀況回報</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
-                        <b>內容：</b>${data.message}<br>
+                        <b>內容：</b>${data.message}${imgHtml}<br>
                         <small style="color:gray;">回報員: ${data.creator}</small>
                     </div>`;
             }
@@ -804,7 +791,7 @@
             }
             data.time = getFormattedTime();
             const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: data.creator, time: data.time };
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: data.creator, time: data.time, imageData: data.imageData };
             socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
 
@@ -825,7 +812,7 @@
                 alert("權限不足：僅限 admin 帳號執行全圖資清空！");
                 return;
             }
-            if (confirm("🚨 警告：您即將以最高指揮官 (admin) 權限，刪除地圖上「所有頻道」或當前頻道的所有圖資！此操作無法復原，確定執行？")) {
+            if (confirm("🚨 警告: 您即將以最高指揮官 (admin) 權限清空地圖上所有圖資！確定執行？")) {
                 Object.keys(allMapLayers).forEach(id => {
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
