@@ -87,6 +87,46 @@
         }
         #toggle-info-btn:hover, #toggle-info-btn.active { border-color: #22c55e; background: #1a1d21; }
         
+        /* 💬 聊天室按鈕與面板樣式 */
+        #toggle-chat-btn {
+            position: absolute; bottom: 20px; right: 60px; z-index: 1001; 
+            width: 38px; height: 38px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 16px; color: #39ff14; display: none; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
+        }
+        #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
+
+        #chat-panel {
+            position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
+            background: #141619; border: 2px solid #22c55e; border-radius: 4px;
+            z-index: 1000; display: none; flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.7); font-size: 12px;
+        }
+        #chat-header {
+            background: #1a1d21; padding: 8px 12px; border-bottom: 1px solid #2d3748;
+            color: #22c55e; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+        }
+        #chat-messages {
+            flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+        }
+        .chat-bubble {
+            background: #1a1d21; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #22c55e;
+            color: #cbd5e0; word-break: break-all;
+        }
+        .chat-bubble .sender { color: #39ff14; font-weight: bold; margin-right: 6px; }
+        .chat-bubble .time { color: #718096; font-size: 10px; float: right; margin-top: 2px; }
+        #chat-input-area {
+            display: flex; padding: 8px; background: #1a1d21; border-top: 1px solid #2d3748; gap: 6px;
+        }
+        #chat-input {
+            flex: 1; background: #0b0c0e; border: 1px solid #2d3748; color: #39ff14; padding: 6px; font-family: monospace; border-radius: 2px; outline: none;
+        }
+        #chat-send-btn {
+            background: #1b4d22; border: 1px solid #39ff14; color: #39ff14; padding: 6px 12px; font-weight: bold; cursor: pointer; border-radius: 2px;
+        }
+        #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
+
         #typhoon-info {
             position: absolute; bottom: 68px; right: 12px; background: #141619; 
             padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
@@ -155,6 +195,21 @@
     </div>
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
+    <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
+
+    <!-- 💬 聊天室對話視窗 -->
+    <div id="chat-panel">
+        <div id="chat-header">
+            <span>頻道聊天室</span>
+            <span style="cursor:pointer;" onclick="toggleChatPanel()">✖</span>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="輸入訊息..." onkeydown="checkChatKey(event)">
+            <button id="chat-send-btn" onclick="sendChat()">傳送</button>
+        </div>
+    </div>
+
     <div id="typhoon-info">
         <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">頻道名稱: <span id="state-room" style="color:#39ff14;"></span></b>
         <div style="margin-top: 8px;">
@@ -200,11 +255,12 @@
             L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
             L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
+            L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
+            L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
 
-        // 💡 透過在繪圖時暫時從地圖拔除既有圖層、返回時加回，完美解決點擊衝突
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -311,6 +367,7 @@
                     document.getElementById('map').style.display = 'block'; 
                     document.getElementById('custom-toolbar').style.display = 'flex'; 
                     document.getElementById('toggle-info-btn').style.display = 'flex';
+                    document.getElementById('toggle-chat-btn').style.display = 'flex';
                     document.getElementById('state-room').innerText = currentRoom;
                     initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
@@ -326,6 +383,11 @@
             socket.on('user_notification', function(data) {
                 const actionText = data.action === 'joined' ? '進入' : '離開';
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
+            });
+
+            // 💬 接收即時聊天訊息
+            socket.on('receive_chat', function(data) {
+                appendChatMessage(data.sender, data.message, data.time);
             });
 
             let peerGPSMarkers = {}; 
@@ -347,6 +409,47 @@
                     delete allMapLayers[id];
                 }
             });
+        }
+
+        // 💬 聊天室互動邏輯
+        function toggleChatPanel() {
+            const panel = document.getElementById('chat-panel');
+            const btn = document.getElementById('toggle-chat-btn');
+            const isHidden = (window.getComputedStyle(panel).display === 'none');
+            panel.style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                btn.classList.add('active');
+                document.getElementById('chat-input').focus();
+                const msgBox = document.getElementById('chat-messages');
+                msgBox.scrollTop = msgBox.scrollHeight;
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !socket) return;
+            socket.emit('send_chat', text);
+            input.value = '';
+        }
+
+        function checkChatKey(e) {
+            if (e.key === 'Enter') sendChat();
+        }
+
+        function appendChatMessage(sender, message, time) {
+            const container = document.getElementById('chat-messages');
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.innerHTML = `<span class="sender">${sender}:</span>${escapeHtml(message)}<div class="time">${time}</div>`;
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         function renderObjectOnMap(data) {
@@ -385,7 +488,6 @@
             }
             if (!mainLayer) return;
 
-            // 如果目前正在繪圖模式，先不加到地圖上，避免阻擋點擊
             if (!isCurrentlyDrawing) {
                 mainLayer.addTo(map);
             }
