@@ -87,7 +87,6 @@
         }
         #toggle-info-btn:hover, #toggle-info-btn.active { border-color: #22c55e; background: #1a1d21; }
         
-        /* 💬 聊天室按鈕與面板樣式 */
         #toggle-chat-btn {
             position: absolute; bottom: 20px; right: 60px; z-index: 1001; 
             width: 38px; height: 38px; background: #141619; 
@@ -161,14 +160,15 @@
 <body>
     <div id="login-box">
         <h2>COP System協同地理圖資</h2>
-        <input type="text" id="username" placeholder="OPERATOR ID (暱稱)">
+        <input type="text" id="username" placeholder="OPERATOR ID (暱稱)" oninput="checkAdminInput()">
+        <input type="password" id="admin-secret" placeholder="COMMANDER KEY (指揮官專屬密鑰)" style="display:none;">
         <select id="room-select" onchange="checkRoomType()">
             <option value="公開頻道(風災)">公開頻道(風災)</option>
             <option value="公開頻道(震災)">公開頻道(震災)</option>
             <option value="custom">新增私用頻道...</option>
         </select>
         <input type="text" id="custom-room-name" placeholder="ENTER NEW ROOM ID" style="display:none;">
-        <input type="password" id="room-password" placeholder="SECURE ACCESS KEY (密碼)">
+        <input type="password" id="room-password" placeholder="SECURE ACCESS KEY (房間密碼)" style="margin-top:0px;">
         <button onclick="login()">ENTER</button>
         <p id="login-error"></p>
     </div>
@@ -197,7 +197,6 @@
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
 
-    <!-- 💬 聊天室對話視窗 -->
     <div id="chat-panel">
         <div id="chat-header">
             <span>頻道聊天室</span>
@@ -232,6 +231,12 @@
             const h = String(now.getHours()).padStart(2, '0');
             const min = String(now.getMinutes()).padStart(2, '0');
             return `${m}/${d} ${h}:${min}`;
+        }
+
+        // 🔐 當輸入 admin 時動態顯示指揮官密鑰欄位
+        function checkAdminInput() {
+            const userIn = document.getElementById('username').value.trim().toLowerCase();
+            document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
         }
 
         function checkRoomType() {
@@ -353,12 +358,14 @@
         async function login() {
             const userIn = document.getElementById('username').value.trim();
             const passIn = document.getElementById('room-password').value;
+            const adminSecIn = document.getElementById('admin-secret').value;
             const roomSel = document.getElementById('room-select').value;
             let targetRoom = roomSel === 'custom' ? document.getElementById('custom-room-name').value.trim() : roomSel;
             if(!userIn) { alert("請輸入通報暱稱！"); return; }
             try {
                 const res = await fetch(`${SERVER_URL}/api/login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom, adminSecret: adminSecIn })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -385,7 +392,6 @@
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
             });
 
-            // 💬 接收即時聊天訊息
             socket.on('receive_chat', function(data) {
                 appendChatMessage(data.sender, data.message, data.time);
             });
@@ -411,7 +417,6 @@
             });
         }
 
-        // 💬 聊天室互動邏輯
         function toggleChatPanel() {
             const panel = document.getElementById('chat-panel');
             const btn = document.getElementById('toggle-chat-btn');
@@ -603,7 +608,7 @@
                         <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
             } else {
-                const adminDeleteBlock = (currentUser.trim().toLowerCase() === 'admin') ? `
+                const adminDeleteBlock = currentUser.includes('[Admin]') ? `
                     <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除錯誤回報 (Admin)</button>
                 ` : "";
 
