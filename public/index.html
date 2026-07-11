@@ -450,7 +450,7 @@
                         <button onclick="updateObject('${data.id}')">儲存修改</button>
                         <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷此圖形</button>
                     </div>`;
-            } else {
+           } else {
                 // 💡 判斷是否為最高權限管理者 admin，若是則額外提供強制刪除按鈕
                 const adminDeleteBlock = (currentUser === 'admin') ? `
                     <button onclick="deleteObject('${data.id}')" class="del-btn" style="background:#dc3545; margin-top:8px;">⚠️ 強制刪除錯誤回報 (Admin)</button>
