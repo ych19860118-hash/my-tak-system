@@ -213,6 +213,7 @@
         }
 
         // 💡 切換繪圖工具，並自動將既有圖層設為不可互動（點擊穿透）或恢復
+// 💡 更新後的 switchTool：切換工具時強制開關所有既有圖層的滑鼠穿透
 function switchTool(tool) {
     currentTool = tool; 
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -221,12 +222,26 @@ function switchTool(tool) {
     const id = 'btn-' + tool; 
     if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
-    // 判斷是否為繪圖模式（排除平移與 GPS 定位）
+    // 當選擇的是繪圖工具時，將既有圖層設為不可互動（穿透點擊）；若是 pan 或 locate 則恢復互動
     const isDrawing = (tool !== 'pan' && tool !== 'locate');
-    setLayersInteractive(!isDrawing);
     
+    Object.values(allMapLayers).forEach(item => {
+        if (item.layer) {
+            if (typeof item.layer.setInteractive === 'function') {
+                item.layer.setInteractive(!isDrawing);
+            }
+            if (item.layer.options) {
+                item.layer.options.interactive = !isDrawing;
+                item.layer.options.bubblingMouseEvents = !isDrawing;
+            }
+            if (isDrawing) {
+                try { item.layer.closePopup(); } catch(err) {}
+            }
+        }
+    });
+
     if (isDrawing) {
-        showToast("已進入繪圖模式，現有物件點擊已鎖定，可直接在地圖上繪製");
+        showToast("已切換至繪圖模式，現有圖層已暫時穿透，可直接在上方繪圖");
     }
 }
 
