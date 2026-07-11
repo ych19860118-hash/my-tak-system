@@ -382,7 +382,7 @@
                     document.getElementById('toggle-chat-btn').style.display = 'flex';
                     document.getElementById('state-room').innerText = currentRoom;
                     
-                    if (currentUser.trim().toLowerCase() === 'admin') {
+                    if (currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]')) {
                         document.getElementById('admin-clear-btn').style.display = 'block';
                     }
                     
@@ -486,7 +486,8 @@
             }
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
-            const isAdmin = currentUser.trim().toLowerCase() === 'admin';
+            // 🔐 修正前端的管理者權限判定，支援 [Admin]
+            const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
             const pts = data.coordinates;
             const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
             const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
@@ -673,7 +674,7 @@
         }
 
         function adminClearAllObjects() {
-            if (currentUser.trim().toLowerCase() !== 'admin') {
+            if (currentUser.trim().toLowerCase() !== 'admin' && !currentUser.includes('[Admin]')) {
                 alert("權限不足：僅限 admin 帳號執行全圖資清空！");
                 return;
             }
