@@ -204,6 +204,7 @@
             initDrawingEvents();
         }
 
+        // 💡 透過在繪圖時暫時從地圖拔除既有圖層、返回時加回，完美解決點擊衝突
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -218,20 +219,23 @@
                 if (item.layer) {
                     if (isDrawing) {
                         try { item.layer.closePopup(); } catch(err) {}
+                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
+                    } else {
+                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
                     }
-                    if (item.pin) {
-                        if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
-                        else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
-                    }
-                    if (item.resizePin) {
-                        if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
-                        else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
-                    }
+                }
+                if (item.pin) {
+                    if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
+                    else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
+                }
+                if (item.resizePin) {
+                    if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
+                    else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
                 }
             });
 
             if (isDrawing) {
-                showToast("已進入繪圖模式");
+                showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
             } else {
                 showToast("已返回導覽模式");
             }
@@ -355,8 +359,8 @@
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
             const pts = data.coordinates;
-            // 預設填滿透明度採用自訂值，若無則預設為 0 (不填滿/透明)
             const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
 
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
@@ -381,7 +385,10 @@
             }
             if (!mainLayer) return;
 
-            mainLayer.addTo(map);
+            // 如果目前正在繪圖模式，先不加到地圖上，避免阻擋點擊
+            if (!isCurrentlyDrawing) {
+                mainLayer.addTo(map);
+            }
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null };
 
             if (data.shapeType === "marker") {
@@ -389,8 +396,6 @@
             } else {
                 mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
             }
-
-            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
 
             if (isMyObject && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
