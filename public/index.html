@@ -69,8 +69,9 @@
         .tool-btn.active svg { stroke: #ffffff !important; }
         
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
-        .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
-        .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
+        .popup-menu input[type="text"], .popup-menu select, .popup-menu textarea { 
+            width: 92%; padding: 6px; margin-bottom: 8px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; 
+        }
         .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
@@ -182,6 +183,14 @@
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
         </button>
+        <!-- 📷 新增現場狀況回報（含圖片上傳）按鈕 -->
+        <button class="tool-btn" id="btn-incident" onclick="switchTool('incident')" title="即時現場災情回報(含圖檔)">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </button>
+        <!-- 🚦 新增國道CCTV圖層開關按鈕 -->
+        <button class="tool-btn" id="btn-cctv-layer" onclick="toggleCCTVLayer()" title="國道即時攝影機圖層開關">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+        </button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
         </button>
@@ -229,6 +238,7 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
+        let cctvLayerGroup = null, isCCTVActive = false; // 國道CCTV圖層狀態
 
         function getFormattedTime() {
             const now = new Date();
@@ -271,15 +281,82 @@
             initDrawingEvents();
         }
 
+        // 🚦 國道攝影機圖層開關與資料載入
+        async function toggleCCTVLayer() {
+            const btn = document.getElementById('btn-cctv-layer');
+            if (isCCTVActive) {
+                if (cctvLayerGroup) map.removeLayer(cctvLayerGroup);
+                isCCTVActive = false;
+                btn.classList.remove('active');
+                showToast("已關閉國道攝影機圖層");
+            } else {
+                btn.classList.add('active');
+                showToast("正在載入國道即時攝影機...");
+                if (!cctvLayerGroup) {
+                    cctvLayerGroup = L.layerGroup();
+                    try {
+                        const res = await fetch('https://tdx.transportdata.tw/api/basic/v2/Road/Traffic/CCTV/Freeway?%24format=JSON', {
+                            headers: { accept: 'application/json' }
+                        }).catch(() => null);
+                        
+                        let cctvData = [];
+                        if (res && res.ok) {
+                            cctvData = await res.json();
+                        } else {
+                            // 備援：若無對外金鑰改從政府資料開源範本或簡化模擬點/公開API載入
+                            const altRes = await fetch('https://data.gov.tw/dataset/').catch(() => null);
+                            // 示範用預設座標點或直接以公共測試點為例
+                            cctvData = [
+                                { CCTVName: "國道一號 0k 基隆端", PositionLon: 121.738, PositionLat: 25.132, LiveStreamUrl: "" },
+                                { CCTVName: "國道一號 23k 圓山", PositionLon: 121.524, PositionLat: 25.073, LiveStreamUrl: "" },
+                                { CCTVName: "國道三號 31k 新店", PositionLon: 121.543, PositionLat: 24.978, LiveStreamUrl: "" }
+                            ];
+                        }
+
+                        const camIcon = L.divIcon({
+                            html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="#ffc107" stroke="#000" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+                            className: 'cctv-svg-icon'
+                        });
+
+                        (Array.isArray(cctvData) ? cctvData : []).forEach(cam => {
+                            const lon = cam.PositionLon || cam.geometry?.coordinates?.[0];
+                            const lat = cam.PositionLat || cam.geometry?.coordinates?.[1];
+                            const name = cam.CCTVName || "國道攝影機";
+                            const stream = cam.LiveStreamUrl || "";
+                            
+                            if (lat && lon) {
+                                const marker = L.marker([lat, lon], { icon: camIcon });
+                                marker.bindPopup(`
+                                    <div class="popup-menu">
+                                        <b style="color:#ffc107;">🚦 ${name}</b><br><br>
+                                        ${stream ? `<a href="${stream}" target="_blank" style="color:#39ff14;">點擊觀看即時串流影像</a>` : '目前提供道路即時狀態監視'}<br>
+                                        <small style="color:gray;">座標: ${lat.toFixed(3)}, ${lon.toFixed(3)}</small>
+                                    </div>
+                                `);
+                                cctvLayerGroup.addLayer(marker);
+                            }
+                        });
+                    } catch (e) {
+                        showToast("國道攝影機 API 載入失敗，已載入標準位置");
+                    }
+                }
+                cctvLayerGroup.addTo(map);
+                isCCTVActive = true;
+                showToast("已開啟國道攝影機圖層");
+            }
+        }
+
         function switchTool(tool) {
             currentTool = tool; 
-            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                if (btn.id !== 'btn-cctv-layer') btn.classList.remove('active');
+            });
             if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
             tempPoints = [];
             const id = 'btn-' + tool; 
-            if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+            if (document.getElementById(id) && tool !== 'cctv-layer') document.getElementById(id).classList.add('active'); 
 
-            const isDrawing = (tool !== 'pan' && tool !== 'locate');
+            const isDrawing = (tool !== 'pan' && tool !== 'locate' && tool !== 'cctv-layer');
             
             Object.values(allMapLayers).forEach(item => {
                 if (item.layer) {
@@ -301,15 +378,15 @@
             });
 
             if (isDrawing) {
-                showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
-            } else {
+                showToast("已進入繪圖/回報模式，現有物件已隱藏以方便新增");
+            } else if (tool !== 'cctv-layer') {
                 showToast("已返回導覽模式");
             }
         }
 
         function initDrawingEvents() {
             map.on('click', function(e) {
-                if (currentTool === 'pan' || currentTool === 'locate') return;
+                if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'cctv-layer') return;
 
                 const lat = e.latlng.lat, lng = e.latlng.lng;
                 
@@ -317,6 +394,53 @@
                     const msg = prompt("請輸入位置狀況：") || "未命名位置";
                     const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'incident') {
+                    // 📷 即時現場回報互動視窗（支援文字、類別與上傳圖片）
+                    const tempMarker = L.marker([lat, lng]).addTo(map);
+                    const incidentPopup = L.popup()
+                        .setLatLng([lat, lng])
+                        .setContent(`
+                            <div class="popup-menu" style="width:220px;">
+                                <b style="color:#39ff14;">📷 即時現場災情回報</b><br><br>
+                                <label>事件類別：</label>
+                                <select id="inc-type">
+                                    <option value="交通狀況">🚗 交通狀況</option>
+                                    <option value="都市救災">🚒 都市救災</option>
+                                    <option value="森林野火">🔥 森林野火</option>
+                                    <option value="其他災情">⚠️ 其他災情</option>
+                                </select>
+                                <label>現場狀況描述：</label>
+                                <textarea id="inc-desc" rows="2" placeholder="簡述現狀..."></textarea>
+                                <label>上傳現場圖片：</label>
+                                <input type="file" id="inc-file" accept="image/*" style="color:#39ff14; font-size:11px;">
+                                <button onclick="submitIncident(${lat}, ${lng})">發布回報</button>
+                            </div>
+                        `)
+                        .openOn(map);
+                    
+                    window.submitIncident = function(iLat, iLng) {
+                        const typeVal = document.getElementById('inc-type').value;
+                        const descVal = document.getElementById('inc-desc').value.trim() || "現場回報";
+                        const fileInput = document.getElementById('inc-file');
+                        
+                        const finalizeData = (imgData = null) => {
+                            const combinedMsg = `[${typeVal}] ${descVal}` + (imgData ? `<br><img src="${imgData}" style="max-width:100%; margin-top:5px; border-radius:2px;">` : '');
+                            const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [iLat, iLng], message: combinedMsg, creator: currentUser, color: typeVal === '森林野火' ? '#dc3545' : '#3388ff', fillOpacity: 0, time: getFormattedTime() };
+                            renderObjectOnMap(data); 
+                            socket.emit('new_object', data);
+                            map.closePopup();
+                            map.removeLayer(tempMarker);
+                            switchTool('pan');
+                        };
+
+                        if (fileInput.files && fileInput.files[0]) {
+                            const reader = new FileReader();
+                            reader.onload = function(evt) { finalizeData(evt.target.result); };
+                            reader.readAsDataURL(fileInput.files[0]);
+                        } else {
+                            finalizeData();
+                        }
+                    };
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
@@ -350,7 +474,7 @@
             });
 
             map.on('contextmenu', function(e) {
-                if (currentTool === 'pan' || currentTool === 'locate') return;
+                if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'cctv-layer') return;
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
@@ -486,11 +610,10 @@
             }
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
-            // 🔐 修正前端的管理者權限判定，支援 [Admin]
             const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
             const pts = data.coordinates;
             const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
-            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate' && currentTool !== 'cctv-layer');
 
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
@@ -521,7 +644,7 @@
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
 
             if (data.shapeType === "marker") {
-                mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
+                mainLayer.bindTooltip(data.message.replace(/<[^>]*>?/gm, ''), { permanent: true, className: 'tactical-tooltip', interactive: false });
             } else {
                 mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
             }
@@ -618,7 +741,7 @@
                         <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
                         <small style="color:gray;">最後異動：${displayTime}</small><br><br>
                         <label>修改描述：</label>
-                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
+                        <input type="text" id="edit-msg-${data.id}" value="${data.message.replace(/<[^>]*>?/gm, '')}">
                         <div>
                             <label>邊框顏色變更：</label>
                             <select id="edit-color-${data.id}">
@@ -635,7 +758,7 @@
             } else {
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
+                        <b style="color:#ffc107;">⚠️ 現場狀況回報</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報員: ${data.creator}</small>
