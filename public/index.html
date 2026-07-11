@@ -256,10 +256,14 @@
             return `${m}/${d} ${h}:${min}`;
         }
 
-        function openLightbox(imgSrc) {
-            document.getElementById('lightbox-img').src = imgSrc;
-            document.getElementById('img-lightbox').style.display = 'flex';
-        }
+function openLightbox(imgSrc) {
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightbox = document.getElementById('img-lightbox');
+    if (lightboxImg && lightbox) {
+        lightboxImg.src = imgSrc;
+        lightbox.style.display = 'flex';
+    }
+}
         function closeLightbox() {
             document.getElementById('img-lightbox').style.display = 'none';
         }
@@ -724,10 +728,11 @@
             });
 
             // 📷 修正圖片顯示：透過獨立的 DOM 縮圖與安全處理，確保點擊縮圖可穩定展開燈箱
-            let imgHtml = "";
-            if (data.imageData) {
-                imgHtml = `<br><img src="${data.imageData}" onclick="openLightbox('${data.imageData}')" style="max-width:140px; max-height:100px; margin-top:5px; border-radius:2px; cursor:pointer; border:1px solid #39ff14;" title="點擊放大圖片">`;
-            }
+let imgHtml = "";
+if (data.imageData) {
+    // 確保點擊時能直接呼叫全螢幕預覽燈箱
+    imgHtml = `<br><img src="${data.imageData}" onclick="openLightbox('${data.imageData}')" style="max-width:140px; max-height:100px; margin-top:5px; border-radius:2px; cursor:pointer; border:1px solid #39ff14;" title="點擊放大圖片">`;
+}
 
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
