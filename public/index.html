@@ -567,13 +567,9 @@
             socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
 socket.on('update_user_list', (users) => {
-    const userListContainer = document.querySelector('#user-list-container') || document.getElementById('onlineUsersList'); 
-    if (!userListContainer) return;
-
-    if (!users || users.length === 0) {
-        userListContainer.innerHTML = '<div style="color: #888;">無在線用戶記錄</div>';
-        return;
-    }
+    onlineUsersList = Array.isArray(users) ? users : [];
+    renderOnlineUsers();
+});
 
     // 渲染在線用戶清單
     userListContainer.innerHTML = users.map(name => `
