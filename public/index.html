@@ -8,13 +8,6 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
-        .popup-menu img {
-            width: 100%; max-height: 160px; object-fit: cover;
-            border-radius: 2px; margin-bottom: 8px; border: 1px solid #2d3748;
-        }
-        .popup-menu input[type="file"] {
-            display: block; margin-bottom: 10px; color: #a0aec0; font-size: 11px;
-        }
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
             font-family: 'Courier New', Courier, monospace, sans-serif; 
@@ -168,11 +161,6 @@
             background: #9b1c1c !important; border-color: #ef4444 !important; color: #fca5a5 !important; margin-top: 10px !important; display: none;
         }
         #admin-clear-btn:hover { background: #ef4444 !important; color: #0d0e10 !important; }
-        
-        #export-btn {
-            background: #1b4d22 !important; border-color: #39ff14 !important; color: #39ff14 !important; margin-top: 8px !important; width: 100%; padding: 6px; cursor: pointer; font-family: monospace; font-weight: bold; border-radius: 2px;
-        }
-        #export-btn:hover { background: #22c55e !important; color: #0d0e10 !important; }
     </style>
 </head>
 <body>
@@ -194,9 +182,6 @@
     <div id="custom-toolbar">
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-        </button>
-        <button class="tool-btn" id="btn-photomarker" onclick="switchTool('photomarker')" title="新增照片回報點">
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
@@ -236,7 +221,6 @@
             狀態: <b style="color:#39ff14;">ACTIVE</b><br>
             在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
         </div>
-        <button id="export-btn" onclick="exportMapGeoJSON()">📥 匯出當前圖資 (GeoJSON)</button>
         <button id="admin-clear-btn" onclick="adminClearAllObjects()">🚨 清除所有圖資 (最高權限)</button>
     </div>
     <div id="toast-container"></div>
@@ -332,49 +316,8 @@
                 
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入位置狀況：") || "未命名位置";
-const data = { 
-    id: 'obj_' + Date.now(), 
-    shapeType: "photomarker", 
-    coordinates: [lat, lng], 
-    message: msg, 
-    photoUrl: photoData, // 必須包含這行
-    creator: currentUser, 
-    color: "#ffc107", 
-    fillOpacity: 0, 
-    time: getFormattedTime() 
-};
-renderObjectOnMap(data); 
-socket.emit('new_object', data); // 確保廣播出去的資料帶有 photoUrl
-switchTool('pan');
-                } else if (currentTool === 'photomarker') {
-                    const msg = prompt("請輸入照片地點狀況說明：") || "未命名照片回報";
-                    const fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.accept = 'image/*';
-                    fileInput.onchange = ev => {
-                        const file = ev.target.files[0];
-                        if (!file) { switchTool('pan'); return; }
-                        const reader = new FileReader();
-                        reader.onload = event => {
-                            const photoData = event.target.result;
-                            const data = { 
-                                id: 'obj_' + Date.now(), 
-                                shapeType: "photomarker", 
-                                coordinates: [lat, lng], 
-                                message: msg, 
-                                photoUrl: photoData,
-                                creator: currentUser, 
-                                color: "#ffc107", 
-                                fillOpacity: 0, 
-                                time: getFormattedTime() 
-                            };
-                            renderObjectOnMap(data); 
-                            socket.emit('new_object', data); 
-                            switchTool('pan');
-                        };
-                        reader.readAsDataURL(file);
-                    };
-                    fileInput.click();
+                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
@@ -549,14 +492,14 @@ switchTool('pan');
             const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
             const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
 
-if (data.shapeType === "marker" || data.shapeType === "photomarker") {
-    const svgColor = data.color || (data.shapeType === "photomarker" ? "#ffc107" : "#3388ff");
-    const customMarkerIcon = L.divIcon({
-        html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
-        className: 'tactical-svg-marker'
-    });
-    mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
-    centerLatLng = L.latLng(pts);
+            if (data.shapeType === "marker") {
+                const svgColor = data.color || "#3388ff";
+                const customMarkerIcon = L.divIcon({
+                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                    className: 'tactical-svg-marker'
+                });
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
+                centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
                 mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
@@ -575,16 +518,15 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
             if (!isCurrentlyDrawing) {
                 mainLayer.addTo(map);
             }
-            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator, originalData: data };
+            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
 
-            mainLayer.bindTooltip(data.message, { 
-                permanent: true, 
-                direction: (data.shapeType === "marker" || data.shapeType === "photomarker") ? 'top' : 'center', 
-                className: 'tactical-tooltip', 
-                interactive: false 
-            });
+            if (data.shapeType === "marker") {
+                mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
+            } else {
+                mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
+            }
 
-            if ((isMyObject || isAdmin) && data.shapeType !== "marker" && data.shapeType !== "photomarker") {
+            if ((isMyObject || isAdmin) && data.shapeType !== "marker") {
                 const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
                 if (!isCurrentlyDrawing) controlPin.addTo(map);
                 allMapLayers[data.id].pin = controlPin;
@@ -635,7 +577,7 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
                     });
                     resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
                 }
-            } else if ((isMyObject || isAdmin) && (data.shapeType === "marker" || data.shapeType === "photomarker")) {
+            } else if ((isMyObject || isAdmin) && data.shapeType === "marker") {
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
                     data.time = getFormattedTime();
@@ -646,7 +588,7 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
 
             mainLayer.on('click', function(e) {
                 if (currentTool !== 'pan' && currentTool !== 'locate') return;
-                if (data.shapeType === "marker" || data.shapeType === "photomarker") {
+                if (data.shapeType === "marker") {
                     mainLayer.openPopup();
                 } else {
                     mainLayer.openPopup(centerLatLng);
@@ -655,11 +597,10 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
 
             let popupContent = "";
             const displayTime = data.time || "無紀錄";
-            let photoHTML = data.photoUrl ? `<img src="${data.photoUrl}" alt="回報照片" onclick="window.open('${data.photoUrl}')" style="cursor:pointer; width: 100%; max-height: 160px; object-fit: cover; border-radius: 2px; margin-bottom: 8px; border: 1px solid #2d3748;" title="點擊放大圖片">` : "";
 
             if (isMyObject || isAdmin) {
                 let fillOptionHTML = "";
-                if (data.shapeType !== "marker" && data.shapeType !== "photomarker" && data.shapeType !== "polyline") {
+                if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
                     fillOptionHTML = `
                         <label>填滿模式：</label>
                         <select id="edit-fill-${data.id}">
@@ -674,7 +615,6 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
                 popupContent = `
                     <div class="popup-menu">
                         ${adminBadge}
-                        ${photoHTML}
                         <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
                         <small style="color:gray;">最後異動：${displayTime}</small><br><br>
                         <label>修改描述：</label>
@@ -690,65 +630,18 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
                         </div>
                         ${fillOptionHTML}
                         <button onclick="updateObject('${data.id}')">儲存修改</button>
-                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此回報</button>
+                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
                     </div>`;
             } else {
                 popupContent = `
                     <div class="popup-menu">
-                        <b style="color:${data.shapeType === 'photomarker' ? '#ffc107' : '#3388ff'};">${data.shapeType === 'photomarker' ? '📷 即時照片回報' : '⚠️ 區域回報狀況'}</b><br>
+                        <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
                         <small style="color:gray;">通報時間：${displayTime}</small><br><br>
-                        ${photoHTML}
                         <b>內容：</b>${data.message}<br>
                         <small style="color:gray;">回報員: ${data.creator}</small>
                     </div>`;
             }
             mainLayer.bindPopup(popupContent);
-        }
-
-        function exportMapGeoJSON() {
-            const features = [];
-            Object.values(allMapLayers).forEach(item => {
-                if (!item.originalData) return;
-                const d = item.originalData;
-                let geomType = "Point", coords = d.coordinates;
-                if (d.shapeType === "polyline") geomType = "LineString";
-                else if (d.shapeType === "polygon" || d.shapeType === "rectangle") {
-                    geomType = "Polygon";
-                    if (d.shapeType === "rectangle") {
-                        const sw = d.coordinates[0], ne = d.coordinates[1];
-                        coords = [[[sw[1], sw[0]], [ne[1], sw[0]], [ne[1], ne[0]], [sw[1], ne[0]], [sw[1], sw[0]]]];
-                    } else if (Array.isArray(coords[0])) {
-                        coords = [coords.map(p => [p[1], p[0]])];
-                    }
-                } else if (d.shapeType === "circle" || d.shapeType === "marker" || d.shapeType === "photomarker") {
-                    geomType = "Point";
-                    coords = [d.coordinates[1], d.coordinates[0]];
-                }
-                
-                features.push({
-                    type: "Feature",
-                    geometry: { type: geomType, coordinates: coords },
-                    properties: {
-                        id: d.id,
-                        message: d.message,
-                        creator: d.creator,
-                        color: d.color,
-                        time: d.time,
-                        radius: d.radius || null,
-                        photoUrl: d.photoUrl || null
-                    }
-                });
-            });
-
-            const geojson = { type: "FeatureCollection", features: features };
-            const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `cop_export_${currentRoom}_${Date.now()}.geojson`;
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast("📥 圖資已成功匯出為 GeoJSON 檔案！");
         }
 
         function syncGeometryChanges(data, mainLayer) {
@@ -764,7 +657,7 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
             }
             data.time = getFormattedTime();
             const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
-            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: data.creator, time: data.time, photoUrl: data.photoUrl };
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: data.creator, time: data.time };
             socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
 
@@ -812,8 +705,8 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
                 const isRect = !isCircle && cache.layer instanceof L.Rectangle;
                 const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
                 const isPolyline = cache.layer instanceof L.Polyline && !(cache.layer instanceof L.Polygon);
-                let sType = cache.originalData.shapeType || "polygon"; 
-                if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = cache.originalData.shapeType; else if (isPolyline) sType = "polyline";
+                let sType = "polygon"; 
+                if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = "marker"; else if (isPolyline) sType = "polyline";
 
                 let currentCoordinates = null, currentRadius = null;
                 if (isCircle) {
@@ -828,7 +721,7 @@ if (data.shapeType === "marker" || data.shapeType === "photomarker") {
                     currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
                 }
 
-                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime(), photoUrl: cache.originalData.photoUrl };
+                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
                 map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
                 delete allMapLayers[objectId];
                 renderObjectOnMap(updatedData);
