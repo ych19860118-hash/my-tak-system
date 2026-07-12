@@ -566,13 +566,6 @@
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
             socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
-            
-            socket.on('update_online_users', function(users) {
-                if (Array.isArray(users)) {
-                    onlineUsersList = users;
-                    renderOnlineUsers();
-                }
-            });
 socket.on('update_user_list', (users) => {
     const userListContainer = document.querySelector('#user-list-container') || document.getElementById('onlineUsersList'); 
     if (!userListContainer) return;
