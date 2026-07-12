@@ -15,7 +15,7 @@ app.use('/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet
 
 // 核心記憶體資料庫
 let rooms = {
-    "公開頻道(風災)": { password: "", objects: [], events: [] }, // 💡 新增 events 陣列儲存事件
+    "公開頻道(風災)": { password: "", objects: [], events: [] }, 
     "公開頻道(震災)": { password: "", objects: [], events: [] }
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
@@ -44,7 +44,7 @@ app.post('/api/login', (req, res) => {
         rooms[rName] = {
             password: roomPassword ? roomPassword.trim() : "",
             objects: [],
-            events: [] // 💡 新增 events 初始化
+            events: []
         };
     } else {
         if (rooms[rName].password !== "" && rooms[rName].password !== roomPassword.trim()) {
@@ -114,7 +114,7 @@ io.on('connection', (socket) => {
             delete roomTimers[myRoom];
         }
 
-        // 💡 登入時同步回傳歷史物件與歷史事件
+        // 登入時同步回傳歷史物件與歷史事件
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
         socket.emit('history_events', rooms[myRoom] ? rooms[myRoom].events : []);
 
@@ -154,11 +154,10 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚨 新增：接收並廣播新的事件回報（含敘述與照片）
+    // 接收並廣播新的事件回報（含敘述與照片）
     socket.on('new_event', (eventData) => {
         if (!myRoom || !rooms[myRoom]) return;
         
-        // 補上回報者與伺服器時間戳記
         const enrichedEvent = {
             id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
             sender: myName,
@@ -166,13 +165,31 @@ io.on('connection', (socket) => {
             description: eventData.description || '',
             lat: eventData.lat,
             lng: eventData.lng,
-            photoData: eventData.photoData || null, // 支援 Base64 圖片字串
+            photoData: eventData.photoData || null,
             time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
         };
 
         rooms[myRoom].events.push(enrichedEvent);
         io.to(myRoom).emit('event_added', enrichedEvent);
         console.log(`【新事件回報】房間 ${myRoom} 由 ${myName} 回報：${enrichedEvent.category}`);
+    });
+
+    // 💡 刪除事件回報（驗證是否為回報者本人或是最高權限管理員）
+    socket.on('delete_event', (eventId) => {
+        if (!myRoom || !rooms[myRoom]) return;
+        
+        const targetEvent = rooms[myRoom].events.find(e => e.id === eventId);
+        const activeName = socket.myName || myName;
+        const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
+        const isOwner = targetEvent && targetEvent.sender === activeName;
+
+        if (isAdmin || isOwner) {
+            rooms[myRoom].events = rooms[myRoom].events.filter(e => e.id !== eventId);
+            io.to(myRoom).emit('event_deleted', eventId);
+            console.log(`【事件刪除成功】事件 ${eventId} 已由 ${activeName} 刪除`);
+        } else {
+            console.log(`事件刪除被拒絕：操作者 (${activeName}) 權限不足`);
+        }
     });
 
     socket.on('delete_object', (objectId) => {
@@ -185,21 +202,21 @@ io.on('connection', (socket) => {
             if (isAdmin || isCreator) {
                 rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
                 io.to(myRoom).emit('object_deleted', objectId);
-                console.log(`【刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
+                console.log(`【物件刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
             } else {
-                console.log(`刪除被拒絕：操作者 (${activeName}) 權限不足`);
+                console.log(`物件刪除被拒絕：操作者 (${activeName}) 權限不足`);
             }
         }
     });
 
-    // 🚨 接收並廣播最高指揮官清空所有圖資要求
+    // 接收並廣播最高指揮官清空所有圖資要求
     socket.on('admin_clear_all', () => {
         const activeName = socket.myName || myName;
         const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
         
         if (isAdmin && rooms[myRoom]) {
             rooms[myRoom].objects = [];
-            rooms[myRoom].events = []; // 同時清空事件
+            rooms[myRoom].events = []; 
             io.to(myRoom).emit('clear_all_objects');
             console.log(`【緊急清空】房間 ${myRoom} 的所有圖資與事件已由指揮官 ${activeName} 清空`);
         } else {
