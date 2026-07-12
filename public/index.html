@@ -462,6 +462,7 @@
             const id = 'btn-' + tool; 
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
+            // 修正：只有真正需要「點擊地圖新增圖形」的工具才算繪圖隱藏模式，GPS與pan維持正常顯示
             const isDrawing = (tool !== 'pan' && tool !== 'locate');
             const finishBtn = document.getElementById('btn-finish');
             if (finishBtn) {
