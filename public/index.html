@@ -8,6 +8,13 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/leaflet/leaflet.js"></script>
     <style>
+        .popup-menu img {
+            width: 100%; max-height: 160px; object-fit: cover;
+            border-radius: 2px; margin-bottom: 8px; border: 1px solid #2d3748;
+        }
+        .popup-menu input[type="file"] {
+            display: block; margin-bottom: 10px; color: #a0aec0; font-size: 11px;
+        }
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
             font-family: 'Courier New', Courier, monospace, sans-serif; 
@@ -20,153 +27,153 @@
         #map { width: 100%; height: 100vh; display: none; background: #111214; } 
         
         #login-box {
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        background: #141619; padding: 40px 30px; border-radius: 4px; 
-        box-shadow: 0 0 25px rgba(34, 197, 94, 0.15); text-align: center; z-index: 2000;
-        border: 2px solid #22c55e; width: 310px;
-    }
-    #login-box h2 { 
-        color: #22c55e; margin-bottom: 25px; font-weight: bold; font-size: 20px; 
-        letter-spacing: 2px; text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
-        text-transform: uppercase;
-    }
-    #login-box input, #login-box select { 
-        display: block; margin: 14px auto; padding: 12px; width: 92%; 
-        background: #1a1d21; border: 1px solid #2d3748; border-radius: 2px; 
-        color: #39ff14; font-size: 14px; outline: none; box-sizing: border-box;
-        font-family: monospace; transition: all 0.2s;
-    }
-    #login-box input:focus, #login-box select:focus { 
-        border-color: #39ff14; box-shadow: 0 0 8px rgba(57, 255, 20, 0.3);
-    }
-    #login-box button { 
-        width: 92%; padding: 12px; background: #1b4d22; color: #39ff14; 
-        border: 1px solid #39ff14; border-radius: 2px; cursor: pointer; font-size: 15px; 
-        font-weight: bold; margin-top: 15px; letter-spacing: 1px;
-        box-shadow: 0 0 10px rgba(57, 255, 20, 0.2); transition: all 0.2s;
-    }
-    #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
-    #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
-    
-    #custom-toolbar { 
-        position: absolute; top: 20px; left: 15px; z-index: 1000; 
-        display: none; flex-direction: column; gap: 6px; 
-        background: #141619; padding: 8px; 
-        border-radius: 6px; border: 1px solid #22c55e; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-    .tool-btn {
-        width: 38px !important; height: 38px !important; 
-        background: #1a1d21 !important; background-image: none !important;
-        border: 1px solid #2d3748 !important; border-radius: 4px !important; cursor: pointer;
-        display: flex !important; align-items: center; justify-content: center; 
-        margin: 0 !important; padding: 0 !important; color: #39ff14; font-size: 16px;
-        transition: all 0.15s ease;
-    }
-    .tool-btn svg { stroke: #39ff14 !important; fill: none; }
-    .tool-btn:hover { background: #22c55e !important; color: #0d0e10 !important; border-color: #39ff14 !important; }
-    .tool-btn:hover svg { stroke: #0d0e10 !important; }
-    .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; border-color: #39ff14 !important; }
-    .tool-btn.active svg { stroke: #0d0e10 !important; }
-    
-    .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
-    .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
-    .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
-    .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
-    .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
-    .popup-menu button.del-btn { background: #e53e3e; }
-    
-    .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
-    .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
-    
-    #toggle-info-btn {
-        position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
-        width: 38px; height: 38px; background: #141619; 
-        border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
-        font-size: 16px; color: #22c55e; display: none; align-items: center; justify-content: center; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
-    }
-    #toggle-info-btn:hover, #toggle-info-btn.active { border-color: #22c55e; background: #1a1d21; }
-    
-    #toggle-chat-btn {
-        position: absolute; bottom: 20px; right: 60px; z-index: 1001; 
-        width: 38px; height: 38px; background: #141619; 
-        border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
-        font-size: 16px; color: #39ff14; display: none; align-items: center; justify-content: center; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
-    }
-    #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #141619; padding: 40px 30px; border-radius: 4px; 
+            box-shadow: 0 0 25px rgba(34, 197, 94, 0.15); text-align: center; z-index: 2000;
+            border: 2px solid #22c55e; width: 310px;
+        }
+        #login-box h2 { 
+            color: #22c55e; margin-bottom: 25px; font-weight: bold; font-size: 20px; 
+            letter-spacing: 2px; text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+            text-transform: uppercase;
+        }
+        #login-box input, #login-box select { 
+            display: block; margin: 14px auto; padding: 12px; width: 92%; 
+            background: #1a1d21; border: 1px solid #2d3748; border-radius: 2px; 
+            color: #39ff14; font-size: 14px; outline: none; box-sizing: border-box;
+            font-family: monospace; transition: all 0.2s;
+        }
+        #login-box input:focus, #login-box select:focus { 
+            border-color: #39ff14; box-shadow: 0 0 8px rgba(57, 255, 20, 0.3);
+        }
+        #login-box button { 
+            width: 92%; padding: 12px; background: #1b4d22; color: #39ff14; 
+            border: 1px solid #39ff14; border-radius: 2px; cursor: pointer; font-size: 15px; 
+            font-weight: bold; margin-top: 15px; letter-spacing: 1px;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.2); transition: all 0.2s;
+        }
+        #login-box button:hover { background: #22c55e; color: #0d0e10; box-shadow: 0 0 15px rgba(34, 197, 94, 0.5); }
+        #login-error { color: #ef4444; font-size: 13px; margin-top: 12px; min-height: 20px; font-weight: bold; }
+        
+        #custom-toolbar { 
+            position: absolute; top: 20px; left: 15px; z-index: 1000; 
+            display: none; flex-direction: column; gap: 6px; 
+            background: #141619; padding: 8px; 
+            border-radius: 6px; border: 1px solid #22c55e; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .tool-btn {
+            width: 38px !important; height: 38px !important; 
+            background: #1a1d21 !important; background-image: none !important;
+            border: 1px solid #2d3748 !important; border-radius: 4px !important; cursor: pointer;
+            display: flex !important; align-items: center; justify-content: center; 
+            margin: 0 !important; padding: 0 !important; color: #39ff14; font-size: 16px;
+            transition: all 0.15s ease;
+        }
+        .tool-btn svg { stroke: #39ff14 !important; fill: none; }
+        .tool-btn:hover { background: #22c55e !important; color: #0d0e10 !important; border-color: #39ff14 !important; }
+        .tool-btn:hover svg { stroke: #0d0e10 !important; }
+        .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; border-color: #39ff14 !important; }
+        .tool-btn.active svg { stroke: #0d0e10 !important; }
+        
+        .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
+        .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
+        .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
+        .popup-menu label { display: block; margin-top: 5px; color: #cbd5e0; }
+        .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        .popup-menu button.del-btn { background: #e53e3e; }
+        
+        .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
+        .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
+        
+        #toggle-info-btn {
+            position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
+            width: 38px; height: 38px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 16px; color: #22c55e; display: none; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
+        }
+        #toggle-info-btn:hover, #toggle-info-btn.active { border-color: #22c55e; background: #1a1d21; }
+        
+        #toggle-chat-btn {
+            position: absolute; bottom: 20px; right: 60px; z-index: 1001; 
+            width: 38px; height: 38px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 16px; color: #39ff14; display: none; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s;
+        }
+        #toggle-chat-btn:hover, #toggle-chat-btn.active { border-color: #39ff14; background: #1a1d21; }
 
-    #chat-panel {
-        position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
-        background: #141619; border: 2px solid #22c55e; border-radius: 4px;
-        z-index: 1000; display: none; flex-direction: column;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.7); font-size: 12px;
-    }
-    #chat-header {
-        background: #1a1d21; padding: 8px 12px; border-bottom: 1px solid #2d3748;
-        color: #22c55e; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
-    }
-    #chat-messages {
-        flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
-    }
-    .chat-bubble {
-        background: #1a1d21; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #22c55e;
-        color: #cbd5e0; word-break: break-all;
-    }
-    .chat-bubble .sender { color: #39ff14; font-weight: bold; margin-right: 6px; }
-    .chat-bubble .time { color: #718096; font-size: 10px; float: right; margin-top: 2px; }
-    #chat-input-area {
-        display: flex; padding: 8px; background: #1a1d21; border-top: 1px solid #2d3748; gap: 6px;
-    }
-    #chat-input {
-        flex: 1; background: #0b0c0e; border: 1px solid #2d3748; color: #39ff14; padding: 6px; font-family: monospace; border-radius: 2px; outline: none;
-    }
-    #chat-send-btn {
-        background: #1b4d22; border: 1px solid #39ff14; color: #39ff14; padding: 6px 12px; font-weight: bold; cursor: pointer; border-radius: 2px;
-    }
-    #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
+        #chat-panel {
+            position: absolute; bottom: 68px; right: 12px; width: 280px; height: 320px;
+            background: #141619; border: 2px solid #22c55e; border-radius: 4px;
+            z-index: 1000; display: none; flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.7); font-size: 12px;
+        }
+        #chat-header {
+            background: #1a1d21; padding: 8px 12px; border-bottom: 1px solid #2d3748;
+            color: #22c55e; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+        }
+        #chat-messages {
+            flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+        }
+        .chat-bubble {
+            background: #1a1d21; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #22c55e;
+            color: #cbd5e0; word-break: break-all;
+        }
+        .chat-bubble .sender { color: #39ff14; font-weight: bold; margin-right: 6px; }
+        .chat-bubble .time { color: #718096; font-size: 10px; float: right; margin-top: 2px; }
+        #chat-input-area {
+            display: flex; padding: 8px; background: #1a1d21; border-top: 1px solid #2d3748; gap: 6px;
+        }
+        #chat-input {
+            flex: 1; background: #0b0c0e; border: 1px solid #2d3748; color: #39ff14; padding: 6px; font-family: monospace; border-radius: 2px; outline: none;
+        }
+        #chat-send-btn {
+            background: #1b4d22; border: 1px solid #39ff14; color: #39ff14; padding: 6px 12px; font-weight: bold; cursor: pointer; border-radius: 2px;
+        }
+        #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
 
-    #typhoon-info {
-        position: absolute; bottom: 68px; right: 12px; background: #141619; 
-        padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
-        border: 2px solid #22c55e; font-size: 12px; display: none; 
-        max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
-    }
+        #typhoon-info {
+            position: absolute; bottom: 68px; right: 12px; background: #141619; 
+            padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
+            border: 2px solid #22c55e; font-size: 12px; display: none; 
+            max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
+        }
 
-    #toast-container {
-        position: absolute; bottom: 20px; left: 70px; z-index: 9999;
-        display: flex; flex-direction: column; gap: 8px; pointer-events: none;
-    }
-    .toast-msg {
-        background: #141619; border: 1px solid #22c55e; color: #39ff14;
-        padding: 8px 14px; border-radius: 4px; font-size: 12px;
-        font-family: 'Courier New', monospace; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
-        animation: fadeInOut 3.5s forwards;
-    }
-    @keyframes fadeInOut {
-        0% { opacity: 0; transform: translateY(10px); }
-        15% { opacity: 1; transform: translateY(0); }
-        85% { opacity: 1; transform: translateY(0); }
-        100% { opacity: 0; transform: translateY(-10px); display: none; }
-    }
+        #toast-container {
+            position: absolute; bottom: 20px; left: 70px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        .toast-msg {
+            background: #141619; border: 1px solid #22c55e; color: #39ff14;
+            padding: 8px 14px; border-radius: 4px; font-size: 12px;
+            font-family: 'Courier New', monospace; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+            animation: fadeInOut 3.5s forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(10px); }
+            15% { opacity: 1; transform: translateY(0); }
+            85% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); display: none; }
+        }
 
-    .tactical-tooltip {
-        background: #141619 !important; border: 2px solid #39ff14 !important; color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
-        font-family: 'Courier New', monospace !important; border-radius: 4px !important; padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; opacity: 1 !important; z-index: 10000 !important;
-    }
-    .tactical-tooltip::before { display: none !important; }
-    
-    #admin-clear-btn {
-        background: #9b1c1c !important; border-color: #ef4444 !important; color: #fca5a5 !important; margin-top: 10px !important; display: none;
-    }
-    #admin-clear-btn:hover { background: #ef4444 !important; color: #0d0e10 !important; }
-    
-    #export-btn {
-        background: #1b4d22 !important; border-color: #39ff14 !important; color: #39ff14 !important; margin-top: 8px !important; width: 100%; padding: 6px; cursor: pointer; font-family: monospace; font-weight: bold; border-radius: 2px;
-    }
-    #export-btn:hover { background: #22c55e !important; color: #0d0e10 !important; }
-</style>
+        .tactical-tooltip {
+            background: #141619 !important; border: 2px solid #39ff14 !important; color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
+            font-family: 'Courier New', monospace !important; border-radius: 4px !important; padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; opacity: 1 !important; z-index: 10000 !important;
+        }
+        .tactical-tooltip::before { display: none !important; }
+        
+        #admin-clear-btn {
+            background: #9b1c1c !important; border-color: #ef4444 !important; color: #fca5a5 !important; margin-top: 10px !important; display: none;
+        }
+        #admin-clear-btn:hover { background: #ef4444 !important; color: #0d0e10 !important; }
+        
+        #export-btn {
+            background: #1b4d22 !important; border-color: #39ff14 !important; color: #39ff14 !important; margin-top: 8px !important; width: 100%; padding: 6px; cursor: pointer; font-family: monospace; font-weight: bold; border-radius: 2px;
+        }
+        #export-btn:hover { background: #22c55e !important; color: #0d0e10 !important; }
+    </style>
 </head>
 <body>
     <div id="login-box">
@@ -184,633 +191,667 @@
         <p id="login-error"></p>
     </div>
 
-   <div id="custom-toolbar">
-    <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
-        <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-    </button>
-    <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
-        <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-    </button>
-    <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
-        <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-    </button>
-    <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
-        <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
-    </button>
-    <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
-        <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
-    </button>
-    <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
-        <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-    </button>
-</div>
-
-<button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
-<button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
-
-<div id="chat-panel">
-    <div id="chat-header">
-        <span>頻道聊天室</span>
-        <span style="cursor:pointer;" onclick="toggleChatPanel()">✖</span>
+    <div id="custom-toolbar">
+        <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        </button>
+        <button class="tool-btn" id="btn-photomarker" onclick="switchTool('photomarker')" title="新增照片回報點">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </button>
+        <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        </button>
+        <button class="tool-btn" id="btn-rectangle" onclick="switchTool('rectangle')" title="繪製方形">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+        </button>
+        <button class="tool-btn" id="btn-circle" onclick="switchTool('circle')" title="繪製圓形">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>
+        </button>
+        <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
+        </button>
+        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </button>
     </div>
-    <div id="chat-messages"></div>
-    <div id="chat-input-area">
-        <input type="text" id="chat-input" placeholder="輸入訊息..." onkeydown="checkChatKey(event)">
-        <button id="chat-send-btn" onclick="sendChat()">傳送</button>
+
+    <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
+    <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
+
+    <div id="chat-panel">
+        <div id="chat-header">
+            <span>頻道聊天室</span>
+            <span style="cursor:pointer;" onclick="toggleChatPanel()">✖</span>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="輸入訊息..." onkeydown="checkChatKey(event)">
+            <button id="chat-send-btn" onclick="sendChat()">傳送</button>
+        </div>
     </div>
-</div>
 
-<div id="typhoon-info">
-    <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">頻道名稱: <span id="state-room" style="color:#39ff14;"></span></b>
-    <div style="margin-top: 8px;">
-        狀態: <b style="color:#39ff14;">ACTIVE</b><br>
-        在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
+    <div id="typhoon-info">
+        <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">頻道名稱: <span id="state-room" style="color:#39ff14;"></span></b>
+        <div style="margin-top: 8px;">
+            狀態: <b style="color:#39ff14;">ACTIVE</b><br>
+            在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
+        </div>
+        <button id="export-btn" onclick="exportMapGeoJSON()">📥 匯出當前圖資 (GeoJSON)</button>
+        <button id="admin-clear-btn" onclick="adminClearAllObjects()">🚨 清除所有圖資 (最高權限)</button>
     </div>
-    <button id="export-btn" onclick="exportMapGeoJSON()">📥 匯出當前圖資 (GeoJSON)</button>
-    <button id="admin-clear-btn" onclick="adminClearAllObjects()">🚨 清除所有圖資 (最高權限)</button>
-</div>
-<div id="toast-container"></div>
-<div id="map"></div>
+    <div id="toast-container"></div>
+    <div id="map"></div>
 
-<script>
-    const SERVER_URL = window.location.origin; 
-    let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
-    let currentTool = "pan", tempPoints = [], tempShape = null;
+    <script>
+        const SERVER_URL = window.location.origin; 
+        let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
+        let currentTool = "pan", tempPoints = [], tempShape = null;
 
-    function getFormattedTime() {
-        const now = new Date();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        const h = String(now.getHours()).padStart(2, '0');
-        const min = String(now.getMinutes()).padStart(2, '0');
-        return `${m}/${d} ${h}:${min}`;
-    }
-
-    function checkAdminInput() {
-        const userIn = document.getElementById('username').value.trim().toLowerCase();
-        document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
-    }
-
-    function checkRoomType() {
-        const select = document.getElementById('room-select').value;
-        document.getElementById('custom-room-name').style.display = (select === 'custom') ? 'block' : 'none';
-    }
-
-    function showToast(message) {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast-msg';
-        toast.innerText = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
-    }
-
-    function initMapInstance() {
-        if (map) return; 
-        map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
-        L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
-        L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
-        L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
-        L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
-        window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
-        initDrawingEvents();
-    }
-
-    function switchTool(tool) {
-        currentTool = tool; 
-        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-        if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
-        tempPoints = [];
-        const id = 'btn-' + tool; 
-        if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
-
-        const isDrawing = (tool !== 'pan' && tool !== 'locate');
-        
-        Object.values(allMapLayers).forEach(item => {
-            if (item.layer) {
-                if (isDrawing) {
-                    try { item.layer.closePopup(); } catch(err) {}
-                    if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
-                } else {
-                    if (!map.hasLayer(item.layer)) item.layer.addTo(map);
-                }
-            }
-            if (item.pin) {
-                if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
-                else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
-            }
-            if (item.resizePin) {
-                if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
-                else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
-            }
-        });
-
-        if (isDrawing) {
-            showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
-        } else {
-            showToast("已返回導覽模式");
+        function getFormattedTime() {
+            const now = new Date();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            return `${m}/${d} ${h}:${min}`;
         }
-    }
 
-    function initDrawingEvents() {
-        map.on('click', function(e) {
-            if (currentTool === 'pan' || currentTool === 'locate') return;
+        function checkAdminInput() {
+            const userIn = document.getElementById('username').value.trim().toLowerCase();
+            document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
+        }
 
-            const lat = e.latlng.lat, lng = e.latlng.lng;
+        function checkRoomType() {
+            const select = document.getElementById('room-select').value;
+            document.getElementById('custom-room-name').style.display = (select === 'custom') ? 'block' : 'none';
+        }
+
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-msg';
+            toast.innerText = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+
+        function initMapInstance() {
+            if (map) return; 
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
+            L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
+            L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
+            L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
+            L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
+            window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
+            initDrawingEvents();
+        }
+
+        function switchTool(tool) {
+            currentTool = tool; 
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
+            tempPoints = [];
+            const id = 'btn-' + tool; 
+            if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+
+            const isDrawing = (tool !== 'pan' && tool !== 'locate');
             
-            if (currentTool === 'marker') {
-                const msg = prompt("請輸入位置狀況：") || "未命名位置";
-                const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-            } else if (currentTool === 'polyline' || currentTool === 'polygon') {
-                tempPoints.push([lat, lng]);
-                if (tempPoints.length === 1) {
-                    tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
-                } else {
-                    tempShape.setLatLngs(tempPoints);
-                }
-            } else if (currentTool === 'rectangle') {
-                tempPoints.push({ lat: lat, lng: lng });
-                if (tempPoints.length === 2) {
-                    const msg = prompt("請輸入區域說明：") || "未命名區域";
-                    const latMin = Math.min(tempPoints[0].lat, tempPoints[1].lat);
-                    const latMax = Math.max(tempPoints[0].lat, tempPoints[1].lat);
-                    const lngMin = Math.min(tempPoints[0].lng, tempPoints[1].lng);
-                    const lngMax = Math.max(tempPoints[0].lng, tempPoints[1].lng);
-                    const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                }
-            } else if (currentTool === 'circle') {
-                if (tempPoints.length === 0) {
-                    tempPoints.push({ lat: lat, lng: lng });
-                    tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', fillOpacity: 0}).addTo(map);
-                } else {
-                    const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
-                    const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
-                    const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                    if (tempShape) map.removeLayer(tempShape);
-                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-                }
-            }
-        });
-
-        map.on('contextmenu', function(e) {
-            if (currentTool === 'pan' || currentTool === 'locate') return;
-            if (tempPoints.length < 2) return;
-            const type = currentTool;
-            if (type !== 'polyline' && type !== 'polygon') return;
-            const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-            if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
-        });
-    }
-
-    async function login() {
-        const userIn = document.getElementById('username').value.trim();
-        const passIn = document.getElementById('room-password').value;
-        const adminSecIn = document.getElementById('admin-secret').value;
-        const roomSel = document.getElementById('room-select').value;
-        let targetRoom = roomSel === 'custom' ? document.getElementById('custom-room-name').value.trim() : roomSel;
-        if(!userIn) { alert("請輸入通報暱稱！"); return; }
-        try {
-            const res = await fetch(`${SERVER_URL}/api/login`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom, adminSecret: adminSecIn })
-            });
-            const data = await res.json();
-            if (data.success) {
-                currentUser = data.username; currentRoom = data.roomName;
-                document.getElementById('login-box').style.display = 'none';
-                document.getElementById('map').style.display = 'block'; 
-                document.getElementById('custom-toolbar').style.display = 'flex'; 
-                document.getElementById('toggle-info-btn').style.display = 'flex';
-                document.getElementById('toggle-chat-btn').style.display = 'flex';
-                document.getElementById('state-room').innerText = currentRoom;
-                
-                if (currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]')) {
-                    document.getElementById('admin-clear-btn').style.display = 'block';
-                }
-                
-                initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
-            } else { document.getElementById('login-error').innerText = data.message; }
-        } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
-    }
-
-    function initSocketAndLayers() {
-        socket = io(SERVER_URL);
-        socket.emit('join_room', { roomName: currentRoom, username: currentUser });
-        socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
-        socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
-        
-        socket.on('user_notification', function(data) {
-            const actionText = data.action === 'joined' ? '進入' : '離開';
-            showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
-        });
-
-        socket.on('receive_chat', function(data) {
-            appendChatMessage(data.sender, data.message, data.time);
-        });
-
-        let peerGPSMarkers = {}; 
-        socket.on('peer_gps_updated', function(gpsData) {
-            const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
-            if (peerGPSMarkers[pName]) map.removeLayer(peerGPSMarkers[pName]);
-            const peerCenterDot = L.circle(pLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
-                .bindTooltip(pName, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
-            const peerAccuracyCircle = L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 });
-            peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
-        });
-
-        socket.on('object_added', data => renderObjectOnMap(data));
-        socket.on('object_deleted', id => {
-            if (allMapLayers[id]) {
-                map.removeLayer(allMapLayers[id].layer);
-                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                delete allMapLayers[id];
-            }
-        });
-        
-        socket.on('clear_all_objects', () => {
-            Object.keys(allMapLayers).forEach(id => {
-                map.removeLayer(allMapLayers[id].layer);
-                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-            });
-            allMapLayers = {};
-            showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資！");
-        });
-    }
-
-    function toggleChatPanel() {
-        const panel = document.getElementById('chat-panel');
-        const btn = document.getElementById('toggle-chat-btn');
-        const isHidden = (window.getComputedStyle(panel).display === 'none');
-        panel.style.display = isHidden ? 'flex' : 'none';
-        if (isHidden) {
-            btn.classList.add('active');
-            document.getElementById('chat-input').focus();
-            const msgBox = document.getElementById('chat-messages');
-            msgBox.scrollTop = msgBox.scrollHeight;
-        } else {
-            btn.classList.remove('active');
-        }
-    }
-
-    function sendChat() {
-        const input = document.getElementById('chat-input');
-        const text = input.value.trim();
-        if (!text || !socket) return;
-        socket.emit('send_chat', text);
-        input.value = '';
-    }
-
-    function checkChatKey(e) {
-        if (e.key === 'Enter') sendChat();
-    }
-
-    function appendChatMessage(sender, message, time) {
-        const container = document.getElementById('chat-messages');
-        const bubble = document.createElement('div');
-        bubble.className = 'chat-bubble';
-        bubble.innerHTML = `<span class="sender">${sender}:</span>${escapeHtml(message)}<div class="time">${time}</div>`;
-        container.appendChild(bubble);
-        container.scrollTop = container.scrollHeight;
-    }
-
-    function escapeHtml(text) {
-        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    function renderObjectOnMap(data) {
-        if (allMapLayers[data.id]) {
-            map.removeLayer(allMapLayers[data.id].layer);
-            if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
-            if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
-            delete allMapLayers[data.id];
-        }
-
-        let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
-        const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
-        const pts = data.coordinates;
-        const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
-        const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
-
-        if (data.shapeType === "marker") {
-            const svgColor = data.color || "#3388ff";
-            const customMarkerIcon = L.divIcon({
-                html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
-                className: 'tactical-svg-marker'
-            });
-            mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
-            centerLatLng = L.latLng(pts);
-        } else if (data.shapeType === "polyline") {
-            mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
-            centerLatLng = L.polyline(pts).getBounds().getCenter();
-        } else if (data.shapeType === "rectangle") {
-            mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
-            centerLatLng = L.rectangle(pts).getBounds().getCenter();
-        } else if (data.shapeType === "circle") {
-            mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
-            centerLatLng = L.latLng(pts);
-        } else if (data.shapeType === "polygon") {
-            mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
-            centerLatLng = L.polygon(pts).getBounds().getCenter();
-        }
-        if (!mainLayer) return;
-
-        if (!isCurrentlyDrawing) {
-            mainLayer.addTo(map);
-        }
-        allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator, originalData: data };
-
-        if (data.shapeType === "marker") {
-            mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
-        } else {
-            mainLayer.bindTooltip(data.message, { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
-        }
-
-        if ((isMyObject || isAdmin) && data.shapeType !== "marker") {
-            const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
-            if (!isCurrentlyDrawing) controlPin.addTo(map);
-            allMapLayers[data.id].pin = controlPin;
-
-            controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
-
-            let startLatLng = centerLatLng;
-            controlPin.on('drag', function(e) {
-                const nextLatLng = e.latlng;
-                const offsetLat = nextLatLng.lat - startLatLng.lat;
-                const offsetLng = nextLatLng.lng - startLatLng.lng;
-
-                if (data.shapeType === "circle") { 
-                    mainLayer.setLatLng(nextLatLng); 
-                    if (allMapLayers[data.id].resizePin) {
-                        allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
+            Object.values(allMapLayers).forEach(item => {
+                if (item.layer) {
+                    if (isDrawing) {
+                        try { item.layer.closePopup(); } catch(err) {}
+                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
+                    } else {
+                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
                     }
-                } else if (data.shapeType === "rectangle") {
-                    const b = mainLayer.getBounds();
-                    mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
-                    if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
-                } else if (mainLayer.getLatLngs) {
-                    const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
-                    mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
                 }
-                startLatLng = nextLatLng; 
+                if (item.pin) {
+                    if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
+                    else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
+                }
+                if (item.resizePin) {
+                    if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
+                    else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
+                }
             });
 
-            controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+            if (isDrawing) {
+                showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
+            } else {
+                showToast("已返回導覽模式");
+            }
+        }
 
-            if (data.shapeType === "circle" || data.shapeType === "rectangle") {
-                const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) });
-                if (!isCurrentlyDrawing) resizePin.addTo(map);
-                allMapLayers[data.id].resizePin = resizePin;
+        function initDrawingEvents() {
+            map.on('click', function(e) {
+                if (currentTool === 'pan' || currentTool === 'locate') return;
 
-                resizePin.on('drag', function(e) {
-                    const newPinLatLng = e.latlng;
-                    if (data.shapeType === "circle") {
-                        const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
-                        if (newRadius > 5) mainLayer.setRadius(newRadius);
+                const lat = e.latlng.lat, lng = e.latlng.lng;
+                
+                if (currentTool === 'marker') {
+                    const msg = prompt("請輸入位置狀況：") || "未命名位置";
+                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                    renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                } else if (currentTool === 'photomarker') {
+                    const msg = prompt("請輸入照片地點狀況說明：") || "未命名照片回報";
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = 'image/*';
+                    fileInput.onchange = ev => {
+                        const file = ev.target.files[0];
+                        if (!file) { switchTool('pan'); return; }
+                        const reader = new FileReader();
+                        reader.onload = event => {
+                            const photoData = event.target.result;
+                            const data = { 
+                                id: 'obj_' + Date.now(), 
+                                shapeType: "photomarker", 
+                                coordinates: [lat, lng], 
+                                message: msg, 
+                                photoUrl: photoData,
+                                creator: currentUser, 
+                                color: "#ffc107", 
+                                fillOpacity: 0, 
+                                time: getFormattedTime() 
+                            };
+                            renderObjectOnMap(data); 
+                            socket.emit('new_object', data); 
+                            switchTool('pan');
+                        };
+                        reader.readAsDataURL(file);
+                    };
+                    fileInput.click();
+                } else if (currentTool === 'polyline' || currentTool === 'polygon') {
+                    tempPoints.push([lat, lng]);
+                    if (tempPoints.length === 1) {
+                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
+                    } else {
+                        tempShape.setLatLngs(tempPoints);
+                    }
+                } else if (currentTool === 'rectangle') {
+                    tempPoints.push({ lat: lat, lng: lng });
+                    if (tempPoints.length === 2) {
+                        const msg = prompt("請輸入區域說明：") || "未命名區域";
+                        const latMin = Math.min(tempPoints[0].lat, tempPoints[1].lat);
+                        const latMax = Math.max(tempPoints[0].lat, tempPoints[1].lat);
+                        const lngMin = Math.min(tempPoints[0].lng, tempPoints[1].lng);
+                        const lngMax = Math.max(tempPoints[0].lng, tempPoints[1].lng);
+                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                    }
+                } else if (currentTool === 'circle') {
+                    if (tempPoints.length === 0) {
+                        tempPoints.push({ lat: lat, lng: lng });
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', fillOpacity: 0}).addTo(map);
+                    } else {
+                        const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
+                        const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
+                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                        if (tempShape) map.removeLayer(tempShape);
+                        renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                    }
+                }
+            });
+
+            map.on('contextmenu', function(e) {
+                if (currentTool === 'pan' || currentTool === 'locate') return;
+                if (tempPoints.length < 2) return;
+                const type = currentTool;
+                if (type !== 'polyline' && type !== 'polygon') return;
+                const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
+                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+            });
+        }
+
+        async function login() {
+            const userIn = document.getElementById('username').value.trim();
+            const passIn = document.getElementById('room-password').value;
+            const adminSecIn = document.getElementById('admin-secret').value;
+            const roomSel = document.getElementById('room-select').value;
+            let targetRoom = roomSel === 'custom' ? document.getElementById('custom-room-name').value.trim() : roomSel;
+            if(!userIn) { alert("請輸入通報暱稱！"); return; }
+            try {
+                const res = await fetch(`${SERVER_URL}/api/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom, adminSecret: adminSecIn })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = data.username; currentRoom = data.roomName;
+                    document.getElementById('login-box').style.display = 'none';
+                    document.getElementById('map').style.display = 'block'; 
+                    document.getElementById('custom-toolbar').style.display = 'flex'; 
+                    document.getElementById('toggle-info-btn').style.display = 'flex';
+                    document.getElementById('toggle-chat-btn').style.display = 'flex';
+                    document.getElementById('state-room').innerText = currentRoom;
+                    
+                    if (currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]')) {
+                        document.getElementById('admin-clear-btn').style.display = 'block';
+                    }
+                    
+                    initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
+                } else { document.getElementById('login-error').innerText = data.message; }
+            } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
+        }
+
+        function initSocketAndLayers() {
+            socket = io(SERVER_URL);
+            socket.emit('join_room', { roomName: currentRoom, username: currentUser });
+            socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
+            socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
+            
+            socket.on('user_notification', function(data) {
+                const actionText = data.action === 'joined' ? '進入' : '離開';
+                showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
+            });
+
+            socket.on('receive_chat', function(data) {
+                appendChatMessage(data.sender, data.message, data.time);
+            });
+
+            let peerGPSMarkers = {}; 
+            socket.on('peer_gps_updated', function(gpsData) {
+                const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
+                if (peerGPSMarkers[pName]) map.removeLayer(peerGPSMarkers[pName]);
+                const peerCenterDot = L.circle(pLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
+                    .bindTooltip(pName, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
+                const peerAccuracyCircle = L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 });
+                peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
+            });
+
+            socket.on('object_added', data => renderObjectOnMap(data));
+            socket.on('object_deleted', id => {
+                if (allMapLayers[id]) {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    delete allMapLayers[id];
+                }
+            });
+            
+            socket.on('clear_all_objects', () => {
+                Object.keys(allMapLayers).forEach(id => {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                });
+                allMapLayers = {};
+                showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資！");
+            });
+        }
+
+        function toggleChatPanel() {
+            const panel = document.getElementById('chat-panel');
+            const btn = document.getElementById('toggle-chat-btn');
+            const isHidden = (window.getComputedStyle(panel).display === 'none');
+            panel.style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                btn.classList.add('active');
+                document.getElementById('chat-input').focus();
+                const msgBox = document.getElementById('chat-messages');
+                msgBox.scrollTop = msgBox.scrollHeight;
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !socket) return;
+            socket.emit('send_chat', text);
+            input.value = '';
+        }
+
+        function checkChatKey(e) {
+            if (e.key === 'Enter') sendChat();
+        }
+
+        function appendChatMessage(sender, message, time) {
+            const container = document.getElementById('chat-messages');
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.innerHTML = `<span class="sender">${sender}:</span>${escapeHtml(message)}<div class="time">${time}</div>`;
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function renderObjectOnMap(data) {
+            if (allMapLayers[data.id]) {
+                map.removeLayer(allMapLayers[data.id].layer);
+                if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
+                if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
+                delete allMapLayers[data.id];
+            }
+
+            let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
+            const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
+            const pts = data.coordinates;
+            const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
+
+            if (data.shapeType === "marker" || data.shapeType === "photomarker") {
+                const svgColor = data.color || (data.shapeType === "photomarker" ? "#ffc107" : "#3388ff");
+                const customMarkerIcon = L.divIcon({
+                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                    className: 'tactical-svg-marker'
+                });
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
+                centerLatLng = L.latLng(pts);
+            } else if (data.shapeType === "polyline") {
+                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
+                centerLatLng = L.polyline(pts).getBounds().getCenter();
+            } else if (data.shapeType === "rectangle") {
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
+                centerLatLng = L.rectangle(pts).getBounds().getCenter();
+            } else if (data.shapeType === "circle") {
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
+                centerLatLng = L.latLng(pts);
+            } else if (data.shapeType === "polygon") {
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
+                centerLatLng = L.polygon(pts).getBounds().getCenter();
+            }
+            if (!mainLayer) return;
+
+            if (!isCurrentlyDrawing) {
+                mainLayer.addTo(map);
+            }
+            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator, originalData: data };
+
+            mainLayer.bindTooltip(data.message, { 
+                permanent: true, 
+                direction: (data.shapeType === "marker" || data.shapeType === "photomarker") ? 'top' : 'center', 
+                className: 'tactical-tooltip', 
+                interactive: false 
+            });
+
+            if ((isMyObject || isAdmin) && data.shapeType !== "marker" && data.shapeType !== "photomarker") {
+                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
+                if (!isCurrentlyDrawing) controlPin.addTo(map);
+                allMapLayers[data.id].pin = controlPin;
+
+                controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
+
+                let startLatLng = centerLatLng;
+                controlPin.on('drag', function(e) {
+                    const nextLatLng = e.latlng;
+                    const offsetLat = nextLatLng.lat - startLatLng.lat;
+                    const offsetLng = nextLatLng.lng - startLatLng.lng;
+
+                    if (data.shapeType === "circle") { 
+                        mainLayer.setLatLng(nextLatLng); 
+                        if (allMapLayers[data.id].resizePin) {
+                            allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
+                        }
                     } else if (data.shapeType === "rectangle") {
-                        const centerP = controlPin.getLatLng();
-                        const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
-                        const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
-                        mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
+                        const b = mainLayer.getBounds();
+                        mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
+                        if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
+                    } else if (mainLayer.getLatLngs) {
+                        const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
+                        mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
+                    }
+                    startLatLng = nextLatLng; 
+                });
+
+                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+
+                if (data.shapeType === "circle" || data.shapeType === "rectangle") {
+                    const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
+                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) });
+                    if (!isCurrentlyDrawing) resizePin.addTo(map);
+                    allMapLayers[data.id].resizePin = resizePin;
+
+                    resizePin.on('drag', function(e) {
+                        const newPinLatLng = e.latlng;
+                        if (data.shapeType === "circle") {
+                            const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
+                            if (newRadius > 5) mainLayer.setRadius(newRadius);
+                        } else if (data.shapeType === "rectangle") {
+                            const centerP = controlPin.getLatLng();
+                            const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
+                            const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
+                            mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
+                        }
+                    });
+                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                }
+            } else if ((isMyObject || isAdmin) && (data.shapeType === "marker" || data.shapeType === "photomarker")) {
+                mainLayer.on('dragend', function() {
+                    data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
+                    data.time = getFormattedTime();
+                    socket.emit('delete_object', data.id); 
+                    socket.emit('new_object', data);
+                });
+            }
+
+            mainLayer.on('click', function(e) {
+                if (currentTool !== 'pan' && currentTool !== 'locate') return;
+                if (data.shapeType === "marker" || data.shapeType === "photomarker") {
+                    mainLayer.openPopup();
+                } else {
+                    mainLayer.openPopup(centerLatLng);
+                }
+            });
+
+            let popupContent = "";
+            const displayTime = data.time || "無紀錄";
+            let photoHTML = data.photoUrl ? `<img src="${data.photoUrl}" alt="回報照片" onclick="window.open('${data.photoUrl}')" style="cursor:pointer;" title="點擊放大圖片">` : "";
+
+            if (isMyObject || isAdmin) {
+                let fillOptionHTML = "";
+                if (data.shapeType !== "marker" && data.shapeType !== "photomarker" && data.shapeType !== "polyline") {
+                    fillOptionHTML = `
+                        <label>填滿模式：</label>
+                        <select id="edit-fill-${data.id}">
+                            <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
+                            <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
+                            <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
+                        </select>`;
+                }
+
+                const adminBadge = (isAdmin && !isMyObject) ? `<b style="color:#dc3545;">⚠️ 管理員權限 (編輯他人圖資)</b><br>` : "";
+
+                popupContent = `
+                    <div class="popup-menu">
+                        ${adminBadge}
+                        ${photoHTML}
+                        <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
+                        <small style="color:gray;">最後異動：${displayTime}</small><br><br>
+                        <label>修改描述：</label>
+                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
+                        <div>
+                            <label>邊框顏色變更：</label>
+                            <select id="edit-color-${data.id}">
+                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
+                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
+                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
+                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
+                            </select>
+                        </div>
+                        ${fillOptionHTML}
+                        <button onclick="updateObject('${data.id}')">儲存修改</button>
+                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此回報</button>
+                    </div>`;
+            } else {
+                popupContent = `
+                    <div class="popup-menu">
+                        <b style="color:${data.shapeType === 'photomarker' ? '#ffc107' : '#3388ff'};">${data.shapeType === 'photomarker' ? '📷 即時照片回報' : '⚠️ 區域回報狀況'}</b><br>
+                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
+                        ${photoHTML}
+                        <b>內容：</b>${data.message}<br>
+                        <small style="color:gray;">回報員: ${data.creator}</small>
+                    </div>`;
+            }
+            mainLayer.bindPopup(popupContent);
+        }
+
+        function exportMapGeoJSON() {
+            const features = [];
+            Object.values(allMapLayers).forEach(item => {
+                if (!item.originalData) return;
+                const d = item.originalData;
+                let geomType = "Point", coords = d.coordinates;
+                if (d.shapeType === "polyline") geomType = "LineString";
+                else if (d.shapeType === "polygon" || d.shapeType === "rectangle") {
+                    geomType = "Polygon";
+                    if (d.shapeType === "rectangle") {
+                        const sw = d.coordinates[0], ne = d.coordinates[1];
+                        coords = [[[sw[1], sw[0]], [ne[1], sw[0]], [ne[1], ne[0]], [sw[1], ne[0]], [sw[1], sw[0]]]];
+                    } else if (Array.isArray(coords[0])) {
+                        coords = [coords.map(p => [p[1], p[0]])];
+                    }
+                } else if (d.shapeType === "circle" || d.shapeType === "marker" || d.shapeType === "photomarker") {
+                    geomType = "Point";
+                    coords = [d.coordinates[1], d.coordinates[0]];
+                }
+                
+                features.push({
+                    type: "Feature",
+                    geometry: { type: geomType, coordinates: coords },
+                    properties: {
+                        id: d.id,
+                        message: d.message,
+                        creator: d.creator,
+                        color: d.color,
+                        time: d.time,
+                        radius: d.radius || null,
+                        photoUrl: d.photoUrl || null
                     }
                 });
-                resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
-            }
-        } else if ((isMyObject || isAdmin) && data.shapeType === "marker") {
-            mainLayer.on('dragend', function() {
-                data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
-                data.time = getFormattedTime();
-                socket.emit('delete_object', data.id); 
-                socket.emit('new_object', data);
             });
+
+            const geojson = { type: "FeatureCollection", features: features };
+            const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cop_export_${currentRoom}_${Date.now()}.geojson`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("📥 圖資已成功匯出為 GeoJSON 檔案！");
         }
 
-        mainLayer.on('click', function(e) {
-            if (currentTool !== 'pan' && currentTool !== 'locate') return;
-            if (data.shapeType === "marker") {
-                mainLayer.openPopup();
-            } else {
-                mainLayer.openPopup(centerLatLng);
-            }
-        });
-
-        let popupContent = "";
-        const displayTime = data.time || "無紀錄";
-
-        if (isMyObject || isAdmin) {
-            let fillOptionHTML = "";
-            if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
-                fillOptionHTML = `
-                    <label>填滿模式：</label>
-                    <select id="edit-fill-${data.id}">
-                        <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
-                        <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
-                        <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
-                    </select>`;
-            }
-
-            const adminBadge = (isAdmin && !isMyObject) ? `<b style="color:#dc3545;">⚠️ 管理員權限 (編輯他人圖資)</b><br>` : "";
-
-            popupContent = `
-                <div class="popup-menu">
-                    ${adminBadge}
-                    <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
-                    <small style="color:gray;">最後異動：${displayTime}</small><br><br>
-                    <label>修改描述：</label>
-                    <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                    <div>
-                        <label>邊框顏色變更：</label>
-                        <select id="edit-color-${data.id}">
-                            <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
-                            <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
-                            <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
-                            <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
-                        </select>
-                    </div>
-                    ${fillOptionHTML}
-                    <button onclick="updateObject('${data.id}')">儲存修改</button>
-                    <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
-                </div>`;
-        } else {
-            popupContent = `
-                <div class="popup-menu">
-                    <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
-                    <small style="color:gray;">通報時間：${displayTime}</small><br><br>
-                    <b>內容：</b>${data.message}<br>
-                    <small style="color:gray;">回報員: ${data.creator}</small>
-                </div>`;
-        }
-        mainLayer.bindPopup(popupContent);
-    }
-
-    function exportMapGeoJSON() {
-        const features = [];
-        Object.values(allMapLayers).forEach(item => {
-            if (!item.originalData) return;
-            const d = item.originalData;
-            let geomType = "Point", coords = d.coordinates;
-            if (d.shapeType === "polyline") geomType = "LineString";
-            else if (d.shapeType === "polygon" || d.shapeType === "rectangle") {
-                geomType = "Polygon";
-                // GeoJSON polygon coordinates are wrapped in an extra array ring and [lng, lat]
-                if (d.shapeType === "rectangle") {
-                    const sw = d.coordinates[0], ne = d.coordinates[1];
-                    coords = [[[sw[1], sw[0]], [ne[1], sw[0]], [ne[1], ne[0]], [sw[1], ne[0]], [sw[1], sw[0]]]];
-                } else if (Array.isArray(coords[0])) {
-                    coords = [coords.map(p => [p[1], p[0]])];
-                }
-            } else if (d.shapeType === "circle") {
-                geomType = "Point";
-                coords = [d.coordinates[1], d.coordinates[0]];
-            } else if (d.shapeType === "marker") {
-                coords = [d.coordinates[1], d.coordinates[0]];
-            }
-            
-            features.push({
-                type: "Feature",
-                geometry: { type: geomType, coordinates: coords },
-                properties: {
-                    id: d.id,
-                    message: d.message,
-                    creator: d.creator,
-                    color: d.color,
-                    time: d.time,
-                    radius: d.radius || null
-                }
-            });
-        });
-
-        const geojson = { type: "FeatureCollection", features: features };
-        const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cop_export_${currentRoom}_${Date.now()}.geojson`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast("📥 圖資已成功匯出為 GeoJSON 檔案！");
-    }
-
-    function syncGeometryChanges(data, mainLayer) {
-        let currentCoordinates = null, currentRadius = null;
-        if (data.shapeType === "circle") {
-            currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
-        } else if (data.shapeType === "rectangle") {
-            const b = mainLayer.getBounds();
-            currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-        } else if (mainLayer.getLatLngs) {
-            const rawLatLngs = mainLayer.getLatLngs();
-            currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
-        }
-        data.time = getFormattedTime();
-        const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
-        const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: data.creator, time: data.time };
-        socket.emit('delete_object', data.id); socket.emit('new_object', payload);
-    }
-
-    function deleteObject(objectId) {
-        if (confirm("確定要刪除/撤銷這個圖形回報嗎？")) {
-            if (allMapLayers[objectId]) {
-                map.removeLayer(allMapLayers[objectId].layer);
-                if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
-                if (allMapLayers[objectId].resizePin) map.removeLayer(allMapLayers[objectId].resizePin);
-                delete allMapLayers[objectId];
-            }
-            socket.emit('delete_object', objectId);
-        }
-    }
-
-    function adminClearAllObjects() {
-        if (currentUser.trim().toLowerCase() !== 'admin' && !currentUser.includes('[Admin]')) {
-            alert("權限不足：僅限 admin 帳號執行全圖資清空！");
-            return;
-        }
-        if (confirm("🚨 警告：您即將以最高指揮官 (admin) 權限，刪除地圖上「所有頻道」或當前頻道的所有圖資！此操作無法復原，確定執行？")) {
-            Object.keys(allMapLayers).forEach(id => {
-                map.removeLayer(allMapLayers[id].layer);
-                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                socket.emit('delete_object', id);
-            });
-            allMapLayers = {};
-            if (socket) {
-                socket.emit('admin_clear_all');
-            }
-            showToast("🚨 您已成功清除所有圖資！");
-        }
-    }
-
-    function updateObject(objectId) {
-        const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
-        const newColor = document.getElementById(`edit-color-${objectId}`).value;
-        const fillSelect = document.getElementById(`edit-fill-${objectId}`);
-        const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
-
-        if (allMapLayers[objectId]) {
-            const cache = allMapLayers[objectId];
-            const isCircle = !!cache.layer.options.radius;
-            const isRect = !isCircle && cache.layer instanceof L.Rectangle;
-            const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
-            const isPolyline = cache.layer instanceof L.Polyline && !(cache.layer instanceof L.Polygon);
-            let sType = "polygon"; 
-            if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = "marker"; else if (isPolyline) sType = "polyline";
-
+        function syncGeometryChanges(data, mainLayer) {
             let currentCoordinates = null, currentRadius = null;
-            if (isCircle) {
-                currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
-            } else if (isRect) {
-                const b = cache.layer.getBounds();
+            if (data.shapeType === "circle") {
+                currentCoordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng]; currentRadius = mainLayer.getRadius();
+            } else if (data.shapeType === "rectangle") {
+                const b = mainLayer.getBounds();
                 currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-            } else if (isMarker) {
-                currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
-            } else {
-                const rawLatLngs = cache.layer.getLatLngs();
+            } else if (mainLayer.getLatLngs) {
+                const rawLatLngs = mainLayer.getLatLngs();
                 currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
             }
-
-            const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
-            map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
-            delete allMapLayers[objectId];
-            renderObjectOnMap(updatedData);
-            socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
+            data.time = getFormattedTime();
+            const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
+            const payload = { id: data.id, shapeType: data.shapeType, coordinates: currentCoordinates, radius: currentRadius, message: currentMsg, color: mainLayer.options.color || data.color, fillOpacity: mainLayer.options.fillOpacity !== undefined ? mainLayer.options.fillOpacity : 0, creator: data.creator, time: data.time, photoUrl: data.photoUrl };
+            socket.emit('delete_object', data.id); socket.emit('new_object', payload);
         }
-    }
 
-    function toggleStatusPanel() {
-        const panel = document.getElementById('typhoon-info');
-        const btn = document.getElementById('toggle-info-btn');
-        const isHidden = (window.getComputedStyle(panel).display === 'none');
-        panel.style.display = isHidden ? 'block' : 'none';
-        if (isHidden) btn.classList.add('active'); else btn.classList.remove('active');
-    }
+        function deleteObject(objectId) {
+            if (confirm("確定要刪除/撤銷這個圖形回報嗎？")) {
+                if (allMapLayers[objectId]) {
+                    map.removeLayer(allMapLayers[objectId].layer);
+                    if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
+                    if (allMapLayers[objectId].resizePin) map.removeLayer(allMapLayers[objectId].resizePin);
+                    delete allMapLayers[objectId];
+                }
+                socket.emit('delete_object', objectId);
+            }
+        }
 
-    let myLocationMarker = null;
-    function locateUserGPS() {
-        if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
-        const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#0d0e10'; locateBtn.style.background = '#22c55e';
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
-                const currentLatLng = L.latLng(userLat, userLng);
-                if (myLocationMarker) map.removeLayer(myLocationMarker);
-                const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(currentUser + " (您)", { permanent: true, direction: 'top', className: 'tactical-tooltip' });
-                const myAccuracyCircle = L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 });
-                myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
-                map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
-                if (socket) socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
-                locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21';
-            },
-            function() { locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21'; alert("定位失敗：請檢查手機定位權限。"); },
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-        );
-    }
-</script>
+        function adminClearAllObjects() {
+            if (currentUser.trim().toLowerCase() !== 'admin' && !currentUser.includes('[Admin]')) {
+                alert("權限不足：僅限 admin 帳號執行全圖資清空！");
+                return;
+            }
+            if (confirm("🚨 警告：您即將以最高指揮官 (admin) 權限，刪除地圖上「所有頻道」或當前頻道的所有圖資！此操作無法復原，確定執行？")) {
+                Object.keys(allMapLayers).forEach(id => {
+                    map.removeLayer(allMapLayers[id].layer);
+                    if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                    if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    socket.emit('delete_object', id);
+                });
+                allMapLayers = {};
+                if (socket) {
+                    socket.emit('admin_clear_all');
+                }
+                showToast("🚨 您已成功清除所有圖資！");
+            }
+        }
+
+        function updateObject(objectId) {
+            const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
+            const newColor = document.getElementById(`edit-color-${objectId}`).value;
+            const fillSelect = document.getElementById(`edit-fill-${objectId}`);
+            const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
+
+            if (allMapLayers[objectId]) {
+                const cache = allMapLayers[objectId];
+                const isCircle = !!cache.layer.options.radius;
+                const isRect = !isCircle && cache.layer instanceof L.Rectangle;
+                const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
+                const isPolyline = cache.layer instanceof L.Polyline && !(cache.layer instanceof L.Polygon);
+                let sType = cache.originalData.shapeType || "polygon"; 
+                if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = cache.originalData.shapeType; else if (isPolyline) sType = "polyline";
+
+                let currentCoordinates = null, currentRadius = null;
+                if (isCircle) {
+                    currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
+                } else if (isRect) {
+                    const b = cache.layer.getBounds();
+                    currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                } else if (isMarker) {
+                    currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
+                } else {
+                    const rawLatLngs = cache.layer.getLatLngs();
+                    currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
+                }
+
+                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime(), photoUrl: cache.originalData.photoUrl };
+                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
+                delete allMapLayers[objectId];
+                renderObjectOnMap(updatedData);
+                socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
+            }
+        }
+
+        function toggleStatusPanel() {
+            const panel = document.getElementById('typhoon-info');
+            const btn = document.getElementById('toggle-info-btn');
+            const isHidden = (window.getComputedStyle(panel).display === 'none');
+            panel.style.display = isHidden ? 'block' : 'none';
+            if (isHidden) btn.classList.add('active'); else btn.classList.remove('active');
+        }
+
+        let myLocationMarker = null;
+        function locateUserGPS() {
+            if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
+            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#0d0e10'; locateBtn.style.background = '#22c55e';
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
+                    const currentLatLng = L.latLng(userLat, userLng);
+                    if (myLocationMarker) map.removeLayer(myLocationMarker);
+                    const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(currentUser + " (您)", { permanent: true, direction: 'top', className: 'tactical-tooltip' });
+                    const myAccuracyCircle = L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 });
+                    myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
+                    map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
+                    if (socket) socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
+                    locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21';
+                },
+                function() { locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21'; alert("定位失敗：請檢查手機定位權限。"); },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            );
+        }
+    </script>
 </body>
 </html>
