@@ -4,7 +4,10 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
-app.use(express.json());
+// 放大 JSON 請求主體容量限制（允許接收較大的圖片 Base64 數據）
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 開放本機套件路徑（確保 CSS/JS 同源無阻擋）
@@ -12,8 +15,8 @@ app.use('/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet
 
 // 核心記憶體資料庫
 let rooms = {
-    "公開頻道(風災)": { password: "", objects: [] },
-    "公開頻道(震災)": { password: "", objects: [] }
+    "公開頻道(風災)": { password: "", objects: [], events: [] }, // 💡 新增 events 陣列儲存事件
+    "公開頻道(震災)": { password: "", objects: [], events: [] }
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
 
@@ -40,7 +43,8 @@ app.post('/api/login', (req, res) => {
     if (!rooms[rName]) {
         rooms[rName] = {
             password: roomPassword ? roomPassword.trim() : "",
-            objects: []
+            objects: [],
+            events: [] // 💡 新增 events 初始化
         };
     } else {
         if (rooms[rName].password !== "" && rooms[rName].password !== roomPassword.trim()) {
@@ -110,7 +114,9 @@ io.on('connection', (socket) => {
             delete roomTimers[myRoom];
         }
 
+        // 💡 登入時同步回傳歷史物件與歷史事件
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
+        socket.emit('history_events', rooms[myRoom] ? rooms[myRoom].events : []);
 
         sendUserCount(myRoom);
         io.to(myRoom).emit('user_notification', { name: myName, action: 'joined' });
@@ -148,6 +154,27 @@ io.on('connection', (socket) => {
         }
     });
 
+    // 🚨 新增：接收並廣播新的事件回報（含敘述與照片）
+    socket.on('new_event', (eventData) => {
+        if (!myRoom || !rooms[myRoom]) return;
+        
+        // 補上回報者與伺服器時間戳記
+        const enrichedEvent = {
+            id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            sender: myName,
+            category: eventData.category || '一般回報',
+            description: eventData.description || '',
+            lat: eventData.lat,
+            lng: eventData.lng,
+            photoData: eventData.photoData || null, // 支援 Base64 圖片字串
+            time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
+        };
+
+        rooms[myRoom].events.push(enrichedEvent);
+        io.to(myRoom).emit('event_added', enrichedEvent);
+        console.log(`【新事件回報】房間 ${myRoom} 由 ${myName} 回報：${enrichedEvent.category}`);
+    });
+
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
@@ -165,15 +192,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🚨 補齊：接收並廣播最高指揮官清空所有圖資要求
+    // 🚨 接收並廣播最高指揮官清空所有圖資要求
     socket.on('admin_clear_all', () => {
         const activeName = socket.myName || myName;
         const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
         
         if (isAdmin && rooms[myRoom]) {
             rooms[myRoom].objects = [];
+            rooms[myRoom].events = []; // 同時清空事件
             io.to(myRoom).emit('clear_all_objects');
-            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資已由指揮官 ${activeName} 清空`);
+            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資與事件已由指揮官 ${activeName} 清空`);
         } else {
             console.log(`清空被拒絕：操作者 (${activeName}) 權限不足`);
         }
@@ -204,10 +232,11 @@ io.on('connection', (socket) => {
                 if (rooms[myRoom]) {
                     if (myRoom === "公開頻道(風災)" || myRoom === "公開頻道(震災)") {
                         rooms[myRoom].objects = [];
+                        rooms[myRoom].events = [];
                     } else {
                         delete rooms[myRoom];
                     }
-                    console.log(`應變房間 ${myRoom} 已超過 10 分鐘無人在線，物件已被伺服器自動清空銷毀。`);
+                    console.log(`應變房間 ${myRoom} 已超過 10 分鐘無人在線，物件與事件已被伺服器自動清空銷毀。`);
                 }
                 delete roomTimers[myRoom];
             }, 10 * 60 * 1000); 
