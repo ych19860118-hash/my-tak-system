@@ -309,12 +309,13 @@
             if (map) return; 
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-            L.DomEvent.disableClickPropagation(document.getElementById('custom-toolbar'));
-            L.DomEvent.disableClickPropagation(document.getElementById('typhoon-info'));
-            L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
-            L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
-            L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
-            L.DomEvent.disableClickPropagation(document.getElementById('event-modal'));
+            
+            // 強化事件穿透防護
+            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'chat-panel', 'event-modal'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) L.DomEvent.disableClickPropagation(el);
+            });
+
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
@@ -357,7 +358,6 @@
             }
         }
 
-       // 💡 修正：加入 Canvas 圖片壓縮，防止手機拍高畫質照片時記憶體崩潰
         function previewEvtPhoto(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -372,15 +372,9 @@
                     let height = img.height;
 
                     if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
                     } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
                     }
 
                     canvas.width = width;
@@ -388,7 +382,6 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // 壓縮為品質 0.75 的 JPEG
                     pendingPhotoBase64 = canvas.toDataURL('image/jpeg', 0.75);
                     const preview = document.getElementById('event-preview');
                     preview.src = pendingPhotoBase64;
@@ -399,12 +392,11 @@
             reader.readAsDataURL(file);
         }
 
-       // 💡 修正：強制徹底清空檔案 input 欄位，確保第二次選擇能順利觸發
         function closeEventModal() {
             document.getElementById('event-modal').style.display = 'none';
             document.getElementById('evt-desc').value = '';
             const photoInput = document.getElementById('evt-photo');
-            photoInput.value = ''; // 徹底重置
+            photoInput.value = ''; 
             document.getElementById('event-preview').style.display = 'none';
             pendingEventLatLng = null;
             pendingPhotoBase64 = null;
@@ -540,7 +532,6 @@
                 showToast(`🚨 [${evtData.category}] ${evtData.sender} 剛剛回報了新狀況！`);
             });
 
-            // 💡 監聽事件刪除廣播
             socket.on('event_deleted', function(eventId) {
                 if (allMapLayers[eventId]) {
                     map.removeLayer(allMapLayers[eventId].layer);
@@ -596,7 +587,6 @@
 
             marker.bindTooltip(`[${data.category}]`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
 
-            // 💡 判斷權限：回報者本人或管理者 Admin 顯示刪除按鈕
             const isOwner = (data.sender === currentUser);
             const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
             let deleteBtnHTML = "";
@@ -618,7 +608,6 @@
             marker.bindPopup(popupHTML);
         }
 
-        // 💡 觸發事件刪除
         function deleteEventReport(eventId) {
             if (confirm("確定要刪除這個事件回報嗎？")) {
                 socket.emit('delete_event', eventId);
