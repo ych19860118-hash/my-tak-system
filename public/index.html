@@ -486,7 +486,6 @@
             }
 
             let mainLayer, centerLatLng, isMyObject = (data.creator === currentUser);
-            // 🔐 修正前端的管理者權限判定，支援 [Admin]
             const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
             const pts = data.coordinates;
             const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
