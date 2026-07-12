@@ -527,7 +527,7 @@
                     if (tempPoints.length === 1) {
                         tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
                         // 讓繪製中的暫存圖形也能常駐顯示提示字
-                        tempShape.bindTooltip("繪製中...", { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
+                        tempShape.bindTooltip("繪製完請按滑鼠右鍵或點選「V」...", { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
                     } else {
                         tempShape.setLatLngs(tempPoints);
                     }
