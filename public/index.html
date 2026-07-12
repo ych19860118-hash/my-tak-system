@@ -358,7 +358,7 @@
             <ul>
                 <li><strong>新增回報點：</strong>點擊，可新增地點標籤。</li>
                 <li><strong>即時事件回報：</strong>預設多種事件選項，並可上傳圖片說明狀況。</li>
-                <li><strong>線條工具：</strong>用來繪製線條進行標記。點擊「完成」按鈕結束繪製。</li>
+                <li><strong>線條/多邊形：</strong>手機長按畫面或點擊「完成」按鈕結束繪製。</li>
                 <li><strong>方形工具：</strong>給予兩點進行方形範圍標記。</li>
                 <li><strong>圓形工具：</strong>給予兩點進行圓形範圍標記。</li>
                 <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
@@ -440,7 +440,6 @@
         }
 
         function switchTool(tool) {
-            // 如果切換工具前正在畫線或多邊形，且有未完成的點，切換前先清除暫存圖形
             if ((currentTool === 'polyline' || currentTool === 'polygon') && tempPoints.length > 0) {
                 if (tempShape) {
                     map.removeLayer(tempShape);
@@ -462,7 +461,6 @@
             const id = 'btn-' + tool; 
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
-            // 修正：只有真正需要「點擊地圖新增圖形」的工具才算繪圖隱藏模式，GPS與pan維持正常顯示
             const isDrawing = (tool !== 'pan' && tool !== 'locate');
             const finishBtn = document.getElementById('btn-finish');
             if (finishBtn) {
@@ -502,7 +500,7 @@
             if (tool === 'event') {
                 showToast("請在地圖上點擊要回報事件的位置");
             } else if (tool === 'polyline' || tool === 'polygon') {
-                showToast("請在地圖上依序點擊各個座標點，完成後請點擊打勾按鈕結束");
+                showToast("請在地圖上依序點擊各座標，長按畫面或點擊打勾按鈕即可結束");
             } else if (isDrawing) {
                 showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
             } else {
@@ -641,10 +639,38 @@
                 }
             });
 
+            // 支援右鍵與桌機/觸控裝置的 contextmenu 事件結束繪圖
             map.on('contextmenu', function(e) {
                 if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
                 finishCurrentDrawing();
             });
+
+            // 強化行動端觸控長按（Touch Long-press）支援
+            let touchTimer = null;
+            const mapContainer = map.getContainer();
+
+            mapContainer.addEventListener('touchstart', function(e) {
+                if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
+                if (e.touches.length !== 1) return; // 確保只有單指觸控
+                
+                touchTimer = setTimeout(function() {
+                    finishCurrentDrawing();
+                }, 600); // 600 毫秒判定為長按
+            }, { passive: true });
+
+            mapContainer.addEventListener('touchmove', function() {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+            }, { passive: true });
+
+            mapContainer.addEventListener('touchend', function() {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+            }, { passive: true });
         }
 
         async function login() {
