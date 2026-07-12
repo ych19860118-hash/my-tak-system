@@ -274,6 +274,7 @@
     <script>
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
+        let allEventLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
         let pendingEventLatLng = null, pendingPhotoBase64 = null;
 
@@ -346,6 +347,17 @@
                 if (item.resizePin) {
                     if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
                     else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
+                }
+            });
+
+            Object.values(allEventLayers).forEach(item => {
+                if (item.layer) {
+                    if (isDrawing) {
+                        try { item.layer.closePopup(); } catch(err) {}
+                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
+                    } else {
+                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
+                    }
                 }
             });
 
@@ -533,9 +545,9 @@
             });
 
             socket.on('event_deleted', function(eventId) {
-                if (allMapLayers[eventId]) {
-                    map.removeLayer(allMapLayers[eventId].layer);
-                    delete allMapLayers[eventId];
+                if (allEventLayers[eventId]) {
+                    map.removeLayer(allEventLayers[eventId].layer);
+                    delete allEventLayers[eventId];
                 }
                 showToast("🗑️ 事件回報已被移除");
             });
@@ -566,15 +578,19 @@
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
                 });
+                Object.keys(allEventLayers).forEach(id => {
+                    map.removeLayer(allEventLayers[id].layer);
+                });
                 allMapLayers = {};
+                allEventLayers = {};
                 showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資與事件！");
             });
         }
 
         function renderEventOnMap(data) {
-            if (allMapLayers[data.id]) {
-                map.removeLayer(allMapLayers[data.id].layer);
-                delete allMapLayers[data.id];
+            if (allEventLayers[data.id]) {
+                map.removeLayer(allEventLayers[data.id].layer);
+                delete allEventLayers[data.id];
             }
 
             const evtIcon = L.divIcon({
@@ -582,8 +598,12 @@
                 className: 'tactical-event-marker'
             });
 
-            const marker = L.marker([data.lat, data.lng], { icon: evtIcon }).addTo(map);
-            allMapLayers[data.id] = { layer: marker, creator: data.sender };
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
+            const marker = L.marker([data.lat, data.lng], { icon: evtIcon });
+            if (!isCurrentlyDrawing) {
+                marker.addTo(map);
+            }
+            allEventLayers[data.id] = { layer: marker, creator: data.sender };
 
             marker.bindTooltip(`[${data.category}]`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
 
@@ -861,7 +881,11 @@
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
                     socket.emit('delete_object', id);
                 });
+                Object.keys(allEventLayers).forEach(id => {
+                    map.removeLayer(allEventLayers[id].layer);
+                });
                 allMapLayers = {};
+                allEventLayers = {};
                 if (socket) {
                     socket.emit('admin_clear_all');
                 }
