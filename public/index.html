@@ -566,23 +566,12 @@
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
             socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
-socket.on('update_user_list', (users) => {
-    onlineUsersList = Array.isArray(users) ? users : [];
-    renderOnlineUsers();
-});
+            
+            socket.on('update_user_list', (users) => {
+                onlineUsersList = Array.isArray(users) ? users : [];
+                renderOnlineUsers();
+            });
 
-    // 渲染在線用戶清單
-    userListContainer.innerHTML = users.map(name => `
-        <div style="padding: 4px 0; border-bottom: 1px solid #333; color: #0f0;">
-            🟢 ${name}
-        </div>
-    `).join('');
-});
-
-socket.on('update_user_count', (count) => {
-    const countEl = document.getElementById('onlineCount');
-    if (countEl) countEl.innerText = count;
-});
             socket.on('user_notification', function(data) {
                 const actionText = data.action === 'joined' ? '進入' : '離開';
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
