@@ -154,7 +154,6 @@ io.on('connection', (socket) => {
         io.to(myRoom).emit('object_added', objData);
     });
 
-    // 接收並廣播新的事件回報（含敘述與照片）
     socket.on('new_event', (eventData) => {
         if (!myRoom || !rooms[myRoom]) return;
         
@@ -174,7 +173,6 @@ io.on('connection', (socket) => {
         console.log(`【新事件回報】房間 ${myRoom} 由 ${myName} 回報：${enrichedEvent.category}`);
     });
 
-    // 💡 刪除事件回報（驗證是否為回報者本人或是最高權限管理員）
     socket.on('delete_event', (eventId) => {
         if (!myRoom || !rooms[myRoom]) return;
         
@@ -208,7 +206,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 接收並廣播最高指揮官清空所有圖資要求
     socket.on('admin_clear_all', () => {
         const activeName = socket.myName || myName;
         const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
@@ -260,16 +257,32 @@ io.on('connection', (socket) => {
     });
 });
 
+// 💡 修正：同時廣播人數與在線用戶名單陣列
 function sendUserCount(roomName) {
     const adapter = io.sockets.adapter;
+    let userNames = [];
     let count = 0;
+    
     if (adapter && typeof adapter.rooms.get === 'function') {
         const clients = adapter.rooms.get(roomName);
         count = clients ? clients.size : 0;
+        if (clients) {
+            for (const socketId of clients) {
+                const s = io.sockets.sockets.get(socketId);
+                if (s && s.myName) userNames.push(s.myName);
+            }
+        }
     } else if (adapter && adapter.rooms && adapter.rooms[roomName]) {
-        count = Object.keys(adapter.rooms[roomName]).length;
+        const roomSockets = adapter.rooms[roomName];
+        count = Object.keys(roomSockets).length;
+        for (const socketId of Object.keys(roomSockets)) {
+            const s = io.sockets.sockets[socketId];
+            if (s && s.myName) userNames.push(s.myName);
+        }
     }
+
     io.to(roomName).emit('update_user_count', count);
+    io.to(roomName).emit('update_user_list', userNames); // 傳送具體用戶資訊陣列
 }
 
 const PORT = process.env.PORT || 3000;
