@@ -573,7 +573,27 @@
                     renderOnlineUsers();
                 }
             });
+socket.on('update_user_list', (users) => {
+    const userListContainer = document.querySelector('#user-list-container') || document.getElementById('onlineUsersList'); 
+    if (!userListContainer) return;
 
+    if (!users || users.length === 0) {
+        userListContainer.innerHTML = '<div style="color: #888;">無在線用戶記錄</div>';
+        return;
+    }
+
+    // 渲染在線用戶清單
+    userListContainer.innerHTML = users.map(name => `
+        <div style="padding: 4px 0; border-bottom: 1px solid #333; color: #0f0;">
+            🟢 ${name}
+        </div>
+    `).join('');
+});
+
+socket.on('update_user_count', (count) => {
+    const countEl = document.getElementById('onlineCount');
+    if (countEl) countEl.innerText = count;
+});
             socket.on('user_notification', function(data) {
                 const actionText = data.action === 'joined' ? '進入' : '離開';
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
