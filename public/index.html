@@ -313,23 +313,12 @@
     </div>
 
 <div id="typhoon-info">
-    <h4>COP System 協同地理圖資</h4>
-    <div class="info-section">
-        <b>【設計用意】</b><br>
-        本平台旨在提供災害應變與戰術協同之即時共維態勢圖（COP）。透過多人同步頻道，讓各個 оператор (操作員) 能夠在同一張地圖上即時分享災情、標記目標並共用圖資，提升指揮鏈的資訊透明度與反應速度。
+    <b style="color: #22c55e; font-size: 13px; letter-spacing: 1px;">頻道名稱: <span id="state-room" style="color:#39ff14;"></span></b>
+    <div style="margin-top: 8px;">
+        狀態: <b style="color:#39ff14;">ACTIVE</b><br>
+        在線人數: <b id="state-count" style="color:#39ff14; font-size:14px;">0</b>
     </div>
-    <div class="info-section">
-        <b>【操作說明】</b><br>
-        * <b>回報點 (📍)：</b>點擊地圖新增回報點。<br>
-        * <b>事件回報 (📷)：</b>點擊並上傳現場災情照片與說明。<br>
-        * <b>線條/多邊形：</b>點擊多點繪製，右鍵或點擊綠色勾勾完成。<br>
-        * <b>圖形編輯：</b>點擊已繪製的圖形可修改說明、顏色或刪除。<br>
-        * <b>協同通訊：</b>點擊右下角聊天室與線上成員即時交流。
-    </div>
-    <div style="margin-top: 8px; border-top: 1px solid #2d3748; padding-top: 6px;">
-        頻道: <span id="state-room" style="color:#39ff14;"></span> | 線上: <b id="state-count" style="color:#39ff14;">0</b>
-    </div>
-    <button id="admin-clear-btn" onclick="adminClearAllObjects()" style="width:100%; margin-top:8px;">🚨 清除所有圖資 (指揮官)</button>
+    <button id="admin-clear-btn" onclick="adminClearAllObjects()">🚨 清除所有圖資 (最高權限)</button>
 </div>
 
     <script>
