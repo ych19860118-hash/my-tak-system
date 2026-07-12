@@ -112,7 +112,6 @@
         }
         #toggle-users-btn:hover, #toggle-users-btn.active { border-color: #39ff14; background: #1a1d21; }
 
-        /* 新增：使用說明按鈕定位於最右側底部 (右側偏移 156px) */
         #toggle-help-btn {
             position: absolute; bottom: 20px; right: 156px; z-index: 1001; 
             width: 38px; height: 38px; background: #141619; 
@@ -169,7 +168,6 @@
         }
         #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
 
-        /* 新增：戰術風格使用說明隱藏面板 */
         #tactical-help-panel {
             position: absolute; bottom: 68px; right: 156px; width: 240px; height: 280px;
             background: #141619; border: 2px solid #22c55e; border-radius: 4px;
@@ -184,6 +182,21 @@
             flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; color: #cbd5e0;
         }
         .help-body ul { margin: 0; padding-left: 15px; line-height: 1.5; }
+
+        /* 新增：GPS 模式選擇彈跳視窗 */
+        #gps-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #141619; padding: 25px; border-radius: 6px; border: 2px solid #22c55e;
+            z-index: 10000; display: none; flex-direction: column; width: 280px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.8); font-family: monospace; color: #a0aec0; box-sizing: border-box; text-align: center;
+        }
+        #gps-modal h3 { color: #22c55e; margin-top: 0; margin-bottom: 15px; font-size: 16px; text-transform: uppercase; }
+        .gps-modal-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .gps-modal-btns button { padding: 10px; font-weight: bold; cursor: pointer; border-radius: 2px; border: 1px solid #39ff14; }
+        .btn-gps-precise { background: #1b4d22; color: #39ff14; }
+        .btn-gps-precise:hover { background: #22c55e; color: #0d0e10; }
+        .btn-gps-approx { background: #2d3748; color: #cbd5e0; border-color: #718096; }
+        .btn-gps-approx:hover { background: #4a5568; color: white; }
 
         #event-modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -230,7 +243,6 @@
             100% { opacity: 0; transform: translateY(-10px); display: none; }
         }
 
-        /* 縮到最小的圖形標籤樣式 */
         .tactical-tooltip {
             background: rgba(20, 22, 25, 0.8) !important; border: 1px solid #39ff14 !important; color: #39ff14 !important; font-weight: bold !important; font-size: 9px !important;
             font-family: 'Courier New', monospace !important; border-radius: 2px !important; padding: 1px 4px !important; box-shadow: none !important; opacity: 0.85 !important; z-index: 10000 !important;
@@ -281,9 +293,20 @@
         <button class="tool-btn" id="btn-finish" onclick="finishCurrentDrawing()" title="完成繪製">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </button>
-        <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
+        <button class="tool-btn" id="btn-locate" onclick="openGPSModal()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
             GPS
         </button>
+    </div>
+
+    <!-- 新增：GPS 模式選擇對話框 -->
+    <div id="gps-modal">
+        <h3>選擇回報定位精度</h3>
+        <p style="font-size: 11px; color: #a0aec0; margin-bottom: 5px;">保護個人隱私，您可以選擇概略區域回報或完整精準位置。</p>
+        <div class="gps-modal-btns">
+            <button class="btn-gps-precise" onclick="processGPS('precise')">精準模式 (實際座標)</button>
+            <button class="btn-gps-approx" onclick="processGPS('approx')">概略模式 (模糊約 500m 區域)</button>
+            <button class="btn-cancel-evt" onclick="closeGPSModal()" style="margin-top: 5px;">取消</button>
+        </div>
     </div>
 
     <div id="event-modal">
@@ -307,7 +330,6 @@
         </div>
     </div>
 
-    <!-- 底部控制按鈕列 -->
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
     <button id="toggle-users-btn" onclick="toggleUsersPanel()" title="在線用戶">👥</button>
@@ -321,7 +343,6 @@
         <ul id="users-list"></ul>
     </div>
 
-    <!-- 說明面板 -->
     <div id="tactical-help-panel">
         <div id="help-header">
             <span>系統使用說明</span>
@@ -331,11 +352,10 @@
             <ul>
                 <li><strong>新增回報點：</strong>點擊，可新增地點標籤。</li>
                 <li><strong>即時事件回報：</strong>預設多種事件選項，並可上傳圖片說明狀況。</li>
-                <li><strong>線條工具：</strong>用來繪製線條進行標記，要結束繪圖，電腦用戶請按滑鼠左鍵，手機用戶請長按畫面。</li>
-                <li><strong>方形工具：</strong>給予兩點進行方形範圍標記(對角線)。</li>
-                <li><strong>圓形工具：</strong>給予兩點進行方形範圍標記(圓心/半徑)。</li>
-                <li><strong>多邊形工具：</strong>用來繪製多邊形範圍，要結束繪圖，電腦用戶請按滑鼠左鍵，手機用戶請長按畫面。</li>
-                <li><strong>GPS工具：</strong>用來提供用戶在地圖上的位置，此功能不支援持續發送GPS訊號。</li>
+                <li><strong>線條工具：</strong>用來繪製線條進行標記。</li>
+                <li><strong>方形工具：</strong>給予兩點進行方形範圍標記。</li>
+                <li><strong>圓形工具：</strong>給予兩點進行圓形範圍標記。</li>
+                <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
             </ul>
         </div>
     </div>
@@ -404,7 +424,7 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
-            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal'].forEach(id => {
+            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) L.DomEvent.disableClickPropagation(el);
             });
@@ -680,8 +700,8 @@
             socket.on('peer_gps_updated', function(gpsData) {
                 const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
                 if (peerGPSMarkers[pName]) map.removeLayer(peerGPSMarkers[pName]);
-                const peerCenterDot = L.circle(pLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
-                    .bindTooltip(pName, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
+                const peerCenterDot = L.circle(pLatLng, { radius: gpsData.isApprox ? 250 : 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
+                    .bindTooltip(pName + (gpsData.isApprox ? ' (概略)' : ''), { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
                 const peerAccuracyCircle = L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 });
                 peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, peerAccuracyCircle]).addTo(map);
             });
@@ -739,7 +759,6 @@
             }
         }
 
-        // 新增：切換使用說明面板顯示與狀態
         function toggleHelpPanel() {
             const panel = document.getElementById('tactical-help-panel');
             const btn = document.getElementById('toggle-help-btn');
@@ -1102,23 +1121,57 @@
             if (isHidden) btn.classList.add('active'); else btn.classList.remove('active');
         }
 
+        // 新增：開啟與關閉 GPS 模式選單
+        function openGPSModal() {
+            document.getElementById('gps-modal').style.display = 'flex';
+        }
+        function closeGPSModal() {
+            document.getElementById('gps-modal').style.display = 'none';
+        }
+
         let myLocationMarker = null;
-        function locateUserGPS() {
+        function processGPS(mode) {
+            closeGPSModal();
             if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
-            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#0d0e10'; locateBtn.style.background = '#22c55e';
+            const locateBtn = document.getElementById('btn-locate'); 
+            locateBtn.style.color = '#0d0e10'; locateBtn.style.background = '#22c55e';
+            
             navigator.geolocation.getCurrentPosition(
                 function(position) {
-                    const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
+                    let userLat = position.coords.latitude;
+                    let userLng = position.coords.longitude;
+                    let accuracy = position.coords.accuracy;
+                    let isApprox = (mode === 'approx');
+
+                    if (isApprox) {
+                        // 概略模式：隨機偏移約 200~400 公尺，並擴大有效覆蓋半徑
+                        userLat += (Math.random() - 0.5) * 0.004;
+                        userLng += (Math.random() - 0.5) * 0.004;
+                        accuracy = Math.max(accuracy, 300);
+                        showToast("ℹ️ 已切換為概略定位，您的實際位置已進行模糊處理");
+                    } else {
+                        showToast("✅ 已回報您的精準位置");
+                    }
+
                     const currentLatLng = L.latLng(userLat, userLng);
                     if (myLocationMarker) map.removeLayer(myLocationMarker);
-                    const myCenterDot = L.circle(currentLatLng, { radius: 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.9, weight: 1 }).bindTooltip(currentUser + " (您)", { permanent: true, direction: 'top', className: 'tactical-tooltip' });
+                    
+                    const myCenterDot = L.circle(currentLatLng, { radius: isApprox ? 250 : 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: isApprox ? 0.4 : 0.9, weight: 1 })
+                        .bindTooltip(currentUser + (isApprox ? " (概略)" : " (您)"), { permanent: true, direction: 'top', className: 'tactical-tooltip' });
                     const myAccuracyCircle = L.circle(currentLatLng, { radius: accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 1 });
+                    
                     myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
-                    map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
-                    if (socket) socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
+                    map.setView(currentLatLng, isApprox ? 13 : 15, { animate: true, duration: 1.5 });
+                    
+                    if (socket) {
+                        socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy, isApprox: isApprox });
+                    }
                     locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21';
                 },
-                function() { locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21'; alert("定位失敗：請檢查手機定位權限。"); },
+                function() { 
+                    locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21'; 
+                    alert("定位失敗：請檢查手機定位權限。"); 
+                },
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
