@@ -358,7 +358,7 @@
             <ul>
                 <li><strong>新增回報點：</strong>點擊，可新增地點標籤。</li>
                 <li><strong>即時事件回報：</strong>預設多種事件選項，並可上傳圖片說明狀況。</li>
-                <li><strong>線條工具：</strong>用來繪製線條進行標記。</li>
+                <li><strong>線條工具：</strong>用來繪製線條進行標記。點擊「完成」按鈕結束繪製。</li>
                 <li><strong>方形工具：</strong>給予兩點進行方形範圍標記。</li>
                 <li><strong>圓形工具：</strong>給予兩點進行圓形範圍標記。</li>
                 <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
@@ -440,6 +440,15 @@
         }
 
         function switchTool(tool) {
+            // 如果切換工具前正在畫線或多邊形，且有未完成的點，切換前先清除暫存圖形
+            if ((currentTool === 'polyline' || currentTool === 'polygon') && tempPoints.length > 0) {
+                if (tempShape) {
+                    map.removeLayer(tempShape);
+                    tempShape = null;
+                }
+                tempPoints = [];
+            }
+
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
             if (tempShape && tool !== 'polyline' && tool !== 'polygon') { 
@@ -491,6 +500,8 @@
 
             if (tool === 'event') {
                 showToast("請在地圖上點擊要回報事件的位置");
+            } else if (tool === 'polyline' || tool === 'polygon') {
+                showToast("請在地圖上依序點擊各個座標點，完成後請點擊打勾按鈕結束");
             } else if (isDrawing) {
                 showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
             } else {
@@ -570,7 +581,7 @@
             if (type !== 'polyline' && type !== 'polygon') return;
             
             const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: type === 'polygon' ? 0.3 : 0, time: getFormattedTime() };
             
             if (tempShape) {
                 map.removeLayer(tempShape);
@@ -600,7 +611,7 @@
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
-                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
+                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0.3}).addTo(map);
                     } else {
                         tempShape.setLatLngs(tempPoints);
                     }
@@ -612,17 +623,17 @@
                         const latMax = Math.max(tempPoints[0].lat, tempPoints[1].lat);
                         const lngMin = Math.min(tempPoints[0].lng, tempPoints[1].lng);
                         const lngMax = Math.max(tempPoints[0].lng, tempPoints[1].lng);
-                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0.3, time: getFormattedTime() };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 } else if (currentTool === 'circle') {
                     if (tempPoints.length === 0) {
                         tempPoints.push({ lat: lat, lng: lng });
-                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', fillOpacity: 0}).addTo(map);
+                        tempShape = L.circle([lat, lng], {radius: 100, color: '#3388ff', fillOpacity: 0.3}).addTo(map);
                     } else {
                         const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
                         const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
-                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0.3, time: getFormattedTime() };
                         if (tempShape) map.removeLayer(tempShape);
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
