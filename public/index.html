@@ -51,22 +51,23 @@
         #custom-toolbar { 
             position: absolute; top: 20px; left: 15px; z-index: 1000; 
             display: none; flex-direction: column; gap: 6px; 
-            background: #ffffff; padding: 6px; 
-            border-radius: 6px; border: 1px solid #cbd5e0; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            background: #141619; padding: 8px; 
+            border-radius: 6px; border: 1px solid #22c55e; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
         .tool-btn {
-            width: 36px !important; height: 36px !important; 
-            background: #ffffff !important; background-image: none !important;
-            border: 1px solid transparent !important; border-radius: 4px !important; cursor: pointer;
+            width: 38px !important; height: 38px !important; 
+            background: #1a1d21 !important; background-image: none !important;
+            border: 1px solid #2d3748 !important; border-radius: 4px !important; cursor: pointer;
             display: flex !important; align-items: center; justify-content: center; 
-            margin: 0 !important; padding: 0 !important; color: #1a202c; font-size: 16px;
+            margin: 0 !important; padding: 0 !important; color: #39ff14; font-size: 16px;
             transition: all 0.15s ease;
         }
-        .tool-btn svg { stroke: #1a202c !important; fill: none; }
-        .tool-btn:hover { background: #edf2f7 !important; border-color: #e2e8f0 !important; }
-        .tool-btn.active { background: #1a202c !important; color: #ffffff !important; border-radius: 4px !important; }
-        .tool-btn.active svg { stroke: #ffffff !important; }
+        .tool-btn svg { stroke: #39ff14 !important; fill: none; }
+        .tool-btn:hover { background: #22c55e !important; color: #0d0e10 !important; border-color: #39ff14 !important; }
+        .tool-btn:hover svg { stroke: #0d0e10 !important; }
+        .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; border-color: #39ff14 !important; }
+        .tool-btn.active svg { stroke: #0d0e10 !important; }
         
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
@@ -739,7 +740,7 @@
         let myLocationMarker = null;
         function locateUserGPS() {
             if (!navigator.geolocation) { alert("錯誤：不支援 GPS 定位功能！"); return; }
-            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#fff'; locateBtn.style.background = '#1a202c';
+            const locateBtn = document.getElementById('btn-locate'); locateBtn.style.color = '#0d0e10'; locateBtn.style.background = '#22c55e';
             navigator.geolocation.getCurrentPosition(
                 function(position) {
                     const userLat = position.coords.latitude, userLng = position.coords.longitude, accuracy = position.coords.accuracy;
@@ -750,9 +751,9 @@
                     myLocationMarker = L.layerGroup([myCenterDot, myAccuracyCircle]).addTo(map);
                     map.setView(currentLatLng, 15, { animate: true, duration: 1.5 });
                     if (socket) socket.emit('share_my_gps', { lat: userLat, lng: userLng, accuracy: accuracy });
-                    locateBtn.style.color = '#1a202c'; locateBtn.style.background = '#ffffff';
+                    locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21';
                 },
-                function() { locateBtn.style.color = '#1a202c'; locateBtn.style.background = '#ffffff'; alert("定位失敗：請檢查手機定位權限。"); },
+                function() { locateBtn.style.color = '#39ff14'; locateBtn.style.background = '#1a1d21'; alert("定位失敗：請檢查手機定位權限。"); },
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
