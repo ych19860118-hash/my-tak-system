@@ -370,7 +370,7 @@
 
         function initMapInstance() {
             if (map) return; 
-            map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false });
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
             ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'users-panel', 'chat-panel', 'event-modal'].forEach(id => {
@@ -417,7 +417,8 @@
             const type = currentTool;
             if (type !== 'polyline' && type !== 'polygon') return;
             const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+            const coordinates = (type === 'polygon') ? [JSON.parse(JSON.stringify(tempPoints))] : JSON.parse(JSON.stringify(tempPoints));
+            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: coordinates, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
             if (tempShape) map.removeLayer(tempShape); 
             tempShape = null;
             tempPoints = [];
@@ -508,10 +509,16 @@
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
-                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
+                        tempShape = (currentTool === 'polyline') 
+                            ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) 
+                            : L.polygon([tempPoints], {color: '#3388ff', fillOpacity: 0}).addTo(map);
                         tempShape.bindTooltip("繪製完請按滑鼠右鍵或點選「V」...", { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
                     } else {
-                        tempShape.setLatLngs(tempPoints);
+                        if (currentTool === 'polygon') {
+                            tempShape.setLatLngs([tempPoints]);
+                        } else {
+                            tempShape.setLatLngs(tempPoints);
+                        }
                     }
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push({ lat: lat, lng: lng });
@@ -930,7 +937,9 @@
                 currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
             } else if (mainLayer.getLatLngs) {
                 const rawLatLngs = mainLayer.getLatLngs();
-                currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
+                currentCoordinates = (data.shapeType === "polygon") 
+                    ? (Array.isArray(rawLatLngs[0][0]) ? rawLatLngs : [rawLatLngs.map(ring => Array.isArray(ring) ? ring.map(p => [p.lat, p.lng]) : [ring.lat, ring.lng])])
+                    : (Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]));
             }
             data.time = getFormattedTime();
             const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
@@ -1000,7 +1009,9 @@
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
                 } else {
                     const rawLatLngs = cache.layer.getLatLngs();
-                    currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
+                    currentCoordinates = (sType === "polygon")
+                        ? (Array.isArray(rawLatLngs[0][0]) ? rawLatLngs : [rawLatLngs.map(ring => Array.isArray(ring) ? ring.map(p => [p.lat, p.lng]) : [ring.lat, ring.lng])])
+                        : (Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]));
                 }
 
                 const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
