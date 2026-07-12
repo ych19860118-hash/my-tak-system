@@ -101,7 +101,7 @@ io.on('connection', (socket) => {
         
         socket.myName = myName; 
         socket.myRoom = myRoom;
-        socket.roomName = myRoom; // 綁定 roomName 屬性供 broadcast 使用
+        socket.roomName = myRoom; 
         
         socket.join(myRoom);
 
@@ -131,7 +131,6 @@ io.on('connection', (socket) => {
         io.to(myRoom).emit('receive_chat', chatData);
     });
 
-    // 📷 接收並廣播其他用戶分享的照片/影片檔
     socket.on('share_media', (data) => {
         if (!myRoom || !myName) return;
         io.to(myRoom).emit('receive_media', {
@@ -152,10 +151,8 @@ io.on('connection', (socket) => {
     socket.on('delete_object', (objectId) => {
         if (rooms[myRoom]) {
             const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
-            
-            // 🔐 終極防禦性驗證：結合 socket.myName 與區域變數 myName 進行判定
             const activeName = socket.myName || myName;
-            const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('[Admin]'));
+            const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
             const isCreator = targetObj && targetObj.creator === activeName;
             
             if (isAdmin || isCreator) {
@@ -165,6 +162,20 @@ io.on('connection', (socket) => {
             } else {
                 console.log(`刪除被拒絕：操作者 (${activeName}) 權限不足`);
             }
+        }
+    });
+
+    // 🚨 補齊：接收並廣播最高指揮官清空所有圖資要求
+    socket.on('admin_clear_all', () => {
+        const activeName = socket.myName || myName;
+        const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
+        
+        if (isAdmin && rooms[myRoom]) {
+            rooms[myRoom].objects = [];
+            io.to(myRoom).emit('clear_all_objects');
+            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資已由指揮官 ${activeName} 清空`);
+        } else {
+            console.log(`清空被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
