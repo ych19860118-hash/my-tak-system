@@ -123,6 +123,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('share_my_gps', (gpsData) => {
+        if (!myRoom) return;
         gpsData.username = myName; 
         socket.to(myRoom).emit('peer_gps_updated', gpsData); 
     });
@@ -148,10 +149,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('new_object', (objData) => {
-        if (rooms[myRoom]) {
-            rooms[myRoom].objects.push(objData);
-            io.to(myRoom).emit('object_added', objData);
-        }
+        if (!myRoom || !rooms[myRoom]) return;
+        rooms[myRoom].objects.push(objData);
+        io.to(myRoom).emit('object_added', objData);
     });
 
     // 接收並廣播新的事件回報（含敘述與照片）
@@ -193,19 +193,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('delete_object', (objectId) => {
-        if (rooms[myRoom]) {
-            const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
-            const activeName = socket.myName || myName;
-            const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
-            const isCreator = targetObj && targetObj.creator === activeName;
-            
-            if (isAdmin || isCreator) {
-                rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
-                io.to(myRoom).emit('object_deleted', objectId);
-                console.log(`【物件刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
-            } else {
-                console.log(`物件刪除被拒絕：操作者 (${activeName}) 權限不足`);
-            }
+        if (!myRoom || !rooms[myRoom]) return;
+        const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
+        const activeName = socket.myName || myName;
+        const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
+        const isCreator = targetObj && targetObj.creator === activeName;
+        
+        if (isAdmin || isCreator) {
+            rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
+            io.to(myRoom).emit('object_deleted', objectId);
+            console.log(`【物件刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
+        } else {
+            console.log(`物件刪除被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
@@ -214,7 +213,7 @@ io.on('connection', (socket) => {
         const activeName = socket.myName || myName;
         const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
         
-        if (isAdmin && rooms[myRoom]) {
+        if (isAdmin && myRoom && rooms[myRoom]) {
             rooms[myRoom].objects = [];
             rooms[myRoom].events = []; 
             io.to(myRoom).emit('clear_all_objects');
