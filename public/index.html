@@ -70,13 +70,6 @@
         .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; border-color: #39ff14 !important; }
         .tool-btn.active svg { stroke: #0d0e10 !important; }
         
-        #btn-finish-drawing {
-            background: #1b4d22 !important; border-color: #39ff14 !important; display: none;
-        }
-        #btn-finish-drawing.visible {
-            display: flex !important;
-        }
-
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
@@ -185,15 +178,9 @@
         #typhoon-info {
             position: absolute; bottom: 68px; right: 12px; background: #141619; 
             padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
-            border: 2px solid #22c55e; font-size: 11px; display: none; 
-            max-width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); line-height: 1.5;font-family: 'Courier New', monospace;
+            border: 2px solid #22c55e; font-size: 12px; display: none; 
+            max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
         }
-        #typhoon-info h4 {
-            color: #22c55e; margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
-            border-bottom: 1px solid #2d3748; padding-bottom: 4px;
-        }
-        .info-section { margin-bottom: 10px; }
-        .info-section b { color: #39ff14; }
 
         #toast-container {
             position: absolute; bottom: 20px; left: 70px; z-index: 9999;
@@ -213,17 +200,8 @@
         }
 
         .tactical-tooltip {
-            background: #141619 !important; 
-            border: 1px solid #39ff14 !important; 
-            color: #39ff14 !important; 
-            font-weight: 700 !important; 
-            font-size: 8px !important; 
-            font-family: 'Courier New', monospace !important; 
-            border-radius: 2px !important; 
-            padding: 1px 4px !important; 
-            box-shadow: 0 0 6px rgba(57, 255, 20, 0.2) !important; 
-            opacity: 1 !important; 
-            z-index: 10000 !important;
+            background: #141619 !important; border: 2px solid #39ff14 !important; color: #39ff14 !important; font-weight: 900 !important; font-size: 13px !important;
+            font-family: 'Courier New', monospace !important; border-radius: 4px !important; padding: 5px 10px !important; box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important; opacity: 1 !important; z-index: 10000 !important;
         }
         .tactical-tooltip::before { display: none !important; }
         
@@ -267,9 +245,6 @@
         </button>
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
-        </button>
-        <button class="tool-btn" id="btn-finish-drawing" onclick="finishCurrentDrawing()" title="完成繪圖">
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </button>
         <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
             GPS
@@ -329,8 +304,8 @@
         </div>
         <button id="admin-clear-btn" onclick="adminClearAllObjects()">🚨 清除所有圖資 (最高權限)</button>
     </div>
-
     <div id="toast-container"></div>
+    <div id="map"></div>
 
     <script>
         const SERVER_URL = window.location.origin; 
@@ -370,7 +345,7 @@
 
         function initMapInstance() {
             if (map) return; 
-            map = L.map('map', { doubleClickZoom: false, zoomControl: false });
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
             ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'users-panel', 'chat-panel', 'event-modal'].forEach(id => {
@@ -385,46 +360,50 @@
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            if (tempShape && tool !== 'polyline' && tool !== 'polygon') { 
-                map.removeLayer(tempShape); 
-                tempShape = null; 
-                tempPoints = [];
-            } 
+            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
+            tempPoints = [];
             const id = 'btn-' + tool; 
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
-            const finishBtn = document.getElementById('btn-finish-drawing');
-            if (tool === 'polyline' || tool === 'polygon') {
-                finishBtn.classList.add('visible');
-            } else {
-                finishBtn.classList.remove('visible');
-            }
+            const isDrawing = (tool !== 'pan' && tool !== 'locate');
+            
+            Object.values(allMapLayers).forEach(item => {
+                if (item.layer) {
+                    if (isDrawing) {
+                        try { item.layer.closePopup(); } catch(err) {}
+                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
+                    } else {
+                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
+                    }
+                }
+                if (item.pin) {
+                    if (isDrawing) { if (map.hasLayer(item.pin)) map.removeLayer(item.pin); }
+                    else { if (!map.hasLayer(item.pin)) item.pin.addTo(map); }
+                }
+                if (item.resizePin) {
+                    if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
+                    else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
+                }
+            });
+
+            Object.values(allEventLayers).forEach(item => {
+                if (item.layer) {
+                    if (isDrawing) {
+                        try { item.layer.closePopup(); } catch(err) {}
+                        if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
+                    } else {
+                        if (!map.hasLayer(item.layer)) item.layer.addTo(map);
+                    }
+                }
+            });
 
             if (tool === 'event') {
                 showToast("請在地圖上點擊要回報事件的位置");
-            } else if (tool !== 'pan' && tool !== 'locate') {
-                showToast("已進入繪圖模式，可點擊多點繪製線/多邊形");
+            } else if (isDrawing) {
+                showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
             } else {
                 showToast("已返回導覽模式");
             }
-        }
-
-        function finishCurrentDrawing() {
-            if (tempPoints.length < 2) {
-                showToast("⚠️ 請至少點擊兩個頂點再完成繪圖");
-                return;
-            }
-            const type = currentTool;
-            if (type !== 'polyline' && type !== 'polygon') return;
-            const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-            const coordinates = (type === 'polygon') ? [JSON.parse(JSON.stringify(tempPoints))] : JSON.parse(JSON.stringify(tempPoints));
-            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: coordinates, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-            if (tempShape) map.removeLayer(tempShape); 
-            tempShape = null;
-            tempPoints = [];
-            renderObjectOnMap(data); 
-            socket.emit('new_object', data); 
-            switchTool('pan');
         }
 
         function previewEvtPhoto(event) {
@@ -509,16 +488,9 @@
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
                     if (tempPoints.length === 1) {
-                        tempShape = (currentTool === 'polyline') 
-                            ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) 
-                            : L.polygon([tempPoints], {color: '#3388ff', fillOpacity: 0}).addTo(map);
-                        tempShape.bindTooltip("繪製完請按滑鼠右鍵或點選「V」...", { permanent: true, direction: 'center', className: 'tactical-tooltip', interactive: false });
+                        tempShape = (currentTool === 'polyline') ? L.polyline(tempPoints, {color: '#3388ff', weight: 6}).addTo(map) : L.polygon(tempPoints, {color: '#3388ff', fillOpacity: 0}).addTo(map);
                     } else {
-                        if (currentTool === 'polygon') {
-                            tempShape.setLatLngs([tempPoints]);
-                        } else {
-                            tempShape.setLatLngs(tempPoints);
-                        }
+                        tempShape.setLatLngs(tempPoints);
                     }
                 } else if (currentTool === 'rectangle') {
                     tempPoints.push({ lat: lat, lng: lng });
@@ -540,7 +512,6 @@
                         const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
                         const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                         if (tempShape) map.removeLayer(tempShape);
-                        tempShape = null;
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 }
@@ -551,7 +522,9 @@
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
-                finishCurrentDrawing();
+                const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
+                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
             });
         }
 
@@ -652,7 +625,6 @@
                 });
                 allMapLayers = {};
                 allEventLayers = {};
-                if (tempShape) { map.removeLayer(tempShape); tempShape = null; tempPoints = []; }
                 showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資與事件！");
             });
         }
@@ -696,7 +668,11 @@
                 className: 'tactical-event-marker'
             });
 
-            const marker = L.marker([data.lat, data.lng], { icon: evtIcon }).addTo(map);
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
+            const marker = L.marker([data.lat, data.lng], { icon: evtIcon });
+            if (!isCurrentlyDrawing) {
+                marker.addTo(map);
+            }
             allEventLayers[data.id] = { layer: marker, creator: data.sender };
 
             marker.bindTooltip(`[${data.category}]`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
@@ -780,6 +756,7 @@
             const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
             const pts = data.coordinates;
             const currentFillOpacity = (data.fillOpacity !== undefined) ? data.fillOpacity : 0;
+            const isCurrentlyDrawing = (currentTool !== 'pan' && currentTool !== 'locate');
 
             if (data.shapeType === "marker") {
                 const svgColor = data.color || "#3388ff";
@@ -804,7 +781,9 @@
             }
             if (!mainLayer) return;
 
-            mainLayer.addTo(map);
+            if (!isCurrentlyDrawing) {
+                mainLayer.addTo(map);
+            }
             allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
 
             if (data.shapeType === "marker") {
@@ -814,7 +793,8 @@
             }
 
             if ((isMyObject || isAdmin) && data.shapeType !== "marker") {
-                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) }).addTo(map);
+                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
+                if (!isCurrentlyDrawing) controlPin.addTo(map);
                 allMapLayers[data.id].pin = controlPin;
 
                 controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
@@ -845,7 +825,8 @@
 
                 if (data.shapeType === "circle" || data.shapeType === "rectangle") {
                     const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) }).addTo(map);
+                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) });
+                    if (!isCurrentlyDrawing) resizePin.addTo(map);
                     allMapLayers[data.id].resizePin = resizePin;
 
                     resizePin.on('drag', function(e) {
@@ -872,6 +853,7 @@
             }
 
             mainLayer.on('click', function(e) {
+                if (currentTool !== 'pan' && currentTool !== 'locate') return;
                 if (data.shapeType === "marker") {
                     mainLayer.openPopup();
                 } else {
@@ -937,9 +919,7 @@
                 currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
             } else if (mainLayer.getLatLngs) {
                 const rawLatLngs = mainLayer.getLatLngs();
-                currentCoordinates = (data.shapeType === "polygon") 
-                    ? (Array.isArray(rawLatLngs[0][0]) ? rawLatLngs : [rawLatLngs.map(ring => Array.isArray(ring) ? ring.map(p => [p.lat, p.lng]) : [ring.lat, ring.lng])])
-                    : (Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]));
+                currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
             }
             data.time = getFormattedTime();
             const currentMsg = (mainLayer.getTooltip && mainLayer.getTooltip()) ? mainLayer.getTooltip().getContent() : data.message;
@@ -976,7 +956,6 @@
                 });
                 allMapLayers = {};
                 allEventLayers = {};
-                if (tempShape) { map.removeLayer(tempShape); tempShape = null; tempPoints = []; }
                 if (socket) {
                     socket.emit('admin_clear_all');
                 }
@@ -1009,9 +988,7 @@
                     currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
                 } else {
                     const rawLatLngs = cache.layer.getLatLngs();
-                    currentCoordinates = (sType === "polygon")
-                        ? (Array.isArray(rawLatLngs[0][0]) ? rawLatLngs : [rawLatLngs.map(ring => Array.isArray(ring) ? ring.map(p => [p.lat, p.lng]) : [ring.lat, ring.lng])])
-                        : (Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]));
+                    currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
                 }
 
                 const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
