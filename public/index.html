@@ -127,7 +127,6 @@
         }
         #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
 
-        /* 💡 新增：事件回報懸浮表單樣式 */
         #event-modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #141619; padding: 25px; border-radius: 6px; border: 2px solid #22c55e;
@@ -147,7 +146,6 @@
         .btn-submit-evt:hover { background: #22c55e !important; color: #0d0e10 !important; }
         .btn-cancel-evt { background: #9b1c1c; color: #fca5a5; }
 
-        /* 💡 圖片燈箱/放大檢視 */
         .event-popup-img { width: 100%; max-height: 150px; object-fit: cover; margin-top: 6px; border-radius: 3px; cursor: pointer; }
 
         #typhoon-info {
@@ -206,7 +204,6 @@
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
         </button>
-        <!-- 💡 新增：事件回報工具按鈕 -->
         <button class="tool-btn" id="btn-event" onclick="switchTool('event')" title="即時事件回報與照片上傳">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </button>
@@ -227,7 +224,6 @@
         </button>
     </div>
 
-    <!-- 💡 事件回報彈出互動表單 -->
     <div id="event-modal">
         <h3>即時事件回報</h3>
         <label>事件類別：</label>
@@ -279,7 +275,7 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
-        let pendingEventLatLng = null, pendingPhotoBase64 = null; // 暫存事件點擊與圖片
+        let pendingEventLatLng = null, pendingPhotoBase64 = null;
 
         function getFormattedTime() {
             const now = new Date();
@@ -361,7 +357,6 @@
             }
         }
 
-        // 💡 處理圖片上傳預覽並轉成 Base64
         function previewEvtPhoto(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -405,7 +400,6 @@
 
         function initDrawingEvents() {
             map.on('click', function(e) {
-                // 💡 攔截事件回報工具的點擊
                 if (currentTool === 'event') {
                     pendingEventLatLng = e.latlng;
                     document.getElementById('event-modal').style.display = 'flex';
@@ -498,7 +492,7 @@
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
-            socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); // 💡 歷史事件載入
+            socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
             
             socket.on('user_notification', function(data) {
@@ -510,10 +504,18 @@
                 appendChatMessage(data.sender, data.message, data.time);
             });
 
-            // 💡 接收即時廣播的新事件
             socket.on('event_added', function(evtData) {
                 renderEventOnMap(evtData);
                 showToast(`🚨 [${evtData.category}] ${evtData.sender} 剛剛回報了新狀況！`);
+            });
+
+            // 💡 監聽事件刪除廣播
+            socket.on('event_deleted', function(eventId) {
+                if (allMapLayers[eventId]) {
+                    map.removeLayer(allMapLayers[eventId].layer);
+                    delete allMapLayers[eventId];
+                }
+                showToast("🗑️ 事件回報已被移除");
             });
 
             let peerGPSMarkers = {}; 
@@ -547,7 +549,6 @@
             });
         }
 
-        // 💡 渲染事件回報在地圖上
         function renderEventOnMap(data) {
             if (allMapLayers[data.id]) {
                 map.removeLayer(allMapLayers[data.id].layer);
@@ -564,6 +565,14 @@
 
             marker.bindTooltip(`[${data.category}]`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
 
+            // 💡 判斷權限：回報者本人或管理者 Admin 顯示刪除按鈕
+            const isOwner = (data.sender === currentUser);
+            const isAdmin = currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]');
+            let deleteBtnHTML = "";
+            if (isOwner || isAdmin) {
+                deleteBtnHTML = `<button onclick="deleteEventReport('${data.id}')" class="del-btn" style="margin-top:8px;">刪除此事件回報</button>`;
+            }
+
             let photoHTML = data.photoData ? `<img src="${data.photoData}" class="event-popup-img" alt="事件照片">` : "";
             const popupHTML = `
                 <div class="popup-menu">
@@ -573,8 +582,16 @@
                     <b>說明：</b>${data.description || '無詳細說明'}<br>
                     ${photoHTML}
                     <small style="color:gray; display:block; margin-top:6px;">回報人：${data.sender}</small>
+                    ${deleteBtnHTML}
                 </div>`;
             marker.bindPopup(popupHTML);
+        }
+
+        // 💡 觸發事件刪除
+        function deleteEventReport(eventId) {
+            if (confirm("確定要刪除這個事件回報嗎？")) {
+                socket.emit('delete_event', eventId);
+            }
         }
 
         function toggleChatPanel() {
