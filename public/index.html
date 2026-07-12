@@ -70,6 +70,14 @@
         .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; border-color: #39ff14 !important; }
         .tool-btn.active svg { stroke: #0d0e10 !important; }
         
+        /* 完成繪圖的專屬按鈕樣式 */
+        #btn-finish-drawing {
+            background: #1b4d22 !important; border-color: #39ff14 !important; display: none;
+        }
+        #btn-finish-drawing.visible {
+            display: flex !important;
+        }
+
         .popup-menu { font-size: 13px; min-width: 190px; font-family: monospace; color: #a0aec0; }
         .popup-menu input[type="text"] { width: 92%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
         .popup-menu select { width: 96%; padding: 6px; margin-bottom: 10px; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14; font-family: monospace; }
@@ -246,6 +254,10 @@
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
         </button>
+        <!-- 打勾按鈕：專門用來結束多邊形或線條繪製 -->
+        <button class="tool-btn" id="btn-finish-drawing" onclick="finishCurrentDrawing()" title="完成繪圖">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </button>
         <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
             GPS
         </button>
@@ -360,10 +372,21 @@
         function switchTool(tool) {
             currentTool = tool; 
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            if (tempShape) { map.removeLayer(tempShape); tempShape = null; } 
-            tempPoints = [];
+            if (tempShape && tool !== 'polyline' && tool !== 'polygon') { 
+                map.removeLayer(tempShape); 
+                tempShape = null; 
+                tempPoints = [];
+            } 
             const id = 'btn-' + tool; 
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
+
+            // 切換「完成繪圖」按鈕的顯隱狀態
+            const finishBtn = document.getElementById('btn-finish-drawing');
+            if (tool === 'polyline' || tool === 'polygon') {
+                finishBtn.classList.add('visible');
+            } else {
+                finishBtn.classList.remove('visible');
+            }
 
             const isDrawing = (tool !== 'pan' && tool !== 'locate');
             
@@ -400,10 +423,26 @@
             if (tool === 'event') {
                 showToast("請在地圖上點擊要回報事件的位置");
             } else if (isDrawing) {
-                showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
+                showToast("已進入繪圖模式，可點擊多點繪製線/多邊形");
             } else {
                 showToast("已返回導覽模式");
             }
+        }
+
+        // 完成多邊形／線條繪製的觸發函式
+        function finishCurrentDrawing() {
+            if (tempPoints.length < 2) {
+                showToast("⚠️ 請至少點擊兩個頂點再完成繪圖");
+                return;
+            }
+            const type = currentTool;
+            if (type !== 'polyline' && type !== 'polygon') return;
+            const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
+            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+            if (tempShape) map.removeLayer(tempShape); 
+            renderObjectOnMap(data); 
+            socket.emit('new_object', data); 
+            switchTool('pan');
         }
 
         function previewEvtPhoto(event) {
@@ -517,14 +556,13 @@
                 }
             });
 
+            // 保留滑鼠右鍵讓電腦版維持原本的快速操作
             map.on('contextmenu', function(e) {
                 if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
-                const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-                const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
-                if (tempShape) map.removeLayer(tempShape); renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
+                finishCurrentDrawing();
             });
         }
 
