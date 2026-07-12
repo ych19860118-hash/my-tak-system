@@ -348,7 +348,6 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
-            // 強化事件穿透防護
             ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'users-panel', 'chat-panel', 'event-modal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) L.DomEvent.disableClickPropagation(el);
