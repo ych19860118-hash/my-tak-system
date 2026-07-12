@@ -127,6 +127,29 @@
         }
         #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
 
+        /* 💡 新增：事件回報懸浮表單樣式 */
+        #event-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #141619; padding: 25px; border-radius: 6px; border: 2px solid #22c55e;
+            z-index: 10000; display: none; flex-direction: column; width: 320px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.8); font-family: monospace; color: #a0aec0; box-sizing: border-box;
+        }
+        #event-modal h3 { color: #22c55e; margin-top: 0; margin-bottom: 15px; font-size: 16px; text-transform: uppercase; }
+        #event-modal select, #event-modal textarea, #event-modal input[type="file"] {
+            width: 100%; background: #1a1d21; border: 1px solid #2d3748; color: #39ff14;
+            padding: 8px; margin-bottom: 12px; box-sizing: border-box; font-family: monospace; outline: none; border-radius: 2px;
+        }
+        #event-modal textarea { height: 70px; resize: none; }
+        #event-preview { max-width: 100%; max-height: 120px; display: none; margin-bottom: 12px; border: 1px solid #2d3748; border-radius: 2px; object-fit: contain; }
+        .event-modal-btns { display: flex; gap: 8px; }
+        .event-modal-btns button { flex: 1; padding: 8px; font-weight: bold; cursor: pointer; border-radius: 2px; border: none; }
+        .btn-submit-evt { background: #1b4d22 !important; color: #39ff14 !important; border: 1px solid #39ff14 !important; }
+        .btn-submit-evt:hover { background: #22c55e !important; color: #0d0e10 !important; }
+        .btn-cancel-evt { background: #9b1c1c; color: #fca5a5; }
+
+        /* 💡 圖片燈箱/放大檢視 */
+        .event-popup-img { width: 100%; max-height: 150px; object-fit: cover; margin-top: 6px; border-radius: 3px; cursor: pointer; }
+
         #typhoon-info {
             position: absolute; bottom: 68px; right: 12px; background: #141619; 
             padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
@@ -183,6 +206,10 @@
         <button class="tool-btn" id="btn-marker" onclick="switchTool('marker')" title="新增回報點">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
         </button>
+        <!-- 💡 新增：事件回報工具按鈕 -->
+        <button class="tool-btn" id="btn-event" onclick="switchTool('event')" title="即時事件回報與照片上傳">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </button>
         <button class="tool-btn" id="btn-polyline" onclick="switchTool('polyline')" title="繪製線條">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
         </button>
@@ -198,6 +225,28 @@
         <button class="tool-btn" id="btn-locate" onclick="locateUserGPS()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </button>
+    </div>
+
+    <!-- 💡 事件回報彈出互動表單 -->
+    <div id="event-modal">
+        <h3>即時事件回報</h3>
+        <label>事件類別：</label>
+        <select id="evt-category">
+            <option value="道路阻斷">道路阻斷</option>
+            <option value="設施損壞">設施損壞</option>
+            <option value="淹水災情">淹水災情</option>
+            <option value="人員受困">人員受困</option>
+            <option value="一般回報">一般回報</option>
+        </select>
+        <label>事件描述：</label>
+        <textarea id="evt-desc" placeholder="請簡述現場狀況..."></textarea>
+        <label>上傳照片：</label>
+        <input type="file" id="evt-photo" accept="image/*" onchange="previewEvtPhoto(event)">
+        <img id="event-preview" alt="預覽照片">
+        <div class="event-modal-btns">
+            <button class="btn-submit-evt" onclick="submitEventReport()">送出回報</button>
+            <button class="btn-cancel-evt" onclick="closeEventModal()">取消</button>
+        </div>
     </div>
 
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
@@ -230,6 +279,7 @@
         const SERVER_URL = window.location.origin; 
         let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
         let currentTool = "pan", tempPoints = [], tempShape = null;
+        let pendingEventLatLng = null, pendingPhotoBase64 = null; // 暫存事件點擊與圖片
 
         function getFormattedTime() {
             const now = new Date();
@@ -268,6 +318,7 @@
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-info-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('toggle-chat-btn'));
             L.DomEvent.disableClickPropagation(document.getElementById('chat-panel'));
+            L.DomEvent.disableClickPropagation(document.getElementById('event-modal'));
             window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
             initDrawingEvents();
         }
@@ -301,15 +352,66 @@
                 }
             });
 
-            if (isDrawing) {
+            if (tool === 'event') {
+                showToast("請在地圖上點擊要回報事件的位置");
+            } else if (isDrawing) {
                 showToast("已進入繪圖模式，現有物件已隱藏以方便新增");
             } else {
                 showToast("已返回導覽模式");
             }
         }
 
+        // 💡 處理圖片上傳預覽並轉成 Base64
+        function previewEvtPhoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                pendingPhotoBase64 = e.target.result;
+                const preview = document.getElementById('event-preview');
+                preview.src = pendingPhotoBase64;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function closeEventModal() {
+            document.getElementById('event-modal').style.display = 'none';
+            document.getElementById('evt-desc').value = '';
+            document.getElementById('evt-photo').value = '';
+            document.getElementById('event-preview').style.display = 'none';
+            pendingEventLatLng = null;
+            pendingPhotoBase64 = null;
+            switchTool('pan');
+        }
+
+        function submitEventReport() {
+            if (!pendingEventLatLng) return;
+            const category = document.getElementById('evt-category').value;
+            const description = document.getElementById('evt-desc').value.trim();
+
+            const eventData = {
+                category: category,
+                description: description,
+                lat: pendingEventLatLng.lat,
+                lng: pendingEventLatLng.lng,
+                photoData: pendingPhotoBase64
+            };
+
+            socket.emit('new_event', eventData);
+            closeEventModal();
+            showToast("✅ 事件回報已廣播至頻道");
+        }
+
         function initDrawingEvents() {
             map.on('click', function(e) {
+                // 💡 攔截事件回報工具的點擊
+                if (currentTool === 'event') {
+                    pendingEventLatLng = e.latlng;
+                    document.getElementById('event-modal').style.display = 'flex';
+                    return;
+                }
+
                 if (currentTool === 'pan' || currentTool === 'locate') return;
 
                 const lat = e.latlng.lat, lng = e.latlng.lng;
@@ -351,7 +453,7 @@
             });
 
             map.on('contextmenu', function(e) {
-                if (currentTool === 'pan' || currentTool === 'locate') return;
+                if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
                 if (tempPoints.length < 2) return;
                 const type = currentTool;
                 if (type !== 'polyline' && type !== 'polygon') return;
@@ -396,6 +498,7 @@
             socket = io(SERVER_URL);
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
+            socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); // 💡 歷史事件載入
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
             
             socket.on('user_notification', function(data) {
@@ -405,6 +508,12 @@
 
             socket.on('receive_chat', function(data) {
                 appendChatMessage(data.sender, data.message, data.time);
+            });
+
+            // 💡 接收即時廣播的新事件
+            socket.on('event_added', function(evtData) {
+                renderEventOnMap(evtData);
+                showToast(`🚨 [${evtData.category}] ${evtData.sender} 剛剛回報了新狀況！`);
             });
 
             let peerGPSMarkers = {}; 
@@ -434,8 +543,38 @@
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
                 });
                 allMapLayers = {};
-                showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資！");
+                showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資與事件！");
             });
+        }
+
+        // 💡 渲染事件回報在地圖上
+        function renderEventOnMap(data) {
+            if (allMapLayers[data.id]) {
+                map.removeLayer(allMapLayers[data.id].layer);
+                delete allMapLayers[data.id];
+            }
+
+            const evtIcon = L.divIcon({
+                html: `<svg width="32" height="44" viewBox="0 0 24 24" fill="#dc3545" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.8)); position: absolute; left: -16px; top: -44px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#ffffff"></circle></svg>`,
+                className: 'tactical-event-marker'
+            });
+
+            const marker = L.marker([data.lat, data.lng], { icon: evtIcon }).addTo(map);
+            allMapLayers[data.id] = { layer: marker, creator: data.sender };
+
+            marker.bindTooltip(`[${data.category}]`, { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
+
+            let photoHTML = data.photoData ? `<img src="${data.photoData}" class="event-popup-img" alt="事件照片">` : "";
+            const popupHTML = `
+                <div class="popup-menu">
+                    <b style="color:#dc3545;">🚨 現場即時狀況回報</b><br>
+                    <small style="color:gray;">時間：${data.time}</small><br><br>
+                    <b>類別：</b>${data.category}<br>
+                    <b>說明：</b>${data.description || '無詳細說明'}<br>
+                    ${photoHTML}
+                    <small style="color:gray; display:block; margin-top:6px;">回報人：${data.sender}</small>
+                </div>`;
+            marker.bindPopup(popupHTML);
         }
 
         function toggleChatPanel() {
@@ -678,7 +817,7 @@
                 alert("權限不足：僅限 admin 帳號執行全圖資清空！");
                 return;
             }
-            if (confirm("🚨 警告：您即將以最高指揮官 (admin) 權限，刪除地圖上「所有頻道」或當前頻道的所有圖資！此操作無法復原，確定執行？")) {
+            if (confirm("🚨 警告：您即將以最高指揮官 (admin) 權限，刪除地圖上「所有頻道」或當前頻道的所有圖資與事件！此操作無法復原，確定執行？")) {
                 Object.keys(allMapLayers).forEach(id => {
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
@@ -689,7 +828,7 @@
                 if (socket) {
                     socket.emit('admin_clear_all');
                 }
-                showToast("🚨 您已成功清除所有圖資！");
+                showToast("🚨 您已成功清除所有圖資與事件！");
             }
         }
 
