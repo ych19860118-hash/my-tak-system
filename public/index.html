@@ -70,7 +70,6 @@
         .tool-btn.active { background: #22c55e !important; color: #0d0e10 !important; border-radius: 4px !important; border-color: #39ff14 !important; }
         .tool-btn.active svg { stroke: #0d0e10 !important; }
         
-        /* 特別針對完成繪圖按鈕的微調顏色與狀態 */
         #btn-finish { display: none !important; color: #22c55e !important; border-color: #22c55e !important; background: #1a1d21 !important; }
         #btn-finish svg { stroke: #22c55e !important; }
         #btn-finish:hover { background: #22c55e !important; color: #0d0e10 !important; }
@@ -112,6 +111,16 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s; font-weight: bold;
         }
         #toggle-users-btn:hover, #toggle-users-btn.active { border-color: #39ff14; background: #1a1d21; }
+
+        /* 新增：使用說明按鈕定位於最右側底部 (右側偏移 156px) */
+        #toggle-help-btn {
+            position: absolute; bottom: 20px; right: 156px; z-index: 1001; 
+            width: 38px; height: 38px; background: #141619; 
+            border: 1px solid #2d3748; border-radius: 4px; cursor: pointer; 
+            font-size: 15px; color: #39ff14; display: none; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: all 0.2s; font-weight: bold;
+        }
+        #toggle-help-btn:hover, #toggle-help-btn.active { border-color: #39ff14; background: #1a1d21; }
 
         #users-panel {
             position: absolute; bottom: 68px; right: 108px; width: 220px; height: 260px;
@@ -160,6 +169,22 @@
         }
         #chat-send-btn:hover { background: #22c55e; color: #0d0e10; }
 
+        /* 新增：戰術風格使用說明隱藏面板 */
+        #tactical-help-panel {
+            position: absolute; bottom: 68px; right: 156px; width: 240px; height: 280px;
+            background: #141619; border: 2px solid #22c55e; border-radius: 4px;
+            z-index: 1000; display: none; flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.7); font-size: 11px; font-family: monospace; color: #a0aec0;
+        }
+        #help-header {
+            background: #1a1d21; padding: 8px 12px; border-bottom: 1px solid #2d3748;
+            color: #22c55e; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+        }
+        .help-body {
+            flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; color: #cbd5e0;
+        }
+        .help-body ul { margin: 0; padding-left: 15px; line-height: 1.5; }
+
         #event-modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #141619; padding: 25px; border-radius: 6px; border: 2px solid #22c55e;
@@ -205,10 +230,11 @@
             100% { opacity: 0; transform: translateY(-10px); display: none; }
         }
 
+        /* 縮到最小的圖形標籤樣式 */
         .tactical-tooltip {
-    background: rgba(20, 22, 25, 0.8) !important; border: 1px solid #39ff14 !important; color: #39ff14 !important; font-weight: bold !important; font-size: 9px !important;
-    font-family: 'Courier New', monospace !important; border-radius: 2px !important; padding: 1px 4px !important; box-shadow: none !important; opacity: 0.85 !important; z-index: 10000 !important;
-}
+            background: rgba(20, 22, 25, 0.8) !important; border: 1px solid #39ff14 !important; color: #39ff14 !important; font-weight: bold !important; font-size: 9px !important;
+            font-family: 'Courier New', monospace !important; border-radius: 2px !important; padding: 1px 4px !important; box-shadow: none !important; opacity: 0.85 !important; z-index: 10000 !important;
+        }
         .tactical-tooltip::before { display: none !important; }
         
         #admin-clear-btn {
@@ -252,7 +278,6 @@
         <button class="tool-btn" id="btn-polygon" onclick="switchTool('polygon')" title="繪製多邊形">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18.5 20.5 5.5 20.5 2 8.5 12 2"></polygon></svg>
         </button>
-        <!-- 新增完成繪製 (V) 按鈕，在繪製多邊形/線條時會自動顯示 -->
         <button class="tool-btn" id="btn-finish" onclick="finishCurrentDrawing()" title="完成繪製">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </button>
@@ -282,9 +307,11 @@
         </div>
     </div>
 
+    <!-- 底部控制按鈕列 -->
     <button id="toggle-info-btn" onclick="toggleStatusPanel()">ℹ</button>
     <button id="toggle-chat-btn" onclick="toggleChatPanel()">💬</button>
     <button id="toggle-users-btn" onclick="toggleUsersPanel()" title="在線用戶">👥</button>
+    <button id="toggle-help-btn" onclick="toggleHelpPanel()" title="使用說明">❓</button>
 
     <div id="users-panel">
         <div id="users-header">
@@ -292,6 +319,21 @@
             <span style="cursor:pointer;" onclick="toggleUsersPanel()">✖</span>
         </div>
         <ul id="users-list"></ul>
+    </div>
+
+    <!-- 說明面板 -->
+    <div id="tactical-help-panel">
+        <div id="help-header">
+            <span>系統使用說明</span>
+            <span style="cursor:pointer;" onclick="toggleHelpPanel()">✖</span>
+        </div>
+        <div class="help-body">
+            <ul>
+                <li><strong>座標定位：</strong>點擊 GPS 取得目前位置。</li>
+                <li><strong>圖形標籤：</strong>懸停可見微型化經緯度或標號。</li>
+                <li><strong>即時回報：</strong>點擊事件按鈕可上傳現場照片。</li>
+            </ul>
+        </div>
     </div>
 
     <div id="chat-panel">
@@ -358,7 +400,7 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
-            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'users-panel', 'chat-panel', 'event-modal'].forEach(id => {
+            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) L.DomEvent.disableClickPropagation(el);
             });
@@ -382,8 +424,6 @@
             if (document.getElementById(id)) document.getElementById(id).classList.add('active'); 
 
             const isDrawing = (tool !== 'pan' && tool !== 'locate');
-            
-            // 控制「完成繪圖」按鈕是否要顯示（僅限線條與多邊形模式）
             const finishBtn = document.getElementById('btn-finish');
             if (finishBtn) {
                 finishBtn.style.display = (tool === 'polyline' || tool === 'polygon') ? 'flex' : 'none';
@@ -491,7 +531,6 @@
             showToast("✅ 事件回報已廣播至頻道");
         }
 
-        // 共用的結束繪製核心邏輯
         function finishCurrentDrawing() {
             if (tempPoints.length < 2) {
                 showToast("⚠️ 至少需要兩個點才能完成線條或多邊形繪製");
@@ -560,7 +599,6 @@
                 }
             });
 
-            // 電腦版維持右鍵結束繪製
             map.on('contextmenu', function(e) {
                 if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
                 finishCurrentDrawing();
@@ -588,6 +626,7 @@
                     document.getElementById('toggle-info-btn').style.display = 'flex';
                     document.getElementById('toggle-chat-btn').style.display = 'flex';
                     document.getElementById('toggle-users-btn').style.display = 'flex';
+                    document.getElementById('toggle-help-btn').style.display = 'flex';
                     document.getElementById('state-room').innerText = currentRoom;
                     
                     if (currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]')) {
@@ -691,6 +730,19 @@
             if (isHidden) {
                 btn.classList.add('active');
                 renderOnlineUsers();
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+
+        // 新增：切換使用說明面板顯示與狀態
+        function toggleHelpPanel() {
+            const panel = document.getElementById('tactical-help-panel');
+            const btn = document.getElementById('toggle-help-btn');
+            const isHidden = (window.getComputedStyle(panel).display === 'none');
+            panel.style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
             }
