@@ -197,7 +197,6 @@
         .btn-gps-approx { background: #2d3748; color: #cbd5e0; border-color: #718096; }
         .btn-gps-approx:hover { background: #4a5568; color: white; }
 
-        /* 新增：搜尋彈出視窗樣式 */
         #search-modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #141619; padding: 25px; border-radius: 6px; border: 2px solid #22c55e;
@@ -305,13 +304,11 @@
         <button class="tool-btn" id="btn-locate" onclick="openGPSModal()" title="我的戰術 GPS 定位" style="margin-top: 6px !important;">
             GPS
         </button>
-        <!-- 新增：搜尋地址/座標按鈕 -->
         <button class="tool-btn" id="btn-search" onclick="openSearchModal()" title="地址或座標搜尋定位" style="color: #39ff14;">
             🔍
         </button>
     </div>
 
-    <!-- 新增：搜尋輸入對話框 -->
     <div id="search-modal">
         <h3>地址或座標搜尋</h3>
         <p style="font-size: 11px; color: #a0aec0; margin-bottom: 8px;">支援輸入完整地址或經緯度 (格式: 23.5, 121.0)</p>
@@ -423,7 +420,13 @@
         let currentTool = "pan", tempPoints = [], tempShape = null;
         let pendingEventLatLng = null, pendingPhotoBase64 = null;
         let onlineUsersList = [];
-        let searchTempMarker = null; // 搜尋產生的暫時標記
+        let searchTempMarker = null;
+
+        // ====== TDX 核心設定全域變數 ======
+        const TDX_CLIENT_ID = 'ych19860118-f5cbb355-4a95-4a40'; 
+        const TDX_CLIENT_SECRET = '53fa7d06-35ec-465b-8eae-0257d371c5a6';
+        let tdxAccessToken = '';
+        let tdxCctvMarkersLayerGroup = null; // 用於統一管理 CCTV 圖層切換與清除
 
         function getFormattedTime() {
             const now = new Date();
@@ -458,6 +461,9 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
+            // 初始化 CCTV 圖層群組
+            tdxCctvMarkersLayerGroup = L.layerGroup().addTo(map);
+
             ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) L.DomEvent.disableClickPropagation(el);
@@ -495,6 +501,7 @@
                 finishBtn.style.display = (tool === 'polyline' || tool === 'polygon') ? 'flex' : 'none';
             }
             
+            // 繪圖模式隱藏現有協同圖資物件
             Object.values(allMapLayers).forEach(item => {
                 if (item.layer) {
                     if (isDrawing) {
@@ -524,6 +531,15 @@
                     }
                 }
             });
+
+            // 繪圖模式隱藏 CCTV 圖層
+            if (tdxCctvMarkersLayerGroup) {
+                if (isDrawing) {
+                    if (map.hasLayer(tdxCctvMarkersLayerGroup)) map.removeLayer(tdxCctvMarkersLayerGroup);
+                } else {
+                    if (!map.hasLayer(tdxCctvMarkersLayerGroup)) map.addLayer(tdxCctvMarkersLayerGroup);
+                }
+            }
 
             if (tool === 'event') {
                 showToast("請在地圖上點擊要回報事件的位置");
@@ -799,6 +815,9 @@
                 allEventLayers = {};
                 showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資與事件！");
             });
+
+            // ====== 地圖與 Socket 就緒後，非同步啟動 TDX 連線驗證與載入 ======
+            getTDXToken();
         }
 
         function renderOnlineUsers() {
@@ -1198,7 +1217,6 @@
             document.getElementById('gps-modal').style.display = 'none';
         }
 
-        /* 新增：開啟與關閉搜尋對話框 */
         function openSearchModal() {
             switchTool('search');
             document.getElementById('search-modal').style.display = 'flex';
@@ -1208,13 +1226,11 @@
             switchTool('pan');
         }
 
-        /* 新增：執行地址轉座標或座標直接定位的邏輯 */
         async function executeSearchLocation() {
             const query = document.getElementById('search-query-input').value.trim();
             if (!query) { alert("請輸入有效的地址或經緯度座標！"); return; }
             closeSearchModal();
 
-            // 檢查是否為直接輸入經緯度格式 (例如: 23.5, 121.0)
             const coordMatch = query.match(/^([-+]?\d{1,2}(?:\.\d+)?),\s*([-+]?\d{1,3}(?:\.\d+)?)$/);
             
             if (coordMatch) {
@@ -1225,7 +1241,6 @@
                 searchTempMarker = L.marker([lat, lng]).addTo(map).bindPopup(`📍 座標定位: ${lat}, ${lng}`).openPopup();
                 showToast("✅ 已成功根據座標定位");
             } else {
-                // 透過 Nominatim 搜尋地址
                 showToast("🔍 正在查詢地址，請稍候...");
                 const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
                 try {
@@ -1292,6 +1307,95 @@
                 },
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
+        }
+
+        // ====== 新增：TDX 驗證與 CCTV 圖層抓取邏輯 ======
+        async function getTDXToken() {
+            const authUrl = 'https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token';
+            const details = {
+                'grant_type': 'client_credentials',
+                'client_id': TDX_CLIENT_ID,
+                'client_secret': TDX_CLIENT_SECRET
+            };
+
+            const formBody = Object.keys(details)
+                .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key]))
+                .join('&');
+
+            try {
+                const response = await fetch(authUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formBody
+                });
+                
+                if (!response.ok) throw new Error('TDX Token 取得失敗');
+                const data = await response.json();
+                tdxAccessToken = data.access_token;
+                console.log('TDX Token 驗證成功');
+                
+                // 驗證成功後，自動抓取 CCTV 觀測站資料
+                fetchTdxCCTVData();
+            } catch (error) {
+                console.error('TDX 驗證程序錯誤:', error);
+                showToast("❌ TDX 認證失敗，即時路況圖層載入中斷");
+            }
+        }
+
+        async function fetchTdxCCTVData() {
+            // 預設撈取 200 筆測試，可自由調整 $top 數量
+            const cctvUrl = 'https://tdx.transportdata.tw/api/basic/v2/Road/CCTV/InterCity?$top=200&$format=JSON';
+
+            try {
+                const response = await fetch(cctvUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${tdxAccessToken}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) throw new Error('CCTV 資料網址請求失敗');
+                const data = await response.json();
+                
+                if (!data.CCTVs || data.CCTVs.length === 0) return;
+
+                // 建立霓虹綠戰術風格的 CCTV 圖標
+                const cctvIcon = L.divIcon({
+                    html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#39ff14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.7));"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`,
+                    className: 'tactical-cctv-marker',
+                    iconAnchor: [12, 12]
+                });
+
+                data.CCTVs.forEach(cctv => {
+                    const lat = cctv.Position.PositionLat;
+                    const lng = cctv.Position.PositionLon;
+                    const videoUrl = cctv.VideoStreamURL; 
+                    const cctvName = cctv.CCTVName || '未命名觀測點';
+
+                    if (lat && lng && videoUrl) {
+                        const marker = L.marker([lat, lng], { icon: cctvIcon });
+                        
+                        // 彈出視窗完美適配 .popup-menu 的戰術科技面板樣式
+                        marker.bindPopup(`
+                            <div class="popup-menu" style="min-width:280px;">
+                                <b style="color:#39ff14;">📷 TDX 交通即時影像</b><br>
+                                <small style="color:gray;">觀測點：${cctvName}</small><br>
+                                <div style="margin-top:8px; border:1px solid #2d3748; border-radius:3px; overflow:hidden; background:#0b0c0e; height:160px; display:flex; align-items:center; justify-content:center;">
+                                    <img src="${videoUrl}" alt="即時路況影像載入中..." style="width:100%; height:100%; object-fit:contain;" onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<span style=\'color:#ef4444;font-size:11px;\'>⚠️ 影像串流暫時中斷</span>';">
+                                </div>
+                            </div>
+                        `);
+                        
+                        // 將 Marker 加入獨立的群組 layer 中
+                        tdxCctvMarkersLayerGroup.addLayer(marker);
+                    }
+                });
+                
+                showToast("✅ TDX 即時路況 CCTV 載入完成");
+            } catch (error) {
+                console.error('抓取 TDX CCTV 發生錯誤:', error);
+            }
         }
     </script>
 </body>
