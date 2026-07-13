@@ -21,45 +21,40 @@ let roomTimers = {};
 
 const ADMIN_SECRET = "adminyu"; 
 
-// 💡 新增：快取變數（道路阻斷與 CCTV）
+// 快取變數（道路阻斷與 CCTV）
 let cachedDisasterData = { data: null, timestamp: 0 };
 let cachedCCTVData = { data: null, timestamp: 0 };
 
-// 💡 新增：提供道路阻斷與 CCTV 的代理 API (防止前端 CORS 阻擋)
+// 提供道路阻斷與 CCTV 的代理 API (防止前端 CORS 阻擋)
 app.get('/api/road-disaster', async (req, res) => {
     const now = Date.now();
-    // 快取 5 分鐘
     if (cachedDisasterData.data && (now - cachedDisasterData.timestamp < 300000)) {
         return res.json(cachedDisasterData.data);
     }
     try {
-        // 替換為實際的 NCDR / 公路局開放資料 API 網址
-        const response = await axios.get('https://eocdss.ncdr.nat.gov.tw/api/road_disaster_or_opendata_url', {
-            timeout: 5000
-        });
+        // 如果還沒有真實 API，請替換成你的來源；若沒有則會安全降級回傳空結構
+        const targetUrl = process.env.ROAD_API_URL || 'https://example.com/api/road'; 
+        const response = await axios.get(targetUrl, { timeout: 3000 });
         cachedDisasterData = { data: response.data, timestamp: now };
         res.json(response.data);
     } catch (error) {
-        // 若外部 API 暫時連不上，回傳預設結構或前一次快取，避免前端崩潰
-        res.json(cachedDisasterData.data || { features: [] });
+        // 回傳符合 Leaflet geoJSON 可以解析的空結構
+        res.json(cachedDisasterData.data || { type: "FeatureCollection", features: [] });
     }
 });
 
 app.get('/api/cctv-list', async (req, res) => {
     const now = Date.now();
-    // 快取 10 分鐘
     if (cachedCCTVData.data && (now - cachedCCTVData.timestamp < 600000)) {
         return res.json(cachedCCTVData.data);
     }
     try {
-        // 替換為實際的交通部/NCDR CCTV 開放資料來源
-        const response = await axios.get('https://eocdss.ncdr.nat.gov.tw/api/cctv_or_opendata_url', {
-            timeout: 5000
-        });
+        const targetUrl = process.env.CCTV_API_URL || 'https://example.com/api/cctv';
+        const response = await axios.get(targetUrl, { timeout: 3000 });
         cachedCCTVData = { data: response.data, timestamp: now };
         res.json(response.data);
     } catch (error) {
-        res.json(cachedCCTVData.data || { features: [] });
+        res.json(cachedCCTVData.data || { type: "FeatureCollection", features: [] });
     }
 });
 
