@@ -32,13 +32,11 @@ app.get('/api/road-disaster', async (req, res) => {
         return res.json(cachedDisasterData.data);
     }
     try {
-        // 如果還沒有真實 API，請替換成你的來源；若沒有則會安全降級回傳空結構
         const targetUrl = process.env.ROAD_API_URL || 'https://example.com/api/road'; 
         const response = await axios.get(targetUrl, { timeout: 3000 });
         cachedDisasterData = { data: response.data, timestamp: now };
         res.json(response.data);
     } catch (error) {
-        // 回傳符合 Leaflet geoJSON 可以解析的空結構
         res.json(cachedDisasterData.data || { type: "FeatureCollection", features: [] });
     }
 });
