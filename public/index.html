@@ -640,23 +640,21 @@
                 }
             });
 
-            // 支援右鍵與桌機/觸控裝置的 contextmenu 事件結束繪圖
             map.on('contextmenu', function(e) {
                 if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
                 finishCurrentDrawing();
             });
 
-            // 強化行動端觸控長按（Touch Long-press）支援
             let touchTimer = null;
             const mapContainer = map.getContainer();
 
             mapContainer.addEventListener('touchstart', function(e) {
                 if (currentTool === 'pan' || currentTool === 'locate' || currentTool === 'event') return;
-                if (e.touches.length !== 1) return; // 確保只有單指觸控
+                if (e.touches.length !== 1) return;
                 
                 touchTimer = setTimeout(function() {
                     finishCurrentDrawing();
-                }, 600); // 600 毫秒判定為長按
+                }, 600);
             }, { passive: true });
 
             mapContainer.addEventListener('touchmove', function() {
