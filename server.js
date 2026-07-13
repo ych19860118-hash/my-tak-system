@@ -3,10 +3,11 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
+const axios = require('axios'); // 用於後端抓取國道/公路攝影機資料
 
 // 放大 JSON 請求主體容量限制（允許接收較大的圖片 Base64 數據）
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -19,6 +20,37 @@ let rooms = {
     "公開頻道(震災)": { password: "", objects: [], events: [] }
 };
 let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
+let globalCCTVData = []; // 快取即時攝影機資料
+
+// 定期更新即時攝影機資料（以交通部 / TDX 開放資料或標準端點為例）
+async function fetchCCTVData() {
+    try {
+        // 實務上可串接高公局或 TDX 之 CCTV 介接網址
+        const response = await axios.get('https://tdx.transportdata.tw/api/basic/v2/Road/Traffic/CCTV?$format=JSON', {
+            timeout: 10000
+        });
+        if (Array.isArray(response.data)) {
+            globalCCTVData = response.data.map(item => ({
+                id: item.CCTVID || item.StationID,
+                name: item.CCTVName || (item.RoadName ? item.RoadName + ' 攝影機' : '路況攝影機'),
+                lat: item.Position?.PositionLat || item.Geometry?.coordinates?.[1],
+                lng: item.Position?.PositionLon || item.Geometry?.coordinates?.[0],
+                streamUrl: item.VideoStreamURL || item.LiveStreamURL || ''
+            })).filter(c => c.lat && c.lng);
+        }
+    } catch (err) {
+        console.log("CCTV API 資料抓取暫時使用備用機制或略過:", err.message);
+    }
+}
+
+// 啟動時抓取一次，並每 30 分鐘更新一次快取
+fetchCCTVData();
+setInterval(fetchCCTVData, 30 * 60 * 1000);
+
+// 提供前端取得即時攝影機的 API
+app.get('/api/cctv', (req, res) => {
+    res.json({ success: true, data: globalCCTVData });
+});
 
 // 🔐 定義最高指揮官專屬密鑰
 const ADMIN_SECRET = "adminyu"; 
@@ -170,12 +202,10 @@ io.on('connection', (socket) => {
 
         rooms[myRoom].events.push(enrichedEvent);
         io.to(myRoom).emit('event_added', enrichedEvent);
-        console.log(`【新事件回報】房間 ${myRoom} 由 ${myName} 回報：${enrichedEvent.category}`);
     });
 
     socket.on('delete_event', (eventId) => {
         if (!myRoom || !rooms[myRoom]) return;
-        
         const targetEvent = rooms[myRoom].events.find(e => e.id === eventId);
         const activeName = socket.myName || myName;
         const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
@@ -184,9 +214,6 @@ io.on('connection', (socket) => {
         if (isAdmin || isOwner) {
             rooms[myRoom].events = rooms[myRoom].events.filter(e => e.id !== eventId);
             io.to(myRoom).emit('event_deleted', eventId);
-            console.log(`【事件刪除成功】事件 ${eventId} 已由 ${activeName} 刪除`);
-        } else {
-            console.log(`事件刪除被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
@@ -200,9 +227,6 @@ io.on('connection', (socket) => {
         if (isAdmin || isCreator) {
             rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
             io.to(myRoom).emit('object_deleted', objectId);
-            console.log(`【物件刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
-        } else {
-            console.log(`物件刪除被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
@@ -214,19 +238,14 @@ io.on('connection', (socket) => {
             rooms[myRoom].objects = [];
             rooms[myRoom].events = []; 
             io.to(myRoom).emit('clear_all_objects');
-            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資與事件已由指揮官 ${activeName} 清空`);
-        } else {
-            console.log(`清空被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
     socket.on('disconnect', () => {
         if (!myRoom) return;
-        
         if (myName) {
             io.to(myRoom).emit('user_notification', { name: myName, action: 'left' });
         }
-        
         sendUserCount(myRoom);
 
         const adapter = io.sockets.adapter;
@@ -240,7 +259,6 @@ io.on('connection', (socket) => {
 
         if (currentCount === 0) {
             if (roomTimers[myRoom]) clearTimeout(roomTimers[myRoom]);
-            
             roomTimers[myRoom] = setTimeout(() => {
                 if (rooms[myRoom]) {
                     if (myRoom === "公開頻道(風災)" || myRoom === "公開頻道(震災)") {
@@ -249,7 +267,6 @@ io.on('connection', (socket) => {
                     } else {
                         delete rooms[myRoom];
                     }
-                    console.log(`應變房間 ${myRoom} 已超過 10 分鐘無人在線，物件與事件已被伺服器自動清空銷毀。`);
                 }
                 delete roomTimers[myRoom];
             }, 10 * 60 * 1000); 
@@ -257,7 +274,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// 💡 修正：同時廣播人數與在線用戶名單陣列
 function sendUserCount(roomName) {
     const adapter = io.sockets.adapter;
     let userNames = [];
@@ -282,7 +298,7 @@ function sendUserCount(roomName) {
     }
 
     io.to(roomName).emit('update_user_count', count);
-    io.to(roomName).emit('update_user_list', userNames); // 傳送具體用戶資訊陣列
+    io.to(roomName).emit('update_user_list', userNames);
 }
 
 const PORT = process.env.PORT || 3000;
