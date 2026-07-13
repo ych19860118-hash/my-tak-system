@@ -380,10 +380,10 @@
             <ul>
                 <li><strong>新增回報點：</strong>點擊，可新增事件地點標籤。</li>
                 <li><strong>即時事件回報：</strong>預設多種事件選項，並可上傳圖片說明狀況。</li>
-                <li><strong>線條工具：</strong>透過點選繪製線條，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面」</li>
+                <li><strong>線條工具：</strong>透過點選繪製線條，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面]</li>
                 <li><strong>方形工具：</strong>給予兩點進行方形範圍標記。(對角線)</li>
                 <li><strong>圓形工具：</strong>給予兩點進行圓形範圍標記。(圓心/半徑)</li>
-                <li><strong>多邊形工具：</strong>透過點選繪製多邊形範圍，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面」</li>
+                <li><strong>多邊形工具：</strong>透過點選繪製多邊形範圍，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面]</li>
                 <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
                 <li><strong>搜尋工具：</strong>可輸入地址或經緯度直接飛至該地點。</li>
             </ul>
@@ -1309,7 +1309,7 @@
             );
         }
 
-        // ====== 新增：TDX 驗證與 CCTV 圖層抓取邏輯 ======
+        // ====== 新增/修正：TDX 驗證與 CCTV 圖層抓取邏輯 ======
         async function getTDXToken() {
             const authUrl = 'https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token';
             const details = {
@@ -1343,7 +1343,7 @@
         }
 
         async function fetchTdxCCTVData() {
-            // 預設撈取 200 筆測試，可自由調整 $top 數量
+            // 撈取省道/國道路況 CCTV 
             const cctvUrl = 'https://tdx.transportdata.tw/api/basic/v2/Road/CCTV/InterCity?$top=200&$format=JSON';
 
             try {
@@ -1355,10 +1355,15 @@
                     }
                 });
                 
-                if (!response.ok) throw new Error('CCTV 資料網址請求失敗');
-                const data = await response.json();
+                if (!response.ok) throw new Error(`CCTV 資料請求失敗，狀態碼: ${response.status}`);
+                let rawData = await response.json();
                 
-                if (!data.CCTVs || data.CCTVs.length === 0) return;
+                // 防呆機制：相容 TDX 回傳直接是陣列或是包在屬性（CCTVs / CCTVInfos）裡面的格式
+                const cctvList = Array.isArray(rawData) ? rawData : (rawData.CCTVs || rawData.CCTVInfos || []);
+                if (cctvList.length === 0) {
+                    console.warn("未取得任何 CCTV 節點資料");
+                    return;
+                }
 
                 // 建立霓虹綠戰術風格的 CCTV 圖標
                 const cctvIcon = L.divIcon({
@@ -1367,11 +1372,15 @@
                     iconAnchor: [12, 12]
                 });
 
-                data.CCTVs.forEach(cctv => {
-                    const lat = cctv.Position.PositionLat;
-                    const lng = cctv.Position.PositionLon;
-                    const videoUrl = cctv.VideoStreamURL; 
-                    const cctvName = cctv.CCTVName || '未命名觀測點';
+                cctvList.forEach(cctv => {
+                    // 相容性檢查：相容大寫 LAT/LON 與大小寫混和的 Lat/Lon 欄位
+                    const pos = cctv.Position || {};
+                    const lat = pos.PositionLAT || pos.PositionLat;
+                    const lng = pos.PositionLON || pos.PositionLon;
+                    
+                    // 相容性檢查：相容直接在外層的 VideoStreamURL 或包在 SurveillanceCaptureDevice 下的屬性
+                    const videoUrl = cctv.VideoStreamURL || (cctv.SurveillanceCaptureDevice && cctv.SurveillanceCaptureDevice.VideoStreamURL); 
+                    const cctvName = cctv.CCTVName || cctv.LinkID || '未命名觀測點';
 
                     if (lat && lng && videoUrl) {
                         const marker = L.marker([lat, lng], { icon: cctvIcon });
@@ -1395,6 +1404,7 @@
                 showToast("✅ TDX 即時路況 CCTV 載入完成");
             } catch (error) {
                 console.error('抓取 TDX CCTV 發生錯誤:', error);
+                showToast("❌ 無法解析 TDX CCTV 資料");
             }
         }
     </script>
