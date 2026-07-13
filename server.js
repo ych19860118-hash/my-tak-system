@@ -252,7 +252,7 @@ io.on('connection', (socket) => {
                     console.log(`應變房間 ${myRoom} 已超過 10 分鐘無人在線，物件與事件已被伺服器自動清空銷毀。`);
                 }
                 delete roomTimers[myRoom];
-            }, 4 * 60 * 60 * 1000);
+            }, 8 * 60 * 60 * 1000);
         }
     });
 });
