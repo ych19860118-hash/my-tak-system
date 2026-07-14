@@ -359,8 +359,25 @@
     <button id="toggle-info-btn" onclick="toggleStatusPanel()" title="系統狀態">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
     </button>
-    <button id="toggle-chat-btn" onclick="toggleChatPanel()" title="頻道聊天室">
+    <!-- 💡 已修改：加上相對定位 style 並放入 #chat-badge 紅點標記 -->
+    <button id="toggle-chat-btn" onclick="toggleChatPanel()" title="頻道聊天室" style="position: relative;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        <span id="chat-badge" style="
+            display: none; 
+            position: absolute; 
+            top: -3px; 
+            right: -3px; 
+            background-color: #ef4444; 
+            color: #ffffff; 
+            font-size: 9px; 
+            font-weight: bold; 
+            border-radius: 50%; 
+            padding: 1px 5px; 
+            line-height: 1;
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+            font-family: monospace;
+            z-index: 1002;
+        ">0</span>
     </button>
     <button id="toggle-users-btn" onclick="toggleUsersPanel()" title="在線用戶">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -432,6 +449,8 @@
         let pendingEventLatLng = null, pendingPhotoBase64 = null;
         let onlineUsersList = [];
         let searchTempMarker = null; 
+        // 💡 新增：全域未讀訊息計數變數
+        let unreadChatCount = 0;
 
         function getFormattedTime() {
             const now = new Date();
@@ -764,14 +783,13 @@
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
             socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
             socket.on('history_chats', function(chats) {
-    if (Array.isArray(chats)) {
-        // 清空一下舊的（避免重複加載），再依序倒回聊天室
-        document.getElementById('chat-messages').innerHTML = '';
-        chats.forEach(chat => {
-            appendChatMessage(chat.sender, chat.message, chat.time);
-        });
-    }
-});
+                if (Array.isArray(chats)) {
+                    document.getElementById('chat-messages').innerHTML = '';
+                    chats.forEach(chat => {
+                        appendChatMessage(chat.sender, chat.message, chat.time);
+                    });
+                }
+            });
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
             
             socket.on('update_user_list', (users) => {
@@ -784,8 +802,30 @@
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
             });
 
+            // 💡 已修改：在新訊息進來時判斷是否要亮起未讀紅點
             socket.on('receive_chat', function(data) {
                 appendChatMessage(data.sender, data.message, data.time);
+                
+                const panel = document.getElementById('chat-panel');
+                const isHidden = (window.getComputedStyle(panel).display === 'none');
+                
+                if (isHidden) {
+                    unreadChatCount++;
+                    const badge = document.getElementById('chat-badge');
+                    if (badge) {
+                        badge.textContent = unreadChatCount;
+                        badge.style.display = 'block';
+                        
+                        badge.animate([
+                            { transform: 'scale(1)' },
+                            { transform: 'scale(1.3)' },
+                            { transform: 'scale(1)' }
+                        ], {
+                            duration: 200,
+                            iterations: 1
+                        });
+                    }
+                }
             });
 
             socket.on('event_added', function(evtData) {
@@ -923,6 +963,7 @@
             }
         }
 
+        // 💡 已修改：點開聊天室時自動歸零未讀數並隱藏紅點
         function toggleChatPanel() {
             const panel = document.getElementById('chat-panel');
             const btn = document.getElementById('toggle-chat-btn');
@@ -933,6 +974,14 @@
                 document.getElementById('chat-input').focus();
                 const msgBox = document.getElementById('chat-messages');
                 msgBox.scrollTop = msgBox.scrollHeight;
+
+                // 💡 歸零未讀數、隱藏紅點 Badge
+                unreadChatCount = 0;
+                const badge = document.getElementById('chat-badge');
+                if (badge) {
+                    badge.textContent = '0';
+                    badge.style.display = 'none';
+                }
             } else {
                 btn.classList.remove('active');
             }
