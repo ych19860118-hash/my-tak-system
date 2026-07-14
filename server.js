@@ -15,10 +15,15 @@ app.use('/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet
 
 // 核心記憶體資料庫
 let rooms = {
-    "公開頻道(風災)": { password: "", objects: [], events: [] }, 
-    "公開頻道(震災)": { password: "", objects: [], events: [] }
+    // 💡 修改部分：為預設的公開頻道加上對話歷史紀錄的儲存陣列 chatHistory
+    "公開頻道(風災)": { password: "", objects: [], events: [], chatHistory: [] }, 
+    "公開頻道(震災)": { password: "", objects: [], events: [], chatHistory: [] }
 };
-let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器
+
+// 💡 修改部分：用來備份「已被自動刪除之頻道」歷史對話的獨立記憶體資料庫
+let chatHistoryBackups = {}; 
+
+let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器（依需求，此處為 8 小時倒數）
 
 // 🔐 定義最高指揮官專屬密鑰
 const ADMIN_SECRET = "adminyu"; 
@@ -41,10 +46,14 @@ app.post('/api/login', (req, res) => {
     }
 
     if (!rooms[rName]) {
+        // 💡 修改部分：當新建立頻道時，初始化 chatHistory 陣列
+        // 並且，如果這個頻道過去被刪除過，但有留下歷史對話備份，我們就把它倒回去新頻道中
+        const savedHistory = chatHistoryBackups[rName] || [];
         rooms[rName] = {
             password: roomPassword ? roomPassword.trim() : "",
             objects: [],
-            events: []
+            events: [],
+            chatHistory: savedHistory 
         };
     } else {
         if (rooms[rName].password !== "" && rooms[rName].password !== roomPassword.trim()) {
@@ -117,6 +126,9 @@ io.on('connection', (socket) => {
         // 登入時同步回傳歷史物件與歷史事件
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
         socket.emit('history_events', rooms[myRoom] ? rooms[myRoom].events : []);
+        
+        // 💡 修改部分：登入時同步發送過去留下來的歷史對話給剛進來的使用者
+        socket.emit('history_chats', rooms[myRoom] && rooms[myRoom].chatHistory ? rooms[myRoom].chatHistory : []);
 
         sendUserCount(myRoom);
         io.to(myRoom).emit('user_notification', { name: myName, action: 'joined' });
@@ -135,17 +147,38 @@ io.on('connection', (socket) => {
             message: messageText.trim(),
             time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
         };
+        
+        // 💡 修改部分：將對話存入該房間的 chatHistory 記憶體中
+        if (rooms[myRoom]) {
+            if (!rooms[myRoom].chatHistory) {
+                rooms[myRoom].chatHistory = [];
+            }
+            rooms[myRoom].chatHistory.push(chatData);
+        }
+        
         io.to(myRoom).emit('receive_chat', chatData);
     });
 
     socket.on('share_media', (data) => {
         if (!myRoom || !myName) return;
-        io.to(myRoom).emit('receive_media', {
+        
+        const mediaChatData = {
             sender: myName,
             mediaType: data.mediaType,
             mediaData: data.mediaData,
-            fileName: data.fileName
-        });
+            fileName: data.fileName,
+            time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
+        };
+
+        // 💡 修改部分：如果傳送的是圖片等媒體檔案，同樣將其存入歷史對話中，供後續人員讀取
+        if (rooms[myRoom]) {
+            if (!rooms[myRoom].chatHistory) {
+                rooms[myRoom].chatHistory = [];
+            }
+            rooms[myRoom].chatHistory.push(mediaChatData);
+        }
+
+        io.to(myRoom).emit('receive_media', mediaChatData);
     });
 
     socket.on('new_object', (objData) => {
@@ -213,8 +246,9 @@ io.on('connection', (socket) => {
         if (isAdmin && myRoom && rooms[myRoom]) {
             rooms[myRoom].objects = [];
             rooms[myRoom].events = []; 
+            rooms[myRoom].chatHistory = []; // 💡 修改部分：管理者強制手動清空時，對話也一併清空
             io.to(myRoom).emit('clear_all_objects');
-            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資與事件已由指揮官 ${activeName} 清空`);
+            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資、事件與聊天對話已由指揮官 ${activeName} 清空`);
         } else {
             console.log(`清空被拒絕：操作者 (${activeName}) 權限不足`);
         }
@@ -241,18 +275,26 @@ io.on('connection', (socket) => {
         if (currentCount === 0) {
             if (roomTimers[myRoom]) clearTimeout(roomTimers[myRoom]);
             
+            // 💡 修改部分：無人在線後的定時自動銷毀邏輯 (設定為 8 小時)
             roomTimers[myRoom] = setTimeout(() => {
                 if (rooms[myRoom]) {
+                    // 在刪除頻道前，先將該頻道的 chatHistory 儲存到獨立的備份庫裡面，保留對話內容
+                    if (rooms[myRoom].chatHistory && rooms[myRoom].chatHistory.length > 0) {
+                        chatHistoryBackups[myRoom] = rooms[myRoom].chatHistory;
+                        console.log(`[備份成功] 房間 ${myRoom} 即將銷毀，已備份其 ${rooms[myRoom].chatHistory.length} 筆歷史對話。`);
+                    }
+
                     if (myRoom === "公開頻道(風災)" || myRoom === "公開頻道(震災)") {
                         rooms[myRoom].objects = [];
                         rooms[myRoom].events = [];
+                        // 公開頻道不刪除房間本身，但我們依舊不清空對話紀錄（保留歷史訊息）
                     } else {
                         delete rooms[myRoom];
                     }
-                    console.log(`應變房間 ${myRoom} 已超過 10 分鐘無人在線，物件與事件已被伺服器自動清空銷毀。`);
+                    console.log(`應變房間 ${myRoom} 已超過 8 小時無人在線，圖資與地標物件已被伺服器自動清空銷毀。`);
                 }
                 delete roomTimers[myRoom];
-            }, 8 * 60 * 60 * 1000);
+            }, 8 * 60 * 60 * 1000); // 8小時的毫秒數：8 * 60 * 60 * 1000
         }
     });
 });
