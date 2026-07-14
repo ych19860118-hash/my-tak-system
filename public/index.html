@@ -439,10 +439,31 @@
             document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
         }
 
-        function checkRoomType() {
-            const select = document.getElementById('room-select').value;
-            document.getElementById('custom-room-name').style.display = (select === 'custom') ? 'block' : 'none';
-        }
+function checkRoomType() {
+    const select = document.getElementById('room-select').value;
+    const pwdInput = document.getElementById('room-password');
+    const customRoomInput = document.getElementById('custom-room-name');
+    
+    // 顯示或隱藏自訂房間輸入框
+    customRoomInput.style.display = (select === 'custom') ? 'block' : 'none';
+    
+    // 判斷是否為公開頻道
+    if (select.startsWith("公開頻道")) {
+        pwdInput.value = "";
+        pwdInput.placeholder = "公開頻道免密碼即可進入";
+        pwdInput.disabled = true; // 禁用輸入，避免使用者困惑
+        pwdInput.style.opacity = "0.6";
+        
+        // 顯示提示訊息在錯誤欄位（或你可以自訂一個提示區塊）
+        document.getElementById('login-error').style.color = "#39ff14"; // 改為綠色提示
+        document.getElementById('login-error').innerText = "提示：公開頻道不需輸入密碼。";
+    } else {
+        pwdInput.placeholder = "SECURE ACCESS KEY (房間密碼)";
+        pwdInput.disabled = false;
+        pwdInput.style.opacity = "1";
+        document.getElementById('login-error').innerText = "";
+    }
+}
 
         function showToast(message) {
             const container = document.getElementById('toast-container');
