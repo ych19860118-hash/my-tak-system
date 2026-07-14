@@ -763,6 +763,15 @@
             socket.emit('join_room', { roomName: currentRoom, username: currentUser });
             socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
             socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
+            socket.on('history_chats', function(chats) {
+    if (Array.isArray(chats)) {
+        // 清空一下舊的（避免重複加載），再依序倒回聊天室
+        document.getElementById('chat-messages').innerHTML = '';
+        chats.forEach(chat => {
+            appendChatMessage(chat.sender, chat.message, chat.time);
+        });
+    }
+});
             socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
             
             socket.on('update_user_list', (users) => {
