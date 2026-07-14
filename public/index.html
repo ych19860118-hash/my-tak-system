@@ -965,27 +965,38 @@
 
         // 💡 已修改：點開聊天室時自動歸零未讀數並隱藏紅點
         function toggleChatPanel() {
-            const panel = document.getElementById('chat-panel');
-            const btn = document.getElementById('toggle-chat-btn');
-            const isHidden = (window.getComputedStyle(panel).display === 'none');
-            panel.style.display = isHidden ? 'flex' : 'none';
-            if (isHidden) {
-                btn.classList.add('active');
-                document.getElementById('chat-input').focus();
-                const msgBox = document.getElementById('chat-messages');
-                msgBox.scrollTop = msgBox.scrollHeight;
-
-                // 💡 歸零未讀數、隱藏紅點 Badge
-                unreadChatCount = 0;
-                const badge = document.getElementById('chat-badge');
-                if (badge) {
-                    badge.textContent = '0';
-                    badge.style.display = 'none';
-                }
-            } else {
-                btn.classList.remove('active');
-            }
+    const panel = document.getElementById('chat-panel');
+    const btn = document.getElementById('toggle-chat-btn');
+    
+    // 確保能正確抓取到目前的 display 狀態
+    const currentDisplay = window.getComputedStyle(panel).display;
+    const isHidden = (currentDisplay === 'none');
+    
+    if (isHidden) {
+        // 開啟聊天室：顯示面板並將按鈕設為 active
+        panel.style.display = 'flex';
+        btn.classList.add('active');
+        
+        // 自動聚焦輸入框並滾動到最新訊息
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.focus();
+        
+        const msgBox = document.getElementById('chat-messages');
+        if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+        
+        // 💡 歸零未讀數、隱藏紅點 Badge
+        unreadChatCount = 0;
+        const badge = document.getElementById('chat-badge');
+        if (badge) {
+            badge.textContent = '0';
+            badge.style.display = 'none';
         }
+    } else {
+        // 關閉聊天室：隱藏面板並取消按鈕 active 狀態
+        panel.style.display = 'none';
+        btn.classList.remove('active');
+    }
+}
 
         function sendChat() {
             const input = document.getElementById('chat-input');
