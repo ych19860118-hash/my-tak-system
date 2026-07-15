@@ -1335,191 +1335,122 @@
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
-// ==========================================================
-// RainViewer 雷達雨量圖層開關 (預設關閉) + 點擊地圖顯示即時溫度與中暑熱危害旗幟
-// ==========================================================
+// ==========================================
+// 新增功能：繪製區域時顯示該區域內的平均溫濕度
+// ==========================================
 (function() {
-    let radarLayer = null;
-    let isRadarVisible = false; // 【修改 1】預設改為關閉 (false)
+    // 輔助函式：判定點是否在多邊形/方形內 (Ray-casting 演算法)
+    function isPointInPolygon(latlng, layer) {
+        // 針對 Leaflet 不同的多邊形結構做相容性處理
+        const latlngs = layer.getLatLngs()[0];
+        const x = latlng.lng, y = latlng.lat;
+        let inside = false;
+        
+        // 處理可能有巢狀陣列的情況 (Leaflet 多邊形常有這狀況)
+        const coords = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+        
+        for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+            const xi = coords[i].lng, yi = coords[i].lat;
+            const xj = coords[j].lng, yj = coords[j].lat;
+            
+            const intersect = ((yi > y) !== (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
 
-    // 1. 初始化雷達圖層與建立自訂開關
-    function initWeatherFeatures(mapInstance) {
-        if (!mapInstance) return;
+    // 監聽 Leaflet.draw 建立圖形的事件
+    map.on(L.Draw.Event.CREATED, function (e) {
+        const layer = e.layer;
+        const layerType = e.layerType; // 'rectangle', 'circle', 'polygon'
+        
+        // 確保圖形被加入地圖 (若您原本的程式碼已經有這行，可將這行註解掉)
+        if (typeof drawnItems !== 'undefined') {
+            drawnItems.addLayer(layer);
+        } else {
+            layer.addTo(map);
+        }
 
-        // ------------------ 功能 A：載入 RainViewer 雷達圖 ------------------
-        fetch('https://api.rainviewer.com/public/weather-maps.json')
-            .then(response => response.json())
-            .then(data => {
-                if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
+        // 只針對 矩形、圓形、多邊形 進行計算
+        if (layerType === 'rectangle' || layerType === 'circle' || layerType === 'polygon') {
+            let totalTemp = 0;
+            let totalHumid = 0;
+            let stationCount = 0;
 
-                const latestRadar = data.radar.past[data.radar.past.length - 1];
-                const path = latestRadar.path;
-                const host = data.host;
-                const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
+            // 1. 蒐集地圖上所有既有的 Marker (測站)
+            // 這裡會自動掃描地圖上所有帶有氣象資料的點
+            map.eachLayer(function(l) {
+                // 排除剛畫上去的圖形本身，只抓取一般的 Marker
+                if (l instanceof L.Marker && l !== layer) {
+                    let latlng = l.getLatLng();
+                    let isInside = false;
 
-                radarLayer = L.tileLayer(radarUrl, {
-                    attribution: '<a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>',
-                    opacity: 0.5,
-                    zIndex: 999
-                });
-
-                // 【修改 2】移除原本在此處的 radarLayer.addTo(mapInstance); 
-                // 這樣一開始地圖上就不會載入雨量圖層
-
-                // 建立一個漂浮在畫面上的「雨量圖層切換按鈕」
-                createLayerToggleButton(mapInstance);
-            })
-            .catch(err => console.error("RainViewer 載入失敗:", err));
-
-        // ------------------ 功能 B：點擊地圖顯示即時天氣與中暑危險係數 ------------------
-        mapInstance.on('click', function(e) {
-            const lat = e.latlng.lat.toFixed(4);
-            const lng = e.latlng.lng.toFixed(4);
-
-            // 建立一個載入中的 Popup 提示
-            const popup = L.popup()
-                .setLatLng(e.latlng)
-                .setContent(`<div style="font-family: sans-serif; font-size:13px; padding: 5px;">⏳ 正在查詢 [${lat}, ${lng}] 的天氣與熱危害指標...</div>`)
-                .openOn(mapInstance);
-
-            // 呼叫開源天氣 API 查詢該經緯度氣溫
-            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
-                .then(response => {
-                    if (!response.ok) throw new Error("天氣資料查詢失敗");
-                    return response.json();
-                })
-                .then(weatherData => {
-                    const current = weatherData.current;
-                    const temp = current.temperature_2m;
-                    const humidity = current.relative_humidity_2m;
-                    const code = current.weather_code;
-
-                    // --- 計算中暑危險係數 ---
-                    const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
-
-                    // 判斷旗幟等級、顏色與防護警語
-                    let flagEmoji = "🔵";
-                    let flagText = "藍旗 (注意)";
-                    let flagColor = "#3b82f6"; // 藍色
-                    let adviceText = "正常作息，充分補充水分。";
-
-                    if (heatIndex >= 35 && heatIndex < 40) {
-                        flagEmoji = "🟡";
-                        flagText = "黃旗 (警戒)";
-                        flagColor = "#eab308"; // 黃色
-                        adviceText = "避免劇烈運動，強制飲水與休息。";
-                    } else if (heatIndex >= 40) {
-                        flagEmoji = "🔴";
-                        flagText = "紅旗 (危險)";
-                        flagColor = "#ef4444"; // 紅色
-                        adviceText = "嚴禁高強度訓練，注意熱衰竭與中暑！";
+                    // 2. 判斷該測站是否在繪製的區域內
+                    if (layerType === 'rectangle' || layerType === 'polygon') {
+                        isInside = isPointInPolygon(latlng, layer);
+                    } else if (layerType === 'circle') {
+                        const center = layer.getLatLng();
+                        const radius = layer.getRadius(); // 單位：公尺
+                        isInside = center.distanceTo(latlng) <= radius;
                     }
 
-                    // 解析天氣代碼
-                    let weatherDesc = "多雲時晴";
-                    if (code === 0) weatherDesc = "☀️ 晴朗無雲";
-                    else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
-                    else if (code >= 45 && code <= 48) weatherDesc = "🌫️ 霧氣籠罩";
-                    else if (code >= 51 && code <= 67) weatherDesc = "🌧️ 細雨/陣雨";
-                    else if (code >= 71 && code <= 77) weatherDesc = "❄️ 降雪";
-                    else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
-                    else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
-
-                    // 渲染漂亮的氣象與中暑危險係數資訊
-                    const content = `
-                        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 170px; line-height: 1.4;">
-                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 即時氣象與熱危害</h4>
-                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-                                <span style="font-size: 22px; font-weight: bold; color: #1e293b;">${temp}°C</span>
-                                <span style="font-size: 12px; color: #64748b;">${weatherDesc}</span>
-                            </div>
-                            <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">濕度: ${humidity}%</div>
-                            
-                            <!-- 中暑危險係數區塊 -->
-                            <div style="background-color: #f8fafc; border-left: 4px solid ${flagColor}; padding: 6px 8px; border-radius: 0 4px 4px 0; margin-bottom: 6px;">
-                                <div style="font-size: 11px; color: #64748b; font-weight: 500;">中暑危險係數</div>
-                                <div style="font-size: 16px; font-weight: bold; color: ${flagColor};">${heatIndex}</div>
-                                <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">${flagEmoji} ${flagText}</div>
-                            </div>
-                            
-                            <!-- 防護建議 -->
-                            <div style="font-size: 11px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 4px; font-weight: 500;">
-                                💡 建議: ${adviceText}
-                            </div>
-                        </div>
-                    `;
-                    popup.setContent(content);
-                })
-                .catch(err => {
-                    console.error("天氣 API 錯誤:", err);
-                    popup.setContent(`<div style="color: red; font-size: 12px;">❌ 無法取得該點天氣與係數資訊</div>`);
-                });
-        });
-    }
-
-    // 2. 在地圖右上角生成一個開關按鈕
-    // 2. 在地圖左上角生成一個開關按鈕
-    function createLayerToggleButton(mapInstance) {
-        const toggleControl = L.control({ position: 'topleft' });
-
-        toggleControl.onAdd = function() {
-            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-            div.style.backgroundColor = '#ffffff';
-            div.style.padding = '8px 12px';
-            div.style.cursor = 'pointer';
-            div.style.fontWeight = 'bold';
-            div.style.fontSize = '13px';
-            div.style.borderRadius = '6px';
-            div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-            div.style.userSelect = 'none';
-            
-            // 【修正關鍵】往右推 65px，完美靠在直式工具列的右手邊
-            div.style.marginLeft = '65px';  
-            div.style.marginTop = '12px';   
-
-            // 預設關閉狀態
-            div.innerHTML = '☔圖層ON';
-            div.style.color = '#64748b';
-
-            L.DomEvent.on(div, 'click', function(e) {
-                L.DomEvent.stopPropagation(e);
-                if (isRadarVisible) {
-                    mapInstance.removeLayer(radarLayer);
-                    div.innerHTML = '☔圖層ON';
-                    div.style.color = '#64748b';
-                } else {
-                    mapInstance.addLayer(radarLayer);
-                    div.innerHTML = '☔圖層OFF';
-                    div.style.color = '#000000';
+                    // 3. 如果在區域內，嘗試抓取它原本彈出視窗(Popup)或圖層屬性裡的溫濕度資料
+                    if (isInside) {
+                        let temp = null;
+                        let humid = null;
+                        
+                        // 嘗試從現有的 Popup 文字中解析溫濕度 (以您畫面上的格式為基礎)
+                        if (l.getPopup && l.getPopup()) {
+                            const html = l.getPopup().getContent();
+                            if (typeof html === 'string') {
+                                // 透過正規表達式抓取例如 "22.9°C" 或 "濕度: 85%" 的數字
+                                const tempMatch = html.match(/([\d.]+)\s*°C/);
+                                const humidMatch = html.match(/(?:濕度|湿度)\s*:\s*([\d.]+)/) || html.match(/([\d.]+)\s*%/);
+                                if (tempMatch) temp = parseFloat(tempMatch[1]);
+                                if (humidMatch) humid = parseFloat(humidMatch[1]);
+                            }
+                        }
+                        
+                        // 如果有成功抓到溫濕度數值，則納入平均計算
+                        if (temp !== null && humid !== null) {
+                            totalTemp += temp;
+                            totalHumid += humid;
+                            stationCount++;
+                        }
+                    }
                 }
-                isRadarVisible = !isRadarVisible;
             });
 
-            return div;
-        };
-
-        toggleControl.addTo(mapInstance);
-    }
-
-    // 3. 自動偵測地圖物件並執行
-    const detectInterval = setInterval(() => {
-        let foundMap = null;
-        if (typeof map !== 'undefined' && map instanceof L.Map) {
-            foundMap = map;
-        } else {
-            for (let key in window) {
-                if (window[key] instanceof L.Map) {
-                    foundMap = window[key];
-                    break;
-                }
+            // 4. 組裝彈出視窗 (Popup) 顯示內容
+            let popupContent = "";
+            if (stationCount > 0) {
+                const avgTemp = (totalTemp / stationCount).toFixed(1);
+                const avgHumid = (totalHumid / stationCount).toFixed(0);
+                
+                popupContent = `
+                    <div style="font-family: sans-serif; padding: 5px; min-width: 150px;">
+                        <h4 style="margin: 0 0 8px 0; color: #0284c7; font-size: 14px;">📊 區域平均氣象</h4>
+                        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 6px 0;">
+                        <p style="margin: 4px 0; font-size: 13px;"><b>涵蓋測站：</b> ${stationCount} 個</p>
+                        <p style="margin: 4px 0; font-size: 14px;"><b>平均溫度：</b> <span style="color: #ef4444; font-weight: bold;">${avgTemp} °C</span></p>
+                        <p style="margin: 4px 0; font-size: 14px;"><b>平均濕度：</b> <span style="color: #3b82f6; font-weight: bold;">${avgHumid} %</span></p>
+                    </div>
+                `;
+            } else {
+                popupContent = `
+                    <div style="font-family: sans-serif; padding: 5px;">
+                        <h4 style="margin: 0 0 4px 0; color: #64748b; font-size: 14px;">📊 區域平均氣象</h4>
+                        <p style="margin: 4px 0; color: #666; font-size: 12px;">此範圍內無氣象觀測站數據。</p>
+                    </div>
+                `;
             }
-        }
 
-        if (foundMap) {
-            clearInterval(detectInterval);
-            initWeatherFeatures(foundMap);
+            // 5. 算出圖形的中心點，並在該處彈出視窗
+            const popupPosition = layer.getBounds ? layer.getBounds().getCenter() : layer.getLatLng();
+            layer.bindPopup(popupContent).openPopup(popupPosition);
         }
-    }, 500);
+    });
 })();
     </script>
 </body>
