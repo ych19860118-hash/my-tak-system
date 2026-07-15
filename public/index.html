@@ -1457,9 +1457,10 @@
         });
     }
 
-    // 2. 在地圖右上角生成一個開關按鈕
+    // 2. 在地圖左上角生成一個開關按鈕
     function createLayerToggleButton(mapInstance) {
-        const toggleControl = L.control({ position: 'topright' });
+        // 【修改 1】位置改為 topleft
+        const toggleControl = L.control({ position: 'topleft' });
 
         toggleControl.onAdd = function() {
             const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
@@ -1472,7 +1473,11 @@
             div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
             div.style.userSelect = 'none';
             
-            // 【修改 3】按鈕初始化時，外觀改為預設關閉狀態（灰色字、文字顯示為「開啟」）
+            // 【修改 2】加上左邊距與上邊距，避開你的左側直式工具列與地圖邊緣
+            div.style.marginLeft = '12px';  // 往右推一點，避免跟左側工具列重疊
+            div.style.marginTop = '12px';   // 往下一點，比較美觀
+
+            // 預設關閉狀態
             div.innerHTML = '☔ 開啟雨量圖層';
             div.style.color = '#64748b';
 
@@ -1495,7 +1500,6 @@
 
         toggleControl.addTo(mapInstance);
     }
-
     // 3. 自動偵測地圖物件並執行
     const detectInterval = setInterval(() => {
         let foundMap = null;
