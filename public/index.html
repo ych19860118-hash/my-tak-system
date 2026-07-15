@@ -82,7 +82,8 @@
         .popup-menu button { width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 2px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         .popup-menu button.del-btn { background: #e53e3e; }
         
-        .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
+        .control-pin-icon { font-size: 16px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
+        .vertex-pin-icon { font-size: 12px; line-height: 1; background: #141619; border: 2px solid #39ff14; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 5px rgba(57,255,20,0.8); }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
         
         #toggle-info-btn {
@@ -228,7 +229,7 @@
         .event-popup-img { width: 100%; max-height: 150px; object-fit: cover; margin-top: 6px; border-radius: 3px; cursor: pointer; }
 
         #typhoon-info {
-            position: absolute; bottom: 68px; right: 12px; background: #141619; 
+            position: absolute; bottom: 68px; right: 1200px; background: #141619; 
             padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
             border: 2px solid #22c55e; font-size: 12px; display: none; 
             max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
@@ -393,6 +394,7 @@
                 <li><strong>方形工具：</strong>給予兩點進行方形範圍標記。(對角線)</li>
                 <li><strong>圓形工具：</strong>給予兩點進行圓形範圍標記。(圓心/半徑)</li>
                 <li><strong>多邊形工具：</strong>透過點選繪製多邊形範圍，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面]</li>
+                <li><strong>錨點調整：</strong>點擊自己繪製的線條或多邊形，即可拉動各個頂點錨點即時調整形狀。</li>
                 <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
                 <li><strong>搜尋工具：</strong>可輸入地址或經緯度直接飛至該地點。</li>
             </ul>
@@ -539,6 +541,12 @@
                 if (item.resizePin) {
                     if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
                     else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
+                }
+                if (item.vertexPins) {
+                    item.vertexPins.forEach(vp => {
+                        if (isDrawing) { if (map.hasLayer(vp)) map.removeLayer(vp); }
+                        else { if (!map.hasLayer(vp)) vp.addTo(map); }
+                    });
                 }
             });
 
@@ -825,6 +833,7 @@
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
                     delete allMapLayers[id];
                 }
             });
@@ -834,6 +843,7 @@
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
                 });
                 Object.keys(allEventLayers).forEach(id => {
                     map.removeLayer(allEventLayers[id].layer);
@@ -978,6 +988,7 @@
                 map.removeLayer(allMapLayers[data.id].layer);
                 if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
                 if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
+                if (allMapLayers[data.id].vertexPins) allMapLayers[data.id].vertexPins.forEach(vp => map.removeLayer(vp));
                 delete allMapLayers[data.id];
             }
 
@@ -1013,7 +1024,7 @@
             if (!isCurrentlyDrawing) {
                 mainLayer.addTo(map);
             }
-            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
+            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, vertexPins: [], creator: data.creator };
 
             if (data.shapeType === "marker") {
                 mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
@@ -1050,7 +1061,10 @@
                     startLatLng = nextLatLng; 
                 });
 
-                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                controlPin.on('dragend', function() { 
+                    syncGeometryChanges(data, mainLayer); 
+                    refreshVertexPins(data, mainLayer);
+                });
 
                 if (data.shapeType === "circle" || data.shapeType === "rectangle") {
                     const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
@@ -1072,6 +1086,12 @@
                     });
                     resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
                 }
+
+                // 針對線條與多邊形動態建立錨點頂點控制
+                if (data.shapeType === "polyline" || data.shapeType === "polygon") {
+                    createVertexPins(data, mainLayer, isCurrentlyDrawing);
+                }
+
             } else if ((isMyObject || isAdmin) && data.shapeType === "marker") {
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
@@ -1082,10 +1102,7 @@
             }
 
             mainLayer.on('click', function(e) {
-                // 如果不是導覽或 GPS 模式，則不執行（避免干擾繪圖模式）
                 if (currentTool !== 'pan' && currentTool !== 'locate') return;
-                
-                // 阻止事件繼續傳遞給地圖底層，由圖形自己處理
                 L.DomEvent.stopPropagation(e);
 
                 const clickLatLng = e.latlng;
@@ -1128,7 +1145,6 @@
                             <button onclick="updateObject('${data.id}')">儲存修改</button>
                             <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
                             
-                            <!-- 預留氣象動態載入區塊 -->
                             <div id="popup-weather-${data.id}" style="margin-top:12px; border-top:1px dashed #2d3748; padding-top:8px; color:#cbd5e0;">
                                 ⏳ 正在查詢此點熱危害指標...
                             </div>
@@ -1141,7 +1157,6 @@
                             <b>內容：</b>${data.message}<br>
                             <small style="color:gray;">回報員: ${data.creator}</small>
                             
-                            <!-- 預留氣象動態載入區塊 -->
                             <div id="popup-weather-${data.id}" style="margin-top:12px; border-top:1px dashed #2d3748; padding-top:8px; color:#cbd5e0;">
                                 ⏳ 正在查詢此點熱危害指標...
                             </div>
@@ -1202,6 +1217,94 @@
             });
         }
 
+        // 建立線條與多邊形的頂點控制錨點
+        function createVertexPins(data, mainLayer, isCurrentlyDrawing) {
+            const latlngs = mainLayer.getLatLngs();
+            const flatLatLngs = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+
+            flatLatLngs.forEach((latlng, index) => {
+                const vertexPin = L.marker(latlng, {
+                    draggable: true,
+                    icon: L.divIcon({ html: '', className: 'vertex-pin-icon' })
+                });
+
+                if (!isCurrentlyDrawing) {
+                    vertexPin.addTo(map);
+                }
+
+                vertexPin.on('drag', function(e) {
+                    const newLatLng = e.latlng;
+                    const currentCoords = mainLayer.getLatLngs();
+                    
+                    if (data.shapeType === "polyline") {
+                        currentCoords[index] = newLatLng;
+                        mainLayer.setLatLngs(currentCoords);
+                    } else if (data.shapeType === "polygon") {
+                        currentCoords[0][index] = newLatLng;
+                        mainLayer.setLatLngs(currentCoords);
+                    }
+                    
+                    if (allMapLayers[data.id] && allMapLayers[data.id].pin) {
+                        const newCenter = mainLayer.getBounds().getCenter();
+                        allMapLayers[data.id].pin.setLatLng(newCenter);
+                    }
+                });
+
+                vertexPin.on('dragend', function() {
+                    syncGeometryChanges(data, mainLayer);
+                    refreshVertexPins(data, mainLayer);
+                });
+
+                allMapLayers[data.id].vertexPins.push(vertexPin);
+            });
+        }
+
+        function refreshVertexPins(data, mainLayer) {
+            if (!allMapLayers[data.id]) return;
+            allMapLayers[data.id].vertexPins.forEach(vp => map.removeLayer(vp));
+            allMapLayers[data.id].vertexPins = [];
+
+            const latlngs = mainLayer.getLatLngs();
+            const flatLatLngs = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+
+            flatLatLngs.forEach((latlng, index) => {
+                const vertexPin = L.marker(latlng, {
+                    draggable: true,
+                    icon: L.divIcon({ html: '', className: 'vertex-pin-icon' })
+                });
+
+                const isDrawing = (currentTool !== 'pan' && currentTool !== 'locate' && currentTool !== 'search');
+                if (!isDrawing) {
+                    vertexPin.addTo(map);
+                }
+
+                vertexPin.on('drag', function(e) {
+                    const newLatLng = e.latlng;
+                    const currentCoords = mainLayer.getLatLngs();
+                    
+                    if (data.shapeType === "polyline") {
+                        currentCoords[index] = newLatLng;
+                        mainLayer.setLatLngs(currentCoords);
+                    } else if (data.shapeType === "polygon") {
+                        currentCoords[0][index] = newLatLng;
+                        mainLayer.setLatLngs(currentCoords);
+                    }
+
+                    if (allMapLayers[data.id] && allMapLayers[data.id].pin) {
+                        const newCenter = mainLayer.getBounds().getCenter();
+                        allMapLayers[data.id].pin.setLatLng(newCenter);
+                    }
+                });
+
+                vertexPin.on('dragend', function() {
+                    syncGeometryChanges(data, mainLayer);
+                    refreshVertexPins(data, mainLayer);
+                });
+
+                allMapLayers[data.id].vertexPins.push(vertexPin);
+            });
+        }
+
         function syncGeometryChanges(data, mainLayer) {
             let currentCoordinates = null, currentRadius = null;
             if (data.shapeType === "circle") {
@@ -1225,6 +1328,7 @@
                     map.removeLayer(allMapLayers[objectId].layer);
                     if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
                     if (allMapLayers[objectId].resizePin) map.removeLayer(allMapLayers[objectId].resizePin);
+                    if (allMapLayers[objectId].vertexPins) allMapLayers[objectId].vertexPins.forEach(vp => map.removeLayer(vp));
                     delete allMapLayers[objectId];
                 }
                 socket.emit('delete_object', objectId);
@@ -1241,6 +1345,7 @@
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                    if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
                     socket.emit('delete_object', id);
                 });
                 Object.keys(allEventLayers).forEach(id => {
@@ -1284,7 +1389,7 @@
                 }
 
                 const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
-                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
+                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin); if (cache.vertexPins) cache.vertexPins.forEach(vp => map.removeLayer(vp));
                 delete allMapLayers[objectId];
                 renderObjectOnMap(updatedData);
                 socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
@@ -1404,13 +1509,11 @@
 // ==========================================================
 (function() {
     let radarLayer = null;
-    let isRadarVisible = false; // 預設關閉
+    let isRadarVisible = false;
 
-    // 1. 初始化雷達圖層與建立自訂開關
     function initWeatherFeatures(mapInstance) {
         if (!mapInstance) return;
 
-        // ------------------ 功能 A：載入 RainViewer 雷達圖 ------------------
         fetch('https://api.rainviewer.com/public/weather-maps.json')
             .then(response => response.json())
             .then(data => {
@@ -1427,14 +1530,11 @@
                     zIndex: 999
                 });
 
-                // 建立一個漂浮在畫面上的「雨量圖層切換按鈕」
                 createLayerToggleButton(mapInstance);
             })
             .catch(err => console.error("RainViewer 載入失敗:", err));
 
-        // ------------------ 功能 B：點擊地圖顯示即時天氣與中暑危險係數 (針對空白處點擊) ------------------
         mapInstance.on('click', function(e) {
-            // 如果目前是在繪製模式，或者點擊行為已經被圖形物件的點擊事件攔截處理，則跳過空白處的邏輯
             if (currentTool !== 'pan' && currentTool !== 'locate') return;
 
             const lat = e.latlng.lat.toFixed(4);
@@ -1513,7 +1613,6 @@
         });
     }
 
-    // 2. 在地圖左上角生成一個開關按鈕
     function createLayerToggleButton(mapInstance) {
         const toggleControl = L.control({ position: 'topleft' });
 
@@ -1554,7 +1653,6 @@
         toggleControl.addTo(mapInstance);
     }
 
-    // 3. 自動偵測地圖物件並執行
     const detectInterval = setInterval(() => {
         let foundMap = null;
         if (typeof map !== 'undefined' && map instanceof L.Map) {
