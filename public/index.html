@@ -262,6 +262,33 @@
             background: #9b1c1c !important; border-color: #ef4444 !important; color: #fca5a5 !important; margin-top: 10px !important; display: none;
         }
         #admin-clear-btn:hover { background: #ef4444 !important; color: #0d0e10 !important; }
+
+        /* Dark Theme overrides for RainViewer toggle button matching COP tactical style */
+        .leaflet-bar.tactical-layer-control {
+            background: #141619 !important;
+            border: 1px solid #22c55e !important;
+            border-radius: 6px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+        }
+        .leaflet-bar.tactical-layer-control a {
+            background: #1a1d21 !important;
+            color: #39ff14 !important;
+            font-family: 'Courier New', Courier, monospace, sans-serif !important;
+            font-weight: bold !important;
+            font-size: 12px !important;
+            text-decoration: none !important;
+            border-radius: 4px !important;
+            border: 1px solid #2d3748 !important;
+            width: auto !important;
+            height: auto !important;
+            padding: 8px 12px !important;
+            line-height: normal !important;
+        }
+        .leaflet-bar.tactical-layer-control a:hover {
+            background: #22c55e !important;
+            color: #0d0e10 !important;
+            border-color: #39ff14 !important;
+        }
     </style>
 </head>
 <body>
@@ -1617,32 +1644,24 @@
         const toggleControl = L.control({ position: 'topleft' });
 
         toggleControl.onAdd = function() {
-            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-            div.style.backgroundColor = '#ffffff';
-            div.style.padding = '8px 12px';
-            div.style.cursor = 'pointer';
-            div.style.fontWeight = 'bold';
-            div.style.fontSize = '13px';
-            div.style.borderRadius = '6px';
-            div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-            div.style.userSelect = 'none';
-            
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control tactical-layer-control');
             div.style.marginLeft = '65px';  
             div.style.marginTop = '12px';   
 
-            div.innerHTML = '☔圖層ON';
-            div.style.color = '#64748b';
-
-            L.DomEvent.on(div, 'click', function(e) {
+            const a = L.DomUtil.create('a', '', div);
+            a.href = '#';
+            a.innerHTML = '☔圖層ON';
+            
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.on(a, 'click', function(e) {
+                L.DomEvent.preventDefault(e);
                 L.DomEvent.stopPropagation(e);
                 if (isRadarVisible) {
                     mapInstance.removeLayer(radarLayer);
-                    div.innerHTML = '☔圖層ON';
-                    div.style.color = '#64748b';
+                    a.innerHTML = '☔圖層ON';
                 } else {
                     mapInstance.addLayer(radarLayer);
-                    div.innerHTML = '☔圖層OFF';
-                    div.style.color = '#000000';
+                    a.innerHTML = '☔圖層OFF';
                 }
                 isRadarVisible = !isRadarVisible;
             });
