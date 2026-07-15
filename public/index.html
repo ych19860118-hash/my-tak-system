@@ -1056,8 +1056,7 @@
 
                 if (data.shapeType === "circle" || data.shapeType === "rectangle") {
                     const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '📐', className: 'resize-pin-icon' }) });
-                    if (!isCurrentlyDrawing) resizePin.addTo(map);
+const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '<i class="fa-solid fa-maximize" style="color: #39ff14; font-size: 14px;"></i>', className: 'resize-pin-icon' }) });                    if (!isCurrentlyDrawing) resizePin.addTo(map);
                     allMapLayers[data.id].resizePin = resizePin;
 
                     resizePin.on('drag', function(e) {
