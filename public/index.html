@@ -787,23 +787,25 @@
             });
 
 // 當接收到新訊息時
+// 當接收到新訊息時
             socket.on('receive_chat', function(data) {
                 appendChatMessage(data.sender, data.message, data.time);
 
-                // 檢查目前聊天室面板是否為「關閉（隱藏）」狀態
                 const chatPanel = document.getElementById('chat-panel');
                 const isHidden = (window.getComputedStyle(chatPanel).display === 'none');
 
                 if (isHidden) {
-                    // 1. 顯示紅點
+                    // 紅點顯示（你已經成功的部分）
                     const badge = document.getElementById('chat-badge');
                     if (badge) badge.style.display = 'block';
 
-                    // 2. 播放提示音
+                    // 【優化音效播放】
                     const sound = document.getElementById('chat-sound');
                     if (sound) {
+                        sound.currentTime = 0; // 重設播放時間回到最開始，防止連續觸發時卡住
                         sound.play().catch(err => {
-                            console.log('播放音效被瀏覽器安全政策阻擋，需要點擊網頁任意處激活：', err);
+                            // 如果被阻擋，會在瀏覽器主控台 (F12 -> Console) 印出原因
+                            console.error('音效播放失敗，原因：', err);
                         });
                     }
                 }
