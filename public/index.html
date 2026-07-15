@@ -973,11 +973,14 @@
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
-        function renderObjectOnMap(data) {
+function renderObjectOnMap(data) {
             if (allMapLayers[data.id]) {
                 map.removeLayer(allMapLayers[data.id].layer);
                 if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
                 if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
+                if (allMapLayers[data.id].vertexPins) {
+                    allMapLayers[data.id].vertexPins.forEach(p => map.removeLayer(p));
+                }
                 delete allMapLayers[data.id];
             }
 
@@ -1013,7 +1016,7 @@
             if (!isCurrentlyDrawing) {
                 mainLayer.addTo(map);
             }
-            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
+            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, vertexPins: [], creator: data.creator };
 
             if (data.shapeType === "marker") {
                 mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
@@ -1022,56 +1025,94 @@
             }
 
             if ((isMyObject || isAdmin) && data.shapeType !== "marker") {
-                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
-                if (!isCurrentlyDrawing) controlPin.addTo(map);
-                allMapLayers[data.id].pin = controlPin;
+                
+                // 1. 矩形、圓形保留整體的平移釘選 (📌)
+                if (data.shapeType !== "polyline" && data.shapeType !== "polygon") {
+                    const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
+                    if (!isCurrentlyDrawing) controlPin.addTo(map);
+                    allMapLayers[data.id].pin = controlPin;
 
-                controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
+                    controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
 
-                let startLatLng = centerLatLng;
-                controlPin.on('drag', function(e) {
-                    const nextLatLng = e.latlng;
-                    const offsetLat = nextLatLng.lat - startLatLng.lat;
-                    const offsetLng = nextLatLng.lng - startLatLng.lng;
+                    let startLatLng = centerLatLng;
+                    controlPin.on('drag', function(e) {
+                        const nextLatLng = e.latlng;
+                        const offsetLat = nextLatLng.lat - startLatLng.lat;
+                        const offsetLng = nextLatLng.lng - startLatLng.lng;
 
-                    if (data.shapeType === "circle") { 
-                        mainLayer.setLatLng(nextLatLng); 
-                        if (allMapLayers[data.id].resizePin) {
-                            allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
-                        }
-                    } else if (data.shapeType === "rectangle") {
-                        const b = mainLayer.getBounds();
-                        mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
-                        if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
-                    } else if (mainLayer.getLatLngs) {
-                        const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
-                        mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
-                    }
-                    startLatLng = nextLatLng; 
-                });
-
-                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
-
-                if (data.shapeType === "circle" || data.shapeType === "rectangle") {
-                    const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '⤢', className: 'resize-pin-icon' }) });                    
-                    if (!isCurrentlyDrawing) resizePin.addTo(map);
-                    allMapLayers[data.id].resizePin = resizePin;
-
-                    resizePin.on('drag', function(e) {
-                        const newPinLatLng = e.latlng;
-                        if (data.shapeType === "circle") {
-                            const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
-                            if (newRadius > 5) mainLayer.setRadius(newRadius);
+                        if (data.shapeType === "circle") { 
+                            mainLayer.setLatLng(nextLatLng); 
+                            if (allMapLayers[data.id].resizePin) {
+                                allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
+                            }
                         } else if (data.shapeType === "rectangle") {
-                            const centerP = controlPin.getLatLng();
-                            const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
-                            const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
-                            mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
+                            const b = mainLayer.getBounds();
+                            mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
+                            if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
                         }
+                        startLatLng = nextLatLng; 
                     });
-                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                    controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+
+                    if (data.shapeType === "circle" || data.shapeType === "rectangle") {
+                        const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
+                        const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '⤢', className: 'resize-pin-icon' }) });                    
+                        if (!isCurrentlyDrawing) resizePin.addTo(map);
+                        allMapLayers[data.id].resizePin = resizePin;
+
+                        resizePin.on('drag', function(e) {
+                            const newPinLatLng = e.latlng;
+                            if (data.shapeType === "circle") {
+                                const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
+                                if (newRadius > 5) mainLayer.setRadius(newRadius);
+                            } else if (data.shapeType === "rectangle") {
+                                const centerP = controlPin.getLatLng();
+                                const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
+                                const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
+                                mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
+                            }
+                        });
+                        resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                    }
+                } 
+                
+                // 2. 線條 (Polyline) 與 多邊形 (Polygon) 生成獨立頂點錨點 (🔹)
+                else if (data.shapeType === "polyline" || data.shapeType === "polygon") {
+                    const latlngs = mainLayer.getLatLngs();
+                    const pointsArray = Array.isArray(latlngs[0]) && latlngs[0][0] instanceof L.LatLng ? latlngs[0] : latlngs;
+
+                    pointsArray.forEach((latlng, index) => {
+                        const vertexMarker = L.marker(latlng, {
+                            draggable: true,
+                            icon: L.divIcon({ html: '🔹', className: 'control-pin-icon', iconSize: [14, 14] })
+                        });
+                        
+                        if (!isCurrentlyDrawing) vertexMarker.addTo(map);
+                        allMapLayers[data.id].vertexPins.push(vertexMarker);
+
+                        // 拖曳特定頂點時即時變形
+                        vertexMarker.on('drag', function() {
+                            const currentLatLngs = mainLayer.getLatLngs();
+                            if (data.shapeType === "polyline") {
+                                currentLatLngs[index] = vertexMarker.getLatLng();
+                                mainLayer.setLatLngs(currentLatLngs);
+                            } else if (data.shapeType === "polygon") {
+                                if (Array.isArray(currentLatLngs[0])) {
+                                    currentLatLngs[0][index] = vertexMarker.getLatLng();
+                                } else {
+                                    currentLatLngs[index] = vertexMarker.getLatLng();
+                                }
+                                mainLayer.setLatLngs(currentLatLngs);
+                            }
+                        });
+
+                        // 結束拖曳後自動同步給其他線上用戶
+                        vertexMarker.on('dragend', function() {
+                            syncGeometryChanges(data, mainLayer);
+                        });
+                    });
                 }
+
             } else if ((isMyObject || isAdmin) && data.shapeType === "marker") {
                 mainLayer.on('dragend', function() {
                     data.coordinates = [mainLayer.getLatLng().lat, mainLayer.getLatLng().lng];
