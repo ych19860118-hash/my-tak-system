@@ -1485,11 +1485,11 @@
                 L.DomEvent.stopPropagation(e);
                 if (isRadarVisible) {
                     mapInstance.removeLayer(radarLayer);
-                    div.innerHTML = '☔ 開啟雨量圖層';
+                    div.innerHTML = '☔圖層ON';
                     div.style.color = '#64748b';
                 } else {
                     mapInstance.addLayer(radarLayer);
-                    div.innerHTML = '☔ 關閉雨量圖層';
+                    div.innerHTML = '☔圖層OFF';
                     div.style.color = '#000000';
                 }
                 isRadarVisible = !isRadarVisible;
