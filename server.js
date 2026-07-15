@@ -15,20 +15,19 @@ app.use('/leaflet', express.static(path.join(__dirname, 'node_modules', 'leaflet
 
 // 核心記憶體資料庫
 let rooms = {
-    // 💡 修改部分：為預設的公開頻道加上對話歷史紀錄的儲存陣列 chatHistory
     "公開頻道(風災)": { password: "", objects: [], events: [], chatHistory: [] }, 
     "公開頻道(震災)": { password: "", objects: [], events: [], chatHistory: [] }
 };
 
-// 💡 修改部分：用來備份「已被自動刪除之頻道」歷史對話的獨立記憶體資料庫
+// 用來備份「已被自動刪除之頻道」歷史對話的獨立記憶體資料庫
 let chatHistoryBackups = {}; 
 
-let roomTimers = {}; // 負責紀錄每個房間的 10 分鐘倒數計時器（依需求，此處為 8 小時倒數）
+let roomTimers = {}; // 負責紀錄每個房間的 8 小時倒數計時器
 
 // 🔐 定義最高指揮官專屬密鑰
 const ADMIN_SECRET = "adminyu"; 
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { username, password, roomName, roomPassword, adminSecret } = req.body;
     const rName = roomName ? roomName.trim() : "公開頻道(風災)";
     let uName = username ? username.trim() : "";
@@ -43,11 +42,15 @@ app.post('/api/login', (req, res) => {
             return res.json({ success: false, message: "登入失敗：管理者身份驗證密鑰錯誤！" });
         }
         uName = "管理者[Admin]";
+    } else {
+        // 🚨 安全阻擋：不允許一般使用者暱稱包含 [Admin] 或 [管理者] 關鍵字，防止偽造權限
+        const lowerName = uName.toLowerCase();
+        if (lowerName.includes('admin') || lowerName.includes('管理者')) {
+            return res.json({ success: false, message: "登入失敗：非管理員暱稱不得包含 'Admin' 或 '管理者' 字眼！" });
+        }
     }
 
     if (!rooms[rName]) {
-        // 💡 修改部分：當新建立頻道時，初始化 chatHistory 陣列
-        // 並且，如果這個頻道過去被刪除過，但有留下歷史對話備份，我們就把它倒回去新頻道中
         const savedHistory = chatHistoryBackups[rName] || [];
         rooms[rName] = {
             password: roomPassword ? roomPassword.trim() : "",
@@ -61,27 +64,14 @@ app.post('/api/login', (req, res) => {
         }
     }
 
+    // 🕵️‍♂️ 暱稱重名檢查（使用相容且安全的方式獲取當前房間內 Sockets）
     let isNameTaken = false;
     try {
-        const adapter = io.sockets.adapter;
-        let roomSockets = null;
-        
-        if (adapter && typeof adapter.rooms.get === 'function') {
-            roomSockets = adapter.rooms.get(rName); 
-        } else if (adapter && adapter.rooms) {
-            roomSockets = adapter.rooms[rName]; 
-        }
-
-        if (roomSockets) {
-            const socketIds = typeof roomSockets.forEach === 'function' ? roomSockets : Object.keys(roomSockets);
-            if (socketIds && (socketIds.size > 0 || socketIds.length > 0)) {
-                for (const socketId of socketIds) {
-                    const clientSocket = io.sockets.sockets.get ? io.sockets.sockets.get(socketId) : io.sockets.sockets[socketId];
-                    if (clientSocket && clientSocket.myName === uName) {
-                        isNameTaken = true;
-                        break;
-                    }
-                }
+        const sockets = await io.in(rName).fetchSockets();
+        for (const s of sockets) {
+            if (s.myName === uName) {
+                isNameTaken = true;
+                break;
             }
         }
     } catch (e) {
@@ -114,7 +104,6 @@ io.on('connection', (socket) => {
         
         socket.myName = myName; 
         socket.myRoom = myRoom;
-        socket.roomName = myRoom; 
         
         socket.join(myRoom);
 
@@ -123,11 +112,9 @@ io.on('connection', (socket) => {
             delete roomTimers[myRoom];
         }
 
-        // 登入時同步回傳歷史物件與歷史事件
+        // 登入時同步回傳歷史資料與對話
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
         socket.emit('history_events', rooms[myRoom] ? rooms[myRoom].events : []);
-        
-        // 💡 修改部分：登入時同步發送過去留下來的歷史對話給剛進來的使用者
         socket.emit('history_chats', rooms[myRoom] && rooms[myRoom].chatHistory ? rooms[myRoom].chatHistory : []);
 
         sendUserCount(myRoom);
@@ -148,37 +135,12 @@ io.on('connection', (socket) => {
             time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
         };
         
-        // 💡 修改部分：將對話存入該房間的 chatHistory 記憶體中
         if (rooms[myRoom]) {
-            if (!rooms[myRoom].chatHistory) {
-                rooms[myRoom].chatHistory = [];
-            }
+            if (!rooms[myRoom].chatHistory) rooms[myRoom].chatHistory = [];
             rooms[myRoom].chatHistory.push(chatData);
         }
         
         io.to(myRoom).emit('receive_chat', chatData);
-    });
-
-    socket.on('share_media', (data) => {
-        if (!myRoom || !myName) return;
-        
-        const mediaChatData = {
-            sender: myName,
-            mediaType: data.mediaType,
-            mediaData: data.mediaData,
-            fileName: data.fileName,
-            time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' })
-        };
-
-        // 💡 修改部分：如果傳送的是圖片等媒體檔案，同樣將其存入歷史對話中，供後續人員讀取
-        if (rooms[myRoom]) {
-            if (!rooms[myRoom].chatHistory) {
-                rooms[myRoom].chatHistory = [];
-            }
-            rooms[myRoom].chatHistory.push(mediaChatData);
-        }
-
-        io.to(myRoom).emit('receive_media', mediaChatData);
     });
 
     socket.on('new_object', (objData) => {
@@ -211,7 +173,8 @@ io.on('connection', (socket) => {
         
         const targetEvent = rooms[myRoom].events.find(e => e.id === eventId);
         const activeName = socket.myName || myName;
-        const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
+        // 🔐 安全修正：嚴格檢查是否為登入過密鑰的 "管理者[Admin]"，避免暱稱模糊匹配漏洞
+        const isAdmin = activeName === "管理者[Admin]";
         const isOwner = targetEvent && targetEvent.sender === activeName;
 
         if (isAdmin || isOwner) {
@@ -227,7 +190,8 @@ io.on('connection', (socket) => {
         if (!myRoom || !rooms[myRoom]) return;
         const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
         const activeName = socket.myName || myName;
-        const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
+        // 🔐 安全修正：同上，採嚴格管理員名稱比對
+        const isAdmin = activeName === "管理者[Admin]";
         const isCreator = targetObj && targetObj.creator === activeName;
         
         if (isAdmin || isCreator) {
@@ -241,12 +205,12 @@ io.on('connection', (socket) => {
 
     socket.on('admin_clear_all', () => {
         const activeName = socket.myName || myName;
-        const isAdmin = activeName === "管理者[Admin]" || (activeName && activeName.includes('Admin'));
+        const isAdmin = activeName === "管理者[Admin]";
         
         if (isAdmin && myRoom && rooms[myRoom]) {
             rooms[myRoom].objects = [];
             rooms[myRoom].events = []; 
-            rooms[myRoom].chatHistory = []; // 💡 修改部分：管理者強制手動清空時，對話也一併清空
+            rooms[myRoom].chatHistory = []; 
             io.to(myRoom).emit('clear_all_objects');
             console.log(`【緊急清空】房間 ${myRoom} 的所有圖資、事件與聊天對話已由指揮官 ${activeName} 清空`);
         } else {
@@ -254,7 +218,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         if (!myRoom) return;
         
         if (myName) {
@@ -263,22 +227,16 @@ io.on('connection', (socket) => {
         
         sendUserCount(myRoom);
 
-        const adapter = io.sockets.adapter;
-        let currentCount = 0;
-        if (adapter && typeof adapter.rooms.get === 'function') {
-            const clients = adapter.rooms.get(myRoom);
-            currentCount = clients ? clients.size : 0;
-        } else if (adapter && adapter.rooms && adapter.rooms[myRoom]) {
-            currentCount = Object.keys(adapter.rooms[myRoom]).length;
-        }
+        // 偵測房間剩餘人數
+        const sockets = await io.in(myRoom).fetchSockets();
+        const currentCount = sockets.length;
 
         if (currentCount === 0) {
             if (roomTimers[myRoom]) clearTimeout(roomTimers[myRoom]);
             
-            // 💡 修改部分：無人在線後的定時自動銷毀邏輯 (設定為 8 小時)
+            // 8 小時定時自動銷毀邏輯
             roomTimers[myRoom] = setTimeout(() => {
                 if (rooms[myRoom]) {
-                    // 在刪除頻道前，先將該頻道的 chatHistory 儲存到獨立的備份庫裡面，保留對話內容
                     if (rooms[myRoom].chatHistory && rooms[myRoom].chatHistory.length > 0) {
                         chatHistoryBackups[myRoom] = rooms[myRoom].chatHistory;
                         console.log(`[備份成功] 房間 ${myRoom} 即將銷毀，已備份其 ${rooms[myRoom].chatHistory.length} 筆歷史對話。`);
@@ -287,44 +245,29 @@ io.on('connection', (socket) => {
                     if (myRoom === "公開頻道(風災)" || myRoom === "公開頻道(震災)") {
                         rooms[myRoom].objects = [];
                         rooms[myRoom].events = [];
-                        // 公開頻道不刪除房間本身，但我們依舊不清空對話紀錄（保留歷史訊息）
                     } else {
                         delete rooms[myRoom];
                     }
-                    console.log(`應變房間 ${myRoom} 已超過 8 小時無人在線，圖資與地標物件已被伺服器自動清空銷毀。`);
+                    console.log(`應變房間 ${myRoom} 已超過 8 小時無人在線，已被伺服器自動銷毀。`);
                 }
                 delete roomTimers[myRoom];
-            }, 8 * 60 * 60 * 1000); // 8小時的毫秒數：8 * 60 * 60 * 1000
+            }, 8 * 60 * 60 * 1000); 
         }
     });
 });
 
-// 💡 修正：同時廣播人數與在線用戶名單陣列
-function sendUserCount(roomName) {
-    const adapter = io.sockets.adapter;
-    let userNames = [];
-    let count = 0;
-    
-    if (adapter && typeof adapter.rooms.get === 'function') {
-        const clients = adapter.rooms.get(roomName);
-        count = clients ? clients.size : 0;
-        if (clients) {
-            for (const socketId of clients) {
-                const s = io.sockets.sockets.get(socketId);
-                if (s && s.myName) userNames.push(s.myName);
-            }
-        }
-    } else if (adapter && adapter.rooms && adapter.rooms[roomName]) {
-        const roomSockets = adapter.rooms[roomName];
-        count = Object.keys(roomSockets).length;
-        for (const socketId of Object.keys(roomSockets)) {
-            const s = io.sockets.sockets[socketId];
-            if (s && s.myName) userNames.push(s.myName);
-        }
-    }
+// 💡 升級：採用 fetchSockets 非同步取得最新在線用戶名單
+async function sendUserCount(roomName) {
+    try {
+        const sockets = await io.in(roomName).fetchSockets();
+        const count = sockets.length;
+        const userNames = sockets.map(s => s.myName).filter(Boolean);
 
-    io.to(roomName).emit('update_user_count', count);
-    io.to(roomName).emit('update_user_list', userNames); // 傳送具體用戶資訊陣列
+        io.to(roomName).emit('update_user_count', count);
+        io.to(roomName).emit('update_user_list', userNames);
+    } catch (e) {
+        console.error("更新用戶數量發生錯誤:", e);
+    }
 }
 
 const PORT = process.env.PORT || 3000;
