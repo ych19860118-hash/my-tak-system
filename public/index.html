@@ -1081,7 +1081,6 @@
                 });
             }
 
-// 將原本的 mainLayer.on('click', function(e) { ... }) 替換為以下內容：
             mainLayer.on('click', function(e) {
                 // 如果不是導覽或 GPS 模式，則不執行（避免干擾繪圖模式）
                 if (currentTool !== 'pan' && currentTool !== 'locate') return;
@@ -1093,7 +1092,6 @@
                 const clickLat = clickLatLng.lat.toFixed(4);
                 const clickLng = clickLatLng.lng.toFixed(4);
 
-                // 1. 準備基礎的圖資回報內容
                 let popupContent = "";
                 const displayTime = data.time || "無紀錄";
 
@@ -1150,14 +1148,12 @@
                         </div>`;
                 }
 
-                // 2. 決定彈窗開啟的位置並渲染基礎面板
                 if (data.shapeType === "marker") {
                     mainLayer.bindPopup(popupContent).openPopup();
                 } else {
                     mainLayer.bindPopup(popupContent).openPopup(clickLatLng);
                 }
 
-                // 3. 非同步向 Open-Meteo API 查詢點擊當下的即時天氣與熱危害，並塞入彈窗
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${clickLat}&longitude=${clickLng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
                     .then(response => {
                         if (!response.ok) throw new Error();
@@ -1196,7 +1192,6 @@
                             </div>
                         `;
                         
-                        // 動態更新當前已開啟的 Popup 內文
                         const container = document.getElementById(`popup-weather-${data.id}`);
                         if (container) container.innerHTML = weatherHTML;
                     })
@@ -1205,54 +1200,6 @@
                         if (container) container.innerHTML = `<span style="color:#ef4444; font-size:11px;">❌ 無法取得氣象資訊</span>`;
                     });
             });
-
-            let popupContent = "";
-            const displayTime = data.time || "無紀錄";
-
-            if (isMyObject || isAdmin) {
-                let fillOptionHTML = "";
-                if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
-                    fillOptionHTML = `
-                        <label>填滿模式：</label>
-                        <select id="edit-fill-${data.id}">
-                            <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
-                            <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
-                            <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
-                        </select>`;
-                }
-
-                const adminBadge = (isAdmin && !isMyObject) ? `<b style="color:#dc3545;">⚠️ 管理員權限 (編輯他人圖資)</b><br>` : "";
-
-                popupContent = `
-                    <div class="popup-menu">
-                        ${adminBadge}
-                        <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
-                        <small style="color:gray;">最後異動：${displayTime}</small><br><br>
-                        <label>修改描述：</label>
-                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                        <div>
-                            <label>邊框顏色變更：</label>
-                            <select id="edit-color-${data.id}">
-                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
-                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
-                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
-                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
-                            </select>
-                        </div>
-                        ${fillOptionHTML}
-                        <button onclick="updateObject('${data.id}')">儲存修改</button>
-                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
-                    </div>`;
-            } else {
-                popupContent = `
-                    <div class="popup-menu">
-                        <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
-                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
-                        <b>內容：</b>${data.message}<br>
-                        <small style="color:gray;">回報員: ${data.creator}</small>
-                    </div>`;
-            }
-            mainLayer.bindPopup(popupContent);
         }
 
         function syncGeometryChanges(data, mainLayer) {
@@ -1451,12 +1398,13 @@
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
+
 // ==========================================================
 // RainViewer 雷達雨量圖層開關 (預設關閉) + 點擊地圖顯示即時溫度與中暑熱危害旗幟
 // ==========================================================
 (function() {
     let radarLayer = null;
-    let isRadarVisible = false; // 【修改 1】預設改為關閉 (false)
+    let isRadarVisible = false; // 預設關閉
 
     // 1. 初始化雷達圖層與建立自訂開關
     function initWeatherFeatures(mapInstance) {
@@ -1479,26 +1427,24 @@
                     zIndex: 999
                 });
 
-                // 【修改 2】移除原本在此處的 radarLayer.addTo(mapInstance); 
-                // 這樣一開始地圖上就不會載入雨量圖層
-
                 // 建立一個漂浮在畫面上的「雨量圖層切換按鈕」
                 createLayerToggleButton(mapInstance);
             })
             .catch(err => console.error("RainViewer 載入失敗:", err));
 
-        // ------------------ 功能 B：點擊地圖顯示即時天氣與中暑危險係數 ------------------
+        // ------------------ 功能 B：點擊地圖顯示即時天氣與中暑危險係數 (針對空白處點擊) ------------------
         mapInstance.on('click', function(e) {
+            // 如果目前是在繪製模式，或者點擊行為已經被圖形物件的點擊事件攔截處理，則跳過空白處的邏輯
+            if (currentTool !== 'pan' && currentTool !== 'locate') return;
+
             const lat = e.latlng.lat.toFixed(4);
             const lng = e.latlng.lng.toFixed(4);
 
-            // 建立一個載入中的 Popup 提示
             const popup = L.popup()
                 .setLatLng(e.latlng)
                 .setContent(`<div style="font-family: sans-serif; font-size:13px; padding: 5px;">⏳ 正在查詢 [${lat}, ${lng}] 的天氣與熱危害指標...</div>`)
                 .openOn(mapInstance);
 
-            // 呼叫開源天氣 API 查詢該經緯度氣溫
             fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
                 .then(response => {
                     if (!response.ok) throw new Error("天氣資料查詢失敗");
@@ -1510,28 +1456,25 @@
                     const humidity = current.relative_humidity_2m;
                     const code = current.weather_code;
 
-                    // --- 計算中暑危險係數 ---
                     const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
 
-                    // 判斷旗幟等級、顏色與防護警語
                     let flagEmoji = "🔵";
                     let flagText = "藍旗 (注意)";
-                    let flagColor = "#3b82f6"; // 藍色
+                    let flagColor = "#3b82f6";
                     let adviceText = "正常作息，充分補充水分。";
 
                     if (heatIndex >= 35 && heatIndex < 40) {
                         flagEmoji = "🟡";
                         flagText = "黃旗 (警戒)";
-                        flagColor = "#eab308"; // 黃色
+                        flagColor = "#eab308";
                         adviceText = "避免劇烈運動，強制飲水與休息。";
                     } else if (heatIndex >= 40) {
                         flagEmoji = "🔴";
                         flagText = "紅旗 (危險)";
-                        flagColor = "#ef4444"; // 紅色
+                        flagColor = "#ef4444";
                         adviceText = "嚴禁高強度訓練，注意熱衰竭與中暑！";
                     }
 
-                    // 解析天氣代碼
                     let weatherDesc = "多雲時晴";
                     if (code === 0) weatherDesc = "☀️ 晴朗無雲";
                     else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
@@ -1541,7 +1484,6 @@
                     else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
                     else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
 
-                    // 渲染漂亮的氣象與中暑危險係數資訊
                     const content = `
                         <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 170px; line-height: 1.4;">
                             <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 即時氣象與熱危害</h4>
@@ -1551,14 +1493,12 @@
                             </div>
                             <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">濕度: ${humidity}%</div>
                             
-                            <!-- 中暑危險係數區塊 -->
                             <div style="background-color: #f8fafc; border-left: 4px solid ${flagColor}; padding: 6px 8px; border-radius: 0 4px 4px 0; margin-bottom: 6px;">
                                 <div style="font-size: 11px; color: #64748b; font-weight: 500;">中暑危險係數</div>
                                 <div style="font-size: 16px; font-weight: bold; color: ${flagColor};">${heatIndex}</div>
                                 <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">${flagEmoji} ${flagText}</div>
                             </div>
                             
-                            <!-- 防護建議 -->
                             <div style="font-size: 11px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 4px; font-weight: 500;">
                                 💡 建議: ${adviceText}
                             </div>
@@ -1573,7 +1513,6 @@
         });
     }
 
-    // 2. 在地圖右上角生成一個開關按鈕
     // 2. 在地圖左上角生成一個開關按鈕
     function createLayerToggleButton(mapInstance) {
         const toggleControl = L.control({ position: 'topleft' });
@@ -1589,11 +1528,9 @@
             div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
             div.style.userSelect = 'none';
             
-            // 【修正關鍵】往右推 65px，完美靠在直式工具列的右手邊
             div.style.marginLeft = '65px';  
             div.style.marginTop = '12px';   
 
-            // 預設關閉狀態
             div.innerHTML = '☔圖層ON';
             div.style.color = '#64748b';
 
