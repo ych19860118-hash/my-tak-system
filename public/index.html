@@ -786,10 +786,28 @@
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
             });
 
+// 當接收到新訊息時
             socket.on('receive_chat', function(data) {
                 appendChatMessage(data.sender, data.message, data.time);
-            });
 
+                // 檢查目前聊天室面板是否為「關閉（隱藏）」狀態
+                const chatPanel = document.getElementById('chat-panel');
+                const isHidden = (window.getComputedStyle(chatPanel).display === 'none');
+
+                if (isHidden) {
+                    // 1. 顯示紅點
+                    const badge = document.getElementById('chat-badge');
+                    if (badge) badge.style.display = 'block';
+
+                    // 2. 播放提示音
+                    const sound = document.getElementById('chat-sound');
+                    if (sound) {
+                        sound.play().catch(err => {
+                            console.log('播放音效被瀏覽器安全政策阻擋，需要點擊網頁任意處激活：', err);
+                        });
+                    }
+                }
+            });
             socket.on('event_added', function(evtData) {
                 renderEventOnMap(evtData);
                 showToast(`🚨 [${evtData.category}] ${evtData.sender} 剛剛回報了新狀況！`);
