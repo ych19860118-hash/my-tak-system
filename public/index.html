@@ -636,7 +636,7 @@
             if (type !== 'polyline' && type !== 'polygon') return;
             
             const msg = prompt(type === 'polyline' ? "請輸入細線說明：" : "請輸入範圍說明：") || "未命名範圍";
-            const data = { id: uniqueId, shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: type === 'polygon' ? 0.3 : 0, time: getFormattedTime() };
+            const data = { id: 'obj_' + Date.now(), shapeType: type, coordinates: JSON.parse(JSON.stringify(tempPoints)), message: msg, creator: currentUser, color: "#3388ff", fillOpacity: type === 'polygon' ? 0.3 : 0, time: getFormattedTime() };
             
             if (tempShape) {
                 map.removeLayer(tempShape);
@@ -661,7 +661,7 @@
                 
                 if (currentTool === 'marker') {
                     const msg = prompt("請輸入位置狀況：") || "未命名位置";
-                    const data = { id: uniqueId, shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
+                    const data = { id: 'obj_' + Date.now(), shapeType: "marker", coordinates: [lat, lng], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0, time: getFormattedTime() };
                     renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                 } else if (currentTool === 'polyline' || currentTool === 'polygon') {
                     tempPoints.push([lat, lng]);
@@ -678,7 +678,7 @@
                         const latMax = Math.max(tempPoints[0].lat, tempPoints[1].lat);
                         const lngMin = Math.min(tempPoints[0].lng, tempPoints[1].lng);
                         const lngMax = Math.max(tempPoints[0].lng, tempPoints[1].lng);
-                        const data = { id: uniqueId, + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0.3, time: getFormattedTime() };
+                        const data = { id: 'obj_' + Date.now(), shapeType: "rectangle", coordinates: [[latMin, lngMin], [latMax, lngMax]], message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0.3, time: getFormattedTime() };
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
                 } else if (currentTool === 'circle') {
@@ -688,7 +688,7 @@
                     } else {
                         const radius = map.distance(L.latLng(tempPoints[0].lat, tempPoints[0].lng), L.latLng(lat, lng));
                         const msg = prompt("請輸入圓形範圍說明：") || "未命名圓形";
-                        const data = { id: uniqueId, + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0.3, time: getFormattedTime() };
+                        const data = { id: 'obj_' + Date.now(), shapeType: "circle", coordinates: [tempPoints[0].lat, tempPoints[0].lng], radius: radius, message: msg, creator: currentUser, color: "#3388ff", fillOpacity: 0.3, time: getFormattedTime() };
                         if (tempShape) map.removeLayer(tempShape);
                         renderObjectOnMap(data); socket.emit('new_object', data); switchTool('pan');
                     }
@@ -1308,77 +1308,41 @@
             }
         }
 
-function updateObject(objectId) {
-    if (allMapLayers[objectId]) {
-        const cache = allMapLayers[objectId];
-        
-        // 【關鍵修正 1】先抓取 DOM 元素
-        const msgEl = document.getElementById(`edit-msg-${objectId}`);
-        const colorEl = document.getElementById(`edit-color-${objectId}`);
-        const fillEl = document.getElementById(`edit-fill-${objectId}`);
+        function updateObject(objectId) {
+            const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
+            const newColor = document.getElementById(`edit-color-${objectId}`).value;
+            const fillSelect = document.getElementById(`edit-fill-${objectId}`);
+            const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
 
-        // 【關鍵修正 2】如果 Popup 已經關閉，導致 msgEl 變成 null，則防護跳出，不讓程式報錯當機
-        if (!msgEl) {
-            showToast("⚠️ 找不到編輯欄位，請重新點擊物件進行編輯。");
-            return;
+            if (allMapLayers[objectId]) {
+                const cache = allMapLayers[objectId];
+                const isCircle = !!cache.layer.options.radius;
+                const isRect = !isCircle && cache.layer instanceof L.Rectangle;
+                const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
+                const isPolyline = cache.layer instanceof L.Polyline && !(cache.layer instanceof L.Polygon);
+                let sType = "polygon"; 
+                if (isCircle) sType = "circle"; else if (isRect) sType = "rectangle"; else if (isMarker) sType = "marker"; else if (isPolyline) sType = "polyline";
+
+                let currentCoordinates = null, currentRadius = null;
+                if (isCircle) {
+                    currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; currentRadius = cache.layer.getRadius();
+                } else if (isRect) {
+                    const b = cache.layer.getBounds();
+                    currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
+                } else if (isMarker) {
+                    currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
+                } else {
+                    const rawLatLngs = cache.layer.getLatLngs();
+                    currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
+                }
+
+                const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
+                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
+                delete allMapLayers[objectId];
+                renderObjectOnMap(updatedData);
+                socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
+            }
         }
-
-        // 【關鍵修正 3】安全取值，若取不到 color 或 fill 則使用原圖層的屬性作為備份 (Fallback)
-        const newMsg = msgEl.value.trim();
-        const newColor = colorEl ? colorEl.value : (cache.layer.options.color || "#3388ff");
-        const newFillOpacity = fillEl ? parseFloat(fillEl.value) : 0;
-
-        // --- 以下為您原本的圖資轉換與發送邏輯，保持不變 ---
-        const isCircle = !!cache.layer.options.radius;
-        const isRect = !isCircle && cache.layer instanceof L.Rectangle;
-        const isMarker = !isCircle && !isRect && (cache.layer instanceof L.Marker);
-        const isPolyline = cache.layer instanceof L.Polyline && !(cache.layer instanceof L.Polygon);
-        
-        let sType = "polygon"; 
-        if (isCircle) sType = "circle"; 
-        else if (isRect) sType = "rectangle"; 
-        else if (isMarker) sType = "marker"; 
-        else if (isPolyline) sType = "polyline";
-
-        let currentCoordinates = null, currentRadius = null;
-        if (isCircle) {
-            currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng]; 
-            currentRadius = cache.layer.getRadius();
-        } else if (isRect) {
-            const b = cache.layer.getBounds();
-            currentCoordinates = [[b.getSouthWest().lat, b.getSouthWest().lng], [b.getNorthEast().lat, b.getNorthEast().lng]];
-        } else if (isMarker) {
-            currentCoordinates = [cache.layer.getLatLng().lat, cache.layer.getLatLng().lng];
-        } else {
-            const rawLatLngs = cache.layer.getLatLngs();
-            currentCoordinates = Array.isArray(rawLatLngs[0]) ? rawLatLngs.map(ring => ring.map(p => [p.lat, p.lng])) : rawLatLngs.map(p => [p.lat, p.lng]);
-        }
-
-        const updatedData = { 
-            id: objectId, 
-            shapeType: sType, 
-            coordinates: currentCoordinates, 
-            radius: currentRadius, 
-            message: newMsg, 
-            color: newColor, 
-            fillOpacity: newFillOpacity, 
-            creator: cache.creator, 
-            time: getFormattedTime() 
-        };
-
-        map.removeLayer(cache.layer); 
-        if (cache.pin) map.removeLayer(cache.pin); 
-        if (cache.resizePin) map.removeLayer(cache.resizePin);
-        delete allMapLayers[objectId];
-
-        renderObjectOnMap(updatedData);
-        
-        socket.emit('delete_object', objectId); 
-        socket.emit('new_object', updatedData);
-        
-        showToast("✅ 圖資修改已成功同步！");
-    }
-}
 
         function toggleStatusPanel() {
             const panel = document.getElementById('typhoon-info');
