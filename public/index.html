@@ -995,17 +995,29 @@
                 });
                 mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
                 centerLatLng = L.latLng(pts);
+if (data.shapeType === "marker") {
+                const svgColor = data.color || "#3388ff";
+                const customMarkerIcon = L.divIcon({
+                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
+                    className: 'tactical-svg-marker'
+                });
+                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
+                centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
-                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
+                // 將 weight 改為動態讀取，預設是 4
+                mainLayer = L.polyline(pts, { color: data.color, weight: data.weight || 4 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
+                // 將 weight 改為動態讀取，預設是 4
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: data.weight || 4 });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
-                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
+                // 將 weight 改為動態讀取，預設是 4
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: data.weight || 4 });
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polygon") {
-                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
+                // 將 weight 改為動態讀取，預設是 4
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: data.weight || 4 });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
             }
             if (!mainLayer) return;
@@ -1118,13 +1130,24 @@
                             <label>修改描述：</label>
                             <input type="text" id="edit-msg-${data.id}" value="${data.message}">
                             <div>
+                               <div>
                                 <label>邊框顏色變更：</label>
                                 <select id="edit-color-${data.id}">
                                     <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
                                     <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
                                     <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
                                     <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
-                            </select>
+                                </select>
+                            </div>
+                            <!-- 新增線條/邊框粗細選擇 -->
+                            <div>
+                                <label>線條/邊框粗細：</label>
+                                <select id="edit-weight-${data.id}">
+                                    <option value="2" ${data.weight === 2 ? 'selected':''}>細 (2px)</option>
+                                    <option value="4" ${(data.weight === 4 || !data.weight) ? 'selected':''}>中 (4px)</option>
+                                    <option value="7" ${data.weight === 7 ? 'selected':''}>粗 (7px)</option>
+                                    <option value="12" ${data.weight === 12 ? 'selected':''}>極粗 (12px)</option>
+                                </select>
                             </div>
                             ${fillOptionHTML}
                             <button onclick="updateObject('${data.id}')">儲存修改</button>
@@ -1311,9 +1334,21 @@
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
+            const weight = parseInt(document.getElementById(`edit-weight-${id}`).value) || 4;
             const fillSelect = document.getElementById(`edit-fill-${objectId}`);
             const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
+const updateData = {
+        id: id,
+        message: msg,
+        color: color,
+        weight: weight, // <-- 加上這一行
+        fillOpacity: fillOpacity
+    };
 
+    // 檢查你原本程式碼的結尾，通常是 socket.emit 或是 fetch 傳送資料
+    // 請確保它是傳送上面這個包含了 weight 的 updateData 物件
+    socket.emit('updateObject', updateData); 
+}
             if (allMapLayers[objectId]) {
                 const cache = allMapLayers[objectId];
                 const isCircle = !!cache.layer.options.radius;
