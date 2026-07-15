@@ -995,29 +995,17 @@
                 });
                 mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
                 centerLatLng = L.latLng(pts);
-if (data.shapeType === "marker") {
-                const svgColor = data.color || "#3388ff";
-                const customMarkerIcon = L.divIcon({
-                    html: `<svg width="30" height="42" viewBox="0 0 24 24" fill="${svgColor}" stroke="#141619" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6)); position: absolute; left: -15px; top: -42px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="#141619"></circle></svg>`,
-                    className: 'tactical-svg-marker'
-                });
-                mainLayer = L.marker(pts, { icon: customMarkerIcon, draggable: (isMyObject || isAdmin) }); 
-                centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polyline") {
-                // 將 weight 改為動態讀取，預設是 4
-                mainLayer = L.polyline(pts, { color: data.color, weight: data.weight || 4 });
+                mainLayer = L.polyline(pts, { color: data.color, weight: 6 });
                 centerLatLng = L.polyline(pts).getBounds().getCenter();
             } else if (data.shapeType === "rectangle") {
-                // 將 weight 改為動態讀取，預設是 4
-                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: data.weight || 4 });
+                mainLayer = L.rectangle(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
                 centerLatLng = L.rectangle(pts).getBounds().getCenter();
             } else if (data.shapeType === "circle") {
-                // 將 weight 改為動態讀取，預設是 4
-                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: data.weight || 4 });
+                mainLayer = L.circle(pts, { radius: data.radius, color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
                 centerLatLng = L.latLng(pts);
             } else if (data.shapeType === "polygon") {
-                // 將 weight 改為動態讀取，預設是 4
-                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: data.weight || 4 });
+                mainLayer = L.polygon(pts, { color: data.color, fillColor: data.color, fillOpacity: currentFillOpacity, weight: 3 });
                 centerLatLng = L.polygon(pts).getBounds().getCenter();
             }
             if (!mainLayer) return;
@@ -1093,140 +1081,13 @@ if (data.shapeType === "marker") {
                 });
             }
 
-// 將原本的 mainLayer.on('click', function(e) { ... }) 替換為以下內容：
             mainLayer.on('click', function(e) {
-                // 如果不是導覽或 GPS 模式，則不執行（避免干擾繪圖模式）
                 if (currentTool !== 'pan' && currentTool !== 'locate') return;
-                
-                // 阻止事件繼續傳遞給地圖底層，由圖形自己處理
-                L.DomEvent.stopPropagation(e);
-
-                const clickLatLng = e.latlng;
-                const clickLat = clickLatLng.lat.toFixed(4);
-                const clickLng = clickLatLng.lng.toFixed(4);
-
-                // 1. 準備基礎的圖資回報內容
-                let popupContent = "";
-                const displayTime = data.time || "無紀錄";
-
-                if (isMyObject || isAdmin) {
-                    let fillOptionHTML = "";
-                    if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
-                        fillOptionHTML = `
-                            <label>填滿模式：</label>
-                            <select id="edit-fill-${data.id}">
-                                <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
-                                <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
-                                <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
-                            </select>`;
-                    }
-                    const adminBadge = (isAdmin && !isMyObject) ? `<b style="color:#dc3545;">⚠️ 管理員權限 (編輯他人圖資)</b><br>` : "";
-
-                    popupContent = `
-                        <div class="popup-menu" id="popup-root-${data.id}">
-                            ${adminBadge}
-                            <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
-                            <small style="color:gray;">最後異動：${displayTime}</small><br><br>
-                            <label>修改描述：</label>
-                            <input type="text" id="edit-msg-${data.id}" value="${data.message}">
-                            <div>
-                               <div>
-                                <label>邊框顏色變更：</label>
-                                <select id="edit-color-${data.id}">
-                                    <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
-                                    <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
-                                    <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
-                                    <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
-                                </select>
-                            </div>
-                            <!-- 新增線條/邊框粗細選擇 -->
-                            <div>
-                                <label>線條/邊框粗細：</label>
-                                <select id="edit-weight-${data.id}">
-                                    <option value="2" ${data.weight === 2 ? 'selected':''}>細 (2px)</option>
-                                    <option value="4" ${(data.weight === 4 || !data.weight) ? 'selected':''}>中 (4px)</option>
-                                    <option value="7" ${data.weight === 7 ? 'selected':''}>粗 (7px)</option>
-                                    <option value="12" ${data.weight === 12 ? 'selected':''}>極粗 (12px)</option>
-                                </select>
-                            </div>
-                            ${fillOptionHTML}
-                            <button onclick="updateObject('${data.id}')">儲存修改</button>
-                            <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
-                            
-                            <!-- 預留氣象動態載入區塊 -->
-                            <div id="popup-weather-${data.id}" style="margin-top:12px; border-top:1px dashed #2d3748; padding-top:8px; color:#cbd5e0;">
-                                ⏳ 正在查詢此點熱危害指標...
-                            </div>
-                        </div>`;
-                } else {
-                    popupContent = `
-                        <div class="popup-menu" id="popup-root-${data.id}">
-                            <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
-                            <small style="color:gray;">通報時間：${displayTime}</small><br><br>
-                            <b>內容：</b>${data.message}<br>
-                            <small style="color:gray;">回報員: ${data.creator}</small>
-                            
-                            <!-- 預留氣象動態載入區塊 -->
-                            <div id="popup-weather-${data.id}" style="margin-top:12px; border-top:1px dashed #2d3748; padding-top:8px; color:#cbd5e0;">
-                                ⏳ 正在查詢此點熱危害指標...
-                            </div>
-                        </div>`;
-                }
-
-                // 2. 決定彈窗開啟的位置並渲染基礎面板
                 if (data.shapeType === "marker") {
-                    mainLayer.bindPopup(popupContent).openPopup();
+                    mainLayer.openPopup();
                 } else {
-                    mainLayer.bindPopup(popupContent).openPopup(clickLatLng);
+                    mainLayer.openPopup(centerLatLng);
                 }
-
-                // 3. 非同步向 Open-Meteo API 查詢點擊當下的即時天氣與熱危害，並塞入彈窗
-                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${clickLat}&longitude=${clickLng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
-                    .then(response => {
-                        if (!response.ok) throw new Error();
-                        return response.json();
-                    })
-                    .then(weatherData => {
-                        const current = weatherData.current;
-                        const temp = current.temperature_2m;
-                        const humidity = current.relative_humidity_2m;
-                        const code = current.weather_code;
-                        const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
-
-                        let flagEmoji = "🔵", flagText = "藍旗 (注意)", flagColor = "#3b82f6", adviceText = "正常作息，充分補充水分。";
-                        if (heatIndex >= 35 && heatIndex < 40) {
-                            flagEmoji = "🟡"; flagText = "黃旗 (警戒)"; flagColor = "#eab308"; adviceText = "避免劇烈運動，強制飲水與休息。";
-                        } else if (heatIndex >= 40) {
-                            flagEmoji = "🔴"; flagText = "紅旗 (危險)"; flagColor = "#ef4444"; adviceText = "嚴禁高強度訓練，注意熱衰竭與中暑！";
-                        }
-
-                        let weatherDesc = "多雲時晴";
-                        if (code === 0) weatherDesc = "☀️ 晴朗無雲";
-                        else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
-                        else if (code >= 45 && code <= 48) weatherDesc = "🌫️ 霧氣籠罩";
-                        else if (code >= 51 && code <= 67) weatherDesc = "🌧️ 細雨/陣雨";
-                        else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
-                        else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
-
-                        const weatherHTML = `
-                            <div style="font-family: sans-serif; background-color: #1a1d21; border-left: 3px solid ${flagColor}; padding: 6px; border-radius: 2px;">
-                                <div style="display: flex; justify-content: space-between; color:#fff; font-weight:bold; font-size:12px;">
-                                    <span>${temp}°C (${weatherDesc})</span>
-                                    <span style="color:${flagColor};">${heatIndex} ${flagEmoji}</span>
-                                </div>
-                                <div style="font-size: 10px; color: #a0aec0; margin-top: 2px;">濕度: ${humidity}% | ${flagText}</div>
-                                <div style="font-size: 10px; color: #cbd5e0; margin-top: 4px; border-top: 1px dashed #2d3748; padding-top: 2px;">💡 ${adviceText}</div>
-                            </div>
-                        `;
-                        
-                        // 動態更新當前已開啟的 Popup 內文
-                        const container = document.getElementById(`popup-weather-${data.id}`);
-                        if (container) container.innerHTML = weatherHTML;
-                    })
-                    .catch(() => {
-                        const container = document.getElementById(`popup-weather-${data.id}`);
-                        if (container) container.innerHTML = `<span style="color:#ef4444; font-size:11px;">❌ 無法取得氣象資訊</span>`;
-                    });
             });
 
             let popupContent = "";
@@ -1334,21 +1195,9 @@ if (data.shapeType === "marker") {
         function updateObject(objectId) {
             const newMsg = document.getElementById(`edit-msg-${objectId}`).value.trim();
             const newColor = document.getElementById(`edit-color-${objectId}`).value;
-            const weight = parseInt(document.getElementById(`edit-weight-${id}`).value) || 4;
             const fillSelect = document.getElementById(`edit-fill-${objectId}`);
             const newFillOpacity = fillSelect ? parseFloat(fillSelect.value) : 0;
-const updateData = {
-        id: id,
-        message: msg,
-        color: color,
-        weight: weight, // <-- 加上這一行
-        fillOpacity: fillOpacity
-    };
 
-    // 檢查你原本程式碼的結尾，通常是 socket.emit 或是 fetch 傳送資料
-    // 請確保它是傳送上面這個包含了 weight 的 updateData 物件
-    socket.emit('updateObject', updateData); 
-}
             if (allMapLayers[objectId]) {
                 const cache = allMapLayers[objectId];
                 const isCircle = !!cache.layer.options.radius;
