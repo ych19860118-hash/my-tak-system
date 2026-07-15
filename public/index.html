@@ -84,8 +84,7 @@
         
         .control-pin-icon { font-size: 20px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: move; }
         .resize-pin-icon { font-size: 18px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: se-resize; }
-        .vertex-pin-icon { font-size: 14px; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: pointer; background: rgba(57, 255, 20, 0.2); border: 1px solid #39ff14; border-radius: 50%; text-align: center; }
-
+        
         #toggle-info-btn {
             position: absolute; bottom: 20px; right: 12px; z-index: 1001; 
             width: 38px; height: 38px; background: #141619; 
@@ -390,8 +389,10 @@
             <ul>
                 <li><strong>新增回報點：</strong>點擊，可新增事件地點標籤。</li>
                 <li><strong>即時事件回報：</strong>預設多種事件選項，並可上傳圖片說明狀況。</li>
-                <li><strong>線條/多邊形：</strong>點選繪製，長按畫面或點打勾完成。<strong>點擊已繪製的線條可拉動各個頂點錨點進行細部調整！</strong></li>
-                <li><strong>方形/圓形工具：</strong>透過兩點進行範圍標記。</li>
+                <li><strong>線條工具：</strong>透過點選繪製線條，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面]</li>
+                <li><strong>方形工具：</strong>給予兩點進行方形範圍標記。(對角線)</li>
+                <li><strong>圓形工具：</strong>給予兩點進行圓形範圍標記。(圓心/半徑)</li>
+                <li><strong>多邊形工具：</strong>透過點選繪製多邊形範圍，點選滑鼠右鍵，完成繪圖。[手機用戶長按畫面]</li>
                 <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
                 <li><strong>搜尋工具：</strong>可輸入地址或經緯度直接飛至該地點。</li>
             </ul>
@@ -484,6 +485,7 @@
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             
+            // 阻斷控制項上的點擊事件穿透到 Leaflet 地圖
             ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) L.DomEvent.disableClickPropagation(el);
@@ -537,12 +539,6 @@
                 if (item.resizePin) {
                     if (isDrawing) { if (map.hasLayer(item.resizePin)) map.removeLayer(item.resizePin); }
                     else { if (!map.hasLayer(item.resizePin)) item.resizePin.addTo(map); }
-                }
-                if (item.vertexPins) {
-                    item.vertexPins.forEach(vp => {
-                        if (isDrawing) { if (map.hasLayer(vp)) map.removeLayer(vp); }
-                        else { if (!map.hasLayer(vp)) map.removeLayer(vp); }
-                    });
                 }
             });
 
@@ -829,9 +825,6 @@
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                    if (allMapLayers[id].vertexPins) {
-                        allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
-                    }
                     delete allMapLayers[id];
                 }
             });
@@ -841,9 +834,6 @@
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                    if (allMapLayers[id].vertexPins) {
-                        allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
-                    }
                 });
                 Object.keys(allEventLayers).forEach(id => {
                     map.removeLayer(allEventLayers[id].layer);
@@ -988,9 +978,6 @@
                 map.removeLayer(allMapLayers[data.id].layer);
                 if (allMapLayers[data.id].pin) map.removeLayer(allMapLayers[data.id].pin);
                 if (allMapLayers[data.id].resizePin) map.removeLayer(allMapLayers[data.id].resizePin);
-                if (allMapLayers[data.id].vertexPins) {
-                    allMapLayers[data.id].vertexPins.forEach(vp => map.removeLayer(vp));
-                }
                 delete allMapLayers[data.id];
             }
 
@@ -1026,7 +1013,7 @@
             if (!isCurrentlyDrawing) {
                 mainLayer.addTo(map);
             }
-            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, vertexPins: [], creator: data.creator };
+            allMapLayers[data.id] = { layer: mainLayer, pin: null, resizePin: null, creator: data.creator };
 
             if (data.shapeType === "marker") {
                 mainLayer.bindTooltip(data.message, { permanent: true, className: 'tactical-tooltip', interactive: false });
@@ -1035,78 +1022,55 @@
             }
 
             if ((isMyObject || isAdmin) && data.shapeType !== "marker") {
-                // 如果是線條 (polyline) 或多邊形 (polygon)，提供「各頂點錨點細部調整」功能
-                if (data.shapeType === "polyline" || data.shapeType === "polygon") {
-                    let vertexPins = [];
-                    pts.forEach((ptCoords, index) => {
-                        const vMarker = L.marker(ptCoords, {
-                            draggable: true,
-                            icon: L.divIcon({ html: '•', className: 'vertex-pin-icon', iconSize: [16, 16], iconAnchor: [8, 8] })
-                        });
-                        if (!isCurrentlyDrawing) vMarker.addTo(map);
+                const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
+                if (!isCurrentlyDrawing) controlPin.addTo(map);
+                allMapLayers[data.id].pin = controlPin;
 
-                        vMarker.on('drag', function(e) {
-                            const newLatLng = e.latlng;
-                            pts[index] = [newLatLng.lat, newLatLng.lng];
-                            mainLayer.setLatLngs(pts);
-                        });
+                controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
 
-                        vMarker.on('dragend', function() {
-                            syncGeometryChanges(data, mainLayer);
-                        });
+                let startLatLng = centerLatLng;
+                controlPin.on('drag', function(e) {
+                    const nextLatLng = e.latlng;
+                    const offsetLat = nextLatLng.lat - startLatLng.lat;
+                    const offsetLng = nextLatLng.lng - startLatLng.lng;
 
-                        vertexPins.push(vMarker);
-                    });
-                    allMapLayers[data.id].vertexPins = vertexPins;
-                } else {
-                    // 原本的中心平移 Pin 邏輯 (針對矩形/圓形)
-                    const controlPin = L.marker(centerLatLng, { draggable: true, icon: L.divIcon({ html: '📌', className: 'control-pin-icon' }) });
-                    if (!isCurrentlyDrawing) controlPin.addTo(map);
-                    allMapLayers[data.id].pin = controlPin;
-
-                    controlPin.on('click', function() { mainLayer.openPopup(centerLatLng); });
-
-                    let startLatLng = centerLatLng;
-                    controlPin.on('drag', function(e) {
-                        const nextLatLng = e.latlng;
-                        const offsetLat = nextLatLng.lat - startLatLng.lat;
-                        const offsetLng = nextLatLng.lng - startLatLng.lng;
-
-                        if (data.shapeType === "circle") { 
-                            mainLayer.setLatLng(nextLatLng); 
-                            if (allMapLayers[data.id].resizePin) {
-                                allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
-                            }
-                        } else if (data.shapeType === "rectangle") {
-                            const b = mainLayer.getBounds();
-                            mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
-                            if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
+                    if (data.shapeType === "circle") { 
+                        mainLayer.setLatLng(nextLatLng); 
+                        if (allMapLayers[data.id].resizePin) {
+                            allMapLayers[data.id].resizePin.setLatLng(L.latLng(nextLatLng.lat, nextLatLng.lng + (mainLayer.getRadius() / 111320)));
                         }
-                        startLatLng = nextLatLng; 
-                    });
-
-                    controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
-
-                    if (data.shapeType === "circle" || data.shapeType === "rectangle") {
-                        const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
-                        const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '⤢', className: 'resize-pin-icon' }) });                    
-                        if (!isCurrentlyDrawing) resizePin.addTo(map);
-                        allMapLayers[data.id].resizePin = resizePin;
-
-                        resizePin.on('drag', function(e) {
-                            const newPinLatLng = e.latlng;
-                            if (data.shapeType === "circle") {
-                                const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
-                                if (newRadius > 5) mainLayer.setRadius(newRadius);
-                            } else if (data.shapeType === "rectangle") {
-                                const centerP = controlPin.getLatLng();
-                                const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
-                                const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
-                                mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
-                            }
-                        });
-                        resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+                    } else if (data.shapeType === "rectangle") {
+                        const b = mainLayer.getBounds();
+                        mainLayer.setBounds([[b.getSouthWest().lat + offsetLat, b.getSouthWest().lng + offsetLng], [b.getNorthEast().lat + offsetLat, b.getNorthEast().lng + offsetLng]]);
+                        if (allMapLayers[data.id].resizePin) allMapLayers[data.id].resizePin.setLatLng(mainLayer.getBounds().getNorthEast());
+                    } else if (mainLayer.getLatLngs) {
+                        const movePoints = function(points) { return points.map(p => { if (Array.isArray(p)) return movePoints(p); return L.latLng(p.lat + offsetLat, p.lng + offsetLng); }); };
+                        mainLayer.setLatLngs(movePoints(mainLayer.getLatLngs()));
                     }
+                    startLatLng = nextLatLng; 
+                });
+
+                controlPin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
+
+                if (data.shapeType === "circle" || data.shapeType === "rectangle") {
+                    const resizeLatLng = (data.shapeType === "circle") ? L.latLng(centerLatLng.lat, centerLatLng.lng + (data.radius / 111320)) : mainLayer.getBounds().getNorthEast();
+                    const resizePin = L.marker(resizeLatLng, { draggable: true, icon: L.divIcon({ html: '⤢', className: 'resize-pin-icon' }) });                    
+                    if (!isCurrentlyDrawing) resizePin.addTo(map);
+                    allMapLayers[data.id].resizePin = resizePin;
+
+                    resizePin.on('drag', function(e) {
+                        const newPinLatLng = e.latlng;
+                        if (data.shapeType === "circle") {
+                            const newRadius = map.distance(mainLayer.getLatLng(), newPinLatLng);
+                            if (newRadius > 5) mainLayer.setRadius(newRadius);
+                        } else if (data.shapeType === "rectangle") {
+                            const centerP = controlPin.getLatLng();
+                            const oppositeLat = centerP.lat - (newPinLatLng.lat - centerP.lat);
+                            const oppositeLng = centerP.lng - (newPinLatLng.lng - centerP.lng);
+                            mainLayer.setBounds([[oppositeLat, oppositeLng], [newPinLatLng.lat, newPinLatLng.lng]]);
+                        }
+                    });
+                    resizePin.on('dragend', function() { syncGeometryChanges(data, mainLayer); });
                 }
             } else if ((isMyObject || isAdmin) && data.shapeType === "marker") {
                 mainLayer.on('dragend', function() {
@@ -1117,14 +1081,19 @@
                 });
             }
 
+// 將原本的 mainLayer.on('click', function(e) { ... }) 替換為以下內容：
             mainLayer.on('click', function(e) {
+                // 如果不是導覽或 GPS 模式，則不執行（避免干擾繪圖模式）
                 if (currentTool !== 'pan' && currentTool !== 'locate') return;
+                
+                // 阻止事件繼續傳遞給地圖底層，由圖形自己處理
                 L.DomEvent.stopPropagation(e);
 
                 const clickLatLng = e.latlng;
                 const clickLat = clickLatLng.lat.toFixed(4);
                 const clickLng = clickLatLng.lng.toFixed(4);
 
+                // 1. 準備基礎的圖資回報內容
                 let popupContent = "";
                 const displayTime = data.time || "無紀錄";
 
@@ -1155,12 +1124,13 @@
                                     <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
                                     <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
                                     <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
-                                </select>
+                            </select>
                             </div>
                             ${fillOptionHTML}
                             <button onclick="updateObject('${data.id}')">儲存修改</button>
                             <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
                             
+                            <!-- 預留氣象動態載入區塊 -->
                             <div id="popup-weather-${data.id}" style="margin-top:12px; border-top:1px dashed #2d3748; padding-top:8px; color:#cbd5e0;">
                                 ⏳ 正在查詢此點熱危害指標...
                             </div>
@@ -1173,18 +1143,21 @@
                             <b>內容：</b>${data.message}<br>
                             <small style="color:gray;">回報員: ${data.creator}</small>
                             
+                            <!-- 預留氣象動態載入區塊 -->
                             <div id="popup-weather-${data.id}" style="margin-top:12px; border-top:1px dashed #2d3748; padding-top:8px; color:#cbd5e0;">
                                 ⏳ 正在查詢此點熱危害指標...
                             </div>
                         </div>`;
                 }
 
+                // 2. 決定彈窗開啟的位置並渲染基礎面板
                 if (data.shapeType === "marker") {
                     mainLayer.bindPopup(popupContent).openPopup();
                 } else {
                     mainLayer.bindPopup(popupContent).openPopup(clickLatLng);
                 }
 
+                // 3. 非同步向 Open-Meteo API 查詢點擊當下的即時天氣與熱危害，並塞入彈窗
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${clickLat}&longitude=${clickLng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
                     .then(response => {
                         if (!response.ok) throw new Error();
@@ -1222,6 +1195,8 @@
                                 <div style="font-size: 10px; color: #cbd5e0; margin-top: 4px; border-top: 1px dashed #2d3748; padding-top: 2px;">💡 ${adviceText}</div>
                             </div>
                         `;
+                        
+                        // 動態更新當前已開啟的 Popup 內文
                         const container = document.getElementById(`popup-weather-${data.id}`);
                         if (container) container.innerHTML = weatherHTML;
                     })
@@ -1230,6 +1205,54 @@
                         if (container) container.innerHTML = `<span style="color:#ef4444; font-size:11px;">❌ 無法取得氣象資訊</span>`;
                     });
             });
+
+            let popupContent = "";
+            const displayTime = data.time || "無紀錄";
+
+            if (isMyObject || isAdmin) {
+                let fillOptionHTML = "";
+                if (data.shapeType !== "marker" && data.shapeType !== "polyline") {
+                    fillOptionHTML = `
+                        <label>填滿模式：</label>
+                        <select id="edit-fill-${data.id}">
+                            <option value="0" ${currentFillOpacity === 0 ? 'selected':''}>不填滿 (透明空心)</option>
+                            <option value="0.3" ${currentFillOpacity === 0.3 ? 'selected':''}>半透明填滿 (30%)</option>
+                            <option value="0.6" ${currentFillOpacity === 0.6 ? 'selected':''}>深色填滿 (60%)</option>
+                        </select>`;
+                }
+
+                const adminBadge = (isAdmin && !isMyObject) ? `<b style="color:#dc3545;">⚠️ 管理員權限 (編輯他人圖資)</b><br>` : "";
+
+                popupContent = `
+                    <div class="popup-menu">
+                        ${adminBadge}
+                        <b>編輯${isMyObject ? '您回報的' : ''}圖形/災情</b><br>
+                        <small style="color:gray;">最後異動：${displayTime}</small><br><br>
+                        <label>修改描述：</label>
+                        <input type="text" id="edit-msg-${data.id}" value="${data.message}">
+                        <div>
+                            <label>邊框顏色變更：</label>
+                            <select id="edit-color-${data.id}">
+                                <option value="#3388ff" ${data.color === '#3388ff'?'selected':''}>藍色 (一般區域)</option>
+                                <option value="#dc3545" ${data.color === '#dc3545'?'selected':''}>紅色 (警戒區域)</option>
+                                <option value="#28a745" ${data.color === '#28a745'?'selected':''}>綠色 (安全區域)</option>
+                                <option value="#ffc107" ${data.color === '#ffc107'?'selected':''}>黃色 (注意區域)</option>
+                            </select>
+                        </div>
+                        ${fillOptionHTML}
+                        <button onclick="updateObject('${data.id}')">儲存修改</button>
+                        <button onclick="deleteObject('${data.id}')" class="del-btn">撤銷/刪除此圖形</button>
+                    </div>`;
+            } else {
+                popupContent = `
+                    <div class="popup-menu">
+                        <b style="color:#ffc107;">⚠️ 區域回報狀況</b><br>
+                        <small style="color:gray;">通報時間：${displayTime}</small><br><br>
+                        <b>內容：</b>${data.message}<br>
+                        <small style="color:gray;">回報員: ${data.creator}</small>
+                    </div>`;
+            }
+            mainLayer.bindPopup(popupContent);
         }
 
         function syncGeometryChanges(data, mainLayer) {
@@ -1255,9 +1278,6 @@
                     map.removeLayer(allMapLayers[objectId].layer);
                     if (allMapLayers[objectId].pin) map.removeLayer(allMapLayers[objectId].pin);
                     if (allMapLayers[objectId].resizePin) map.removeLayer(allMapLayers[objectId].resizePin);
-                    if (allMapLayers[objectId].vertexPins) {
-                        allMapLayers[objectId].vertexPins.forEach(vp => map.removeLayer(vp));
-                    }
                     delete allMapLayers[objectId];
                 }
                 socket.emit('delete_object', objectId);
@@ -1274,9 +1294,6 @@
                     map.removeLayer(allMapLayers[id].layer);
                     if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
                     if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                    if (allMapLayers[id].vertexPins) {
-                        allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
-                    }
                     socket.emit('delete_object', id);
                 });
                 Object.keys(allEventLayers).forEach(id => {
@@ -1320,13 +1337,8 @@
                 }
 
                 const updatedData = { id: objectId, shapeType: sType, coordinates: currentCoordinates, radius: currentRadius, message: newMsg, color: newColor, fillOpacity: newFillOpacity, creator: cache.creator, time: getFormattedTime() };
-                
-                map.removeLayer(cache.layer); 
-                if (cache.pin) map.removeLayer(cache.pin); 
-                if (cache.resizePin) map.removeLayer(cache.resizePin);
-                if (cache.vertexPins) cache.vertexPins.forEach(vp => map.removeLayer(vp));
+                map.removeLayer(cache.layer); if (cache.pin) map.removeLayer(cache.pin); if (cache.resizePin) map.removeLayer(cache.resizePin);
                 delete allMapLayers[objectId];
-                
                 renderObjectOnMap(updatedData);
                 socket.emit('delete_object', objectId); socket.emit('new_object', updatedData);
             }
@@ -1439,93 +1451,192 @@
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
+// ==========================================================
+// RainViewer 雷達雨量圖層開關 (預設關閉) + 點擊地圖顯示即時溫度與中暑熱危害旗幟
+// ==========================================================
+(function() {
+    let radarLayer = null;
+    let isRadarVisible = false; // 【修改 1】預設改為關閉 (false)
 
-        (function() {
-            let radarLayer = null;
-            let isRadarVisible = false; 
+    // 1. 初始化雷達圖層與建立自訂開關
+    function initWeatherFeatures(mapInstance) {
+        if (!mapInstance) return;
 
-            function initWeatherFeatures(mapInstance) {
-                if (!mapInstance) return;
+        // ------------------ 功能 A：載入 RainViewer 雷達圖 ------------------
+        fetch('https://api.rainviewer.com/public/weather-maps.json')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
 
-                fetch('https://api.rainviewer.com/public/weather-maps.json')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
+                const latestRadar = data.radar.past[data.radar.past.length - 1];
+                const path = latestRadar.path;
+                const host = data.host;
+                const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
 
-                        const latestRadar = data.radar.past[data.radar.past.length - 1];
-                        const path = latestRadar.path;
-                        const host = data.host;
-                        const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
+                radarLayer = L.tileLayer(radarUrl, {
+                    attribution: '<a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>',
+                    opacity: 0.5,
+                    zIndex: 999
+                });
 
-                        radarLayer = L.tileLayer(radarUrl, {
-                            attribution: '<a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>',
-                            opacity: 0.5,
-                            zIndex: 999
-                        });
+                // 【修改 2】移除原本在此處的 radarLayer.addTo(mapInstance); 
+                // 這樣一開始地圖上就不會載入雨量圖層
 
-                        createLayerToggleButton(mapInstance);
-                    })
-                    .catch(err => console.error("RainViewer 載入失敗:", err));
-            }
+                // 建立一個漂浮在畫面上的「雨量圖層切換按鈕」
+                createLayerToggleButton(mapInstance);
+            })
+            .catch(err => console.error("RainViewer 載入失敗:", err));
 
-            function createLayerToggleButton(mapInstance) {
-                const toggleControl = L.control({ position: 'topleft' });
+        // ------------------ 功能 B：點擊地圖顯示即時天氣與中暑危險係數 ------------------
+        mapInstance.on('click', function(e) {
+            const lat = e.latlng.lat.toFixed(4);
+            const lng = e.latlng.lng.toFixed(4);
 
-                toggleControl.onAdd = function() {
-                    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                    div.style.backgroundColor = '#ffffff';
-                    div.style.padding = '8px 12px';
-                    div.style.cursor = 'pointer';
-                    div.style.fontWeight = 'bold';
-                    div.style.fontSize = '13px';
-                    div.style.borderRadius = '6px';
-                    div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-                    div.style.userSelect = 'none';
-                    div.style.marginLeft = '65px';  
-                    div.style.marginTop = '12px';   
+            // 建立一個載入中的 Popup 提示
+            const popup = L.popup()
+                .setLatLng(e.latlng)
+                .setContent(`<div style="font-family: sans-serif; font-size:13px; padding: 5px;">⏳ 正在查詢 [${lat}, ${lng}] 的天氣與熱危害指標...</div>`)
+                .openOn(mapInstance);
 
+            // 呼叫開源天氣 API 查詢該經緯度氣溫
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
+                .then(response => {
+                    if (!response.ok) throw new Error("天氣資料查詢失敗");
+                    return response.json();
+                })
+                .then(weatherData => {
+                    const current = weatherData.current;
+                    const temp = current.temperature_2m;
+                    const humidity = current.relative_humidity_2m;
+                    const code = current.weather_code;
+
+                    // --- 計算中暑危險係數 ---
+                    const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
+
+                    // 判斷旗幟等級、顏色與防護警語
+                    let flagEmoji = "🔵";
+                    let flagText = "藍旗 (注意)";
+                    let flagColor = "#3b82f6"; // 藍色
+                    let adviceText = "正常作息，充分補充水分。";
+
+                    if (heatIndex >= 35 && heatIndex < 40) {
+                        flagEmoji = "🟡";
+                        flagText = "黃旗 (警戒)";
+                        flagColor = "#eab308"; // 黃色
+                        adviceText = "避免劇烈運動，強制飲水與休息。";
+                    } else if (heatIndex >= 40) {
+                        flagEmoji = "🔴";
+                        flagText = "紅旗 (危險)";
+                        flagColor = "#ef4444"; // 紅色
+                        adviceText = "嚴禁高強度訓練，注意熱衰竭與中暑！";
+                    }
+
+                    // 解析天氣代碼
+                    let weatherDesc = "多雲時晴";
+                    if (code === 0) weatherDesc = "☀️ 晴朗無雲";
+                    else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
+                    else if (code >= 45 && code <= 48) weatherDesc = "🌫️ 霧氣籠罩";
+                    else if (code >= 51 && code <= 67) weatherDesc = "🌧️ 細雨/陣雨";
+                    else if (code >= 71 && code <= 77) weatherDesc = "❄️ 降雪";
+                    else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
+                    else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
+
+                    // 渲染漂亮的氣象與中暑危險係數資訊
+                    const content = `
+                        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 170px; line-height: 1.4;">
+                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 即時氣象與熱危害</h4>
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                                <span style="font-size: 22px; font-weight: bold; color: #1e293b;">${temp}°C</span>
+                                <span style="font-size: 12px; color: #64748b;">${weatherDesc}</span>
+                            </div>
+                            <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">濕度: ${humidity}%</div>
+                            
+                            <!-- 中暑危險係數區塊 -->
+                            <div style="background-color: #f8fafc; border-left: 4px solid ${flagColor}; padding: 6px 8px; border-radius: 0 4px 4px 0; margin-bottom: 6px;">
+                                <div style="font-size: 11px; color: #64748b; font-weight: 500;">中暑危險係數</div>
+                                <div style="font-size: 16px; font-weight: bold; color: ${flagColor};">${heatIndex}</div>
+                                <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">${flagEmoji} ${flagText}</div>
+                            </div>
+                            
+                            <!-- 防護建議 -->
+                            <div style="font-size: 11px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 4px; font-weight: 500;">
+                                💡 建議: ${adviceText}
+                            </div>
+                        </div>
+                    `;
+                    popup.setContent(content);
+                })
+                .catch(err => {
+                    console.error("天氣 API 錯誤:", err);
+                    popup.setContent(`<div style="color: red; font-size: 12px;">❌ 無法取得該點天氣與係數資訊</div>`);
+                });
+        });
+    }
+
+    // 2. 在地圖右上角生成一個開關按鈕
+    // 2. 在地圖左上角生成一個開關按鈕
+    function createLayerToggleButton(mapInstance) {
+        const toggleControl = L.control({ position: 'topleft' });
+
+        toggleControl.onAdd = function() {
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.style.backgroundColor = '#ffffff';
+            div.style.padding = '8px 12px';
+            div.style.cursor = 'pointer';
+            div.style.fontWeight = 'bold';
+            div.style.fontSize = '13px';
+            div.style.borderRadius = '6px';
+            div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+            div.style.userSelect = 'none';
+            
+            // 【修正關鍵】往右推 65px，完美靠在直式工具列的右手邊
+            div.style.marginLeft = '65px';  
+            div.style.marginTop = '12px';   
+
+            // 預設關閉狀態
+            div.innerHTML = '☔圖層ON';
+            div.style.color = '#64748b';
+
+            L.DomEvent.on(div, 'click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                if (isRadarVisible) {
+                    mapInstance.removeLayer(radarLayer);
                     div.innerHTML = '☔圖層ON';
                     div.style.color = '#64748b';
-
-                    L.DomEvent.on(div, 'click', function(e) {
-                        L.DomEvent.stopPropagation(e);
-                        if (isRadarVisible) {
-                            mapInstance.removeLayer(radarLayer);
-                            div.innerHTML = '☔圖層ON';
-                            div.style.color = '#64748b';
-                        } else {
-                            mapInstance.addLayer(radarLayer);
-                            div.innerHTML = '☔圖層OFF';
-                            div.style.color = '#000000';
-                        }
-                        isRadarVisible = !isRadarVisible;
-                    });
-
-                    return div;
-                };
-
-                toggleControl.addTo(mapInstance);
-            }
-
-            const detectInterval = setInterval(() => {
-                let foundMap = null;
-                if (typeof map !== 'undefined' && map instanceof L.Map) {
-                    foundMap = map;
                 } else {
-                    for (let key in window) {
-                        if (window[key] instanceof L.Map) {
-                            foundMap = window[key];
-                            break;
-                        }
-                    }
+                    mapInstance.addLayer(radarLayer);
+                    div.innerHTML = '☔圖層OFF';
+                    div.style.color = '#000000';
                 }
+                isRadarVisible = !isRadarVisible;
+            });
 
-                if (foundMap) {
-                    clearInterval(detectInterval);
-                    initWeatherFeatures(foundMap);
+            return div;
+        };
+
+        toggleControl.addTo(mapInstance);
+    }
+
+    // 3. 自動偵測地圖物件並執行
+    const detectInterval = setInterval(() => {
+        let foundMap = null;
+        if (typeof map !== 'undefined' && map instanceof L.Map) {
+            foundMap = map;
+        } else {
+            for (let key in window) {
+                if (window[key] instanceof L.Map) {
+                    foundMap = window[key];
+                    break;
                 }
-            }, 500);
-        })();
+            }
+        }
+
+        if (foundMap) {
+            clearInterval(detectInterval);
+            initWeatherFeatures(foundMap);
+        }
+    }, 500);
+})();
     </script>
 </body>
 </html>
