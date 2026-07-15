@@ -1335,46 +1335,134 @@
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
-        // ... 這裡是你原本檔案裡滿滿的舊程式碼 ...
-// ... 這裡是你原本檔案裡滿滿的舊程式碼 ...
-
-// ==========================================
-// RainViewer 全球即時雷達回波圖 - 自動偵測版 (直接貼在這邊！)
-// ==========================================
+// ==========================================================
+// RainViewer 雷達雨量圖層開關 + 點擊地圖顯示即時溫度功能
+// ==========================================================
 (function() {
     let radarLayer = null;
-    function injectRadarLayer(mapInstance) {
+    let isRadarVisible = true; // 預設開啟
+
+    // 1. 初始化雷達圖層與建立自訂開關
+    function initWeatherFeatures(mapInstance) {
         if (!mapInstance) return;
+
+        // ------------------ 功能 A：載入 RainViewer 雷達圖 ------------------
         fetch('https://api.rainviewer.com/public/weather-maps.json')
             .then(response => response.json())
             .then(data => {
                 if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
+
                 const latestRadar = data.radar.past[data.radar.past.length - 1];
                 const path = latestRadar.path;
                 const host = data.host;
                 const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
 
+                // 建立雷達回波圖層
                 radarLayer = L.tileLayer(radarUrl, {
-                    attribution: '<a href="https://www.rainviewer.com/" target="_blank">RainViewer</a>',
+                    attribution: '<a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>',
                     opacity: 0.5,
                     zIndex: 999
                 });
 
-                let addedToControl = false;
-                for (let key in window) {
-                    if (window[key] instanceof L.Control.Layers) {
-                        window[key].addOverlay(radarLayer, "☔ 即時降雨雷達回波");
-                        addedToControl = true;
-                        break;
-                    }
-                }
-                if (!addedToControl) {
-                    radarLayer.addTo(mapInstance);
-                }
+                // 預設直接加到地圖上
+                radarLayer.addTo(mapInstance);
+
+                // 建立一個漂浮在畫面上的「雨量圖層切換按鈕」
+                createLayerToggleButton(mapInstance);
             })
             .catch(err => console.error("RainViewer 載入失敗:", err));
+
+        // ------------------ 功能 B：點擊地圖顯示該點即時溫度 ------------------
+        // 使用免費、免 Key 的 open-meteo API
+        mapInstance.on('click', function(e) {
+            const lat = e.latlng.lat.toFixed(4);
+            const lng = e.latlng.lng.toFixed(4);
+
+            // 建立一個載入中的 Popup 提示
+            const popup = L.popup()
+                .setLatLng(e.latlng)
+                .setContent(`<div style="font-family: sans-serif; font-size:13px; padding: 5px;">⏳ 正在查詢 [${lat}, ${lng}] 的天氣...</div>`)
+                .openOn(mapInstance);
+
+            // 呼叫開源天氣 API 查詢該經緯度氣溫
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
+                .then(response => {
+                    if (!response.ok) throw new Error("天氣資料查詢失敗");
+                    return response.json();
+                })
+                .then(weatherData => {
+                    const current = weatherData.current;
+                    const temp = current.temperature_2m;
+                    const humidity = current.relative_humidity_2m;
+                    const code = current.weather_code;
+
+                    // 解析簡單的天氣代碼描述
+                    let weatherDesc = "多雲時晴";
+                    if (code === 0) weatherDesc = "☀️ 晴朗無雲";
+                    else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
+                    else if (code >= 45 && code <= 48) weatherDesc = "🌫️ 霧氣籠罩";
+                    else if (code >= 51 && code <= 67) weatherDesc = "🌧️ 細雨/陣雨";
+                    else if (code >= 71 && code <= 77) weatherDesc = "❄️ 降雪";
+                    else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
+                    else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
+
+                    // 渲染漂亮的氣象資訊 Popup 內容
+                    const content = `
+                        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 140px;">
+                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 點擊點天氣</h4>
+                            <div style="font-size: 20px; font-weight: bold; color: #ef4444; margin-bottom: 4px;">${temp}°C</div>
+                            <div style="font-size: 12px; color: #475569; margin-bottom: 4px;">狀況: ${weatherDesc}</div>
+                            <div style="font-size: 12px; color: #475569;">濕度: ${humidity}%</div>
+                            <div style="font-size: 10px; color: #94a3b8; margin-top: 8px;">經緯度: ${lat}, ${lng}</div>
+                        </div>
+                    `;
+                    popup.setContent(content);
+                })
+                .catch(err => {
+                    console.error("天氣 API 錯誤:", err);
+                    popup.setContent(`<div style="color: red; font-size: 12px;">❌ 無法取得該點天氣資訊</div>`);
+                });
+        });
     }
 
+    // 2. 在地圖左下角或合適位置生成一個開關按鈕
+    function createLayerToggleButton(mapInstance) {
+        const toggleControl = L.control({ position: 'topright' }); // 放在右上角，避開左邊工具列
+
+        toggleControl.onAdd = function() {
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.style.backgroundColor = '#ffffff';
+            div.style.padding = '8px 12px';
+            div.style.cursor = 'pointer';
+            div.style.fontWeight = 'bold';
+            div.style.fontSize = '13px';
+            div.style.borderRadius = '6px';
+            div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+            div.style.userSelect = 'none';
+            div.innerHTML = '☔ 關閉雨量圖層'; // 初始狀態
+
+            // 點擊事件：切換圖層顯示隱藏
+            L.DomEvent.on(div, 'click', function(e) {
+                L.DomEvent.stopPropagation(e); // 防止地圖觸發點擊事件
+                if (isRadarVisible) {
+                    mapInstance.removeLayer(radarLayer);
+                    div.innerHTML = '☔ 開啟雨量圖層';
+                    div.style.color = '#64748b';
+                } else {
+                    mapInstance.addLayer(radarLayer);
+                    div.innerHTML = '☔ 關閉雨量圖層';
+                    div.style.color = '#000000';
+                }
+                isRadarVisible = !isRadarVisible;
+            });
+
+            return div;
+        };
+
+        toggleControl.addTo(mapInstance);
+    }
+
+    // 3. 自動偵測地圖物件並執行
     const detectInterval = setInterval(() => {
         let foundMap = null;
         if (typeof map !== 'undefined' && map instanceof L.Map) {
@@ -1387,9 +1475,10 @@
                 }
             }
         }
+
         if (foundMap) {
             clearInterval(detectInterval);
-            injectRadarLayer(foundMap);
+            initWeatherFeatures(foundMap);
         }
     }, 500);
 })();
