@@ -1458,8 +1458,9 @@
     }
 
     // 2. 在地圖右上角生成一個開關按鈕
+    // 2. 在地圖左上角生成一個開關按鈕
     function createLayerToggleButton(mapInstance) {
-        const toggleControl = L.control({ position: 'topright' });
+        const toggleControl = L.control({ position: 'topleft' });
 
         toggleControl.onAdd = function() {
             const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
@@ -1472,7 +1473,11 @@
             div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
             div.style.userSelect = 'none';
             
-            // 【修改 3】按鈕初始化時，外觀改為預設關閉狀態（灰色字、文字顯示為「開啟」）
+            // 【修正關鍵】往右推 65px，完美靠在直式工具列的右手邊
+            div.style.marginLeft = '65px';  
+            div.style.marginTop = '12px';   
+
+            // 預設關閉狀態
             div.innerHTML = '☔ 開啟雨量圖層';
             div.style.color = '#64748b';
 
