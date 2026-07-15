@@ -1335,6 +1335,64 @@
                 { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         }
+        // ... 這裡是你原本檔案裡滿滿的舊程式碼 ...
+// ... 這裡是你原本檔案裡滿滿的舊程式碼 ...
+
+// ==========================================
+// RainViewer 全球即時雷達回波圖 - 自動偵測版 (直接貼在這邊！)
+// ==========================================
+(function() {
+    let radarLayer = null;
+    function injectRadarLayer(mapInstance) {
+        if (!mapInstance) return;
+        fetch('https://api.rainviewer.com/public/weather-maps.json')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
+                const latestRadar = data.radar.past[data.radar.past.length - 1];
+                const path = latestRadar.path;
+                const host = data.host;
+                const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
+
+                radarLayer = L.tileLayer(radarUrl, {
+                    attribution: '<a href="https://www.rainviewer.com/" target="_blank">RainViewer</a>',
+                    opacity: 0.5,
+                    zIndex: 999
+                });
+
+                let addedToControl = false;
+                for (let key in window) {
+                    if (window[key] instanceof L.Control.Layers) {
+                        window[key].addOverlay(radarLayer, "☔ 即時降雨雷達回波");
+                        addedToControl = true;
+                        break;
+                    }
+                }
+                if (!addedToControl) {
+                    radarLayer.addTo(mapInstance);
+                }
+            })
+            .catch(err => console.error("RainViewer 載入失敗:", err));
+    }
+
+    const detectInterval = setInterval(() => {
+        let foundMap = null;
+        if (typeof map !== 'undefined' && map instanceof L.Map) {
+            foundMap = map;
+        } else {
+            for (let key in window) {
+                if (window[key] instanceof L.Map) {
+                    foundMap = window[key];
+                    break;
+                }
+            }
+        }
+        if (foundMap) {
+            clearInterval(detectInterval);
+            injectRadarLayer(foundMap);
+        }
+    }, 500);
+})();
     </script>
 </body>
 </html>
