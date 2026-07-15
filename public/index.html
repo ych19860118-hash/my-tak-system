@@ -1457,9 +1457,8 @@
         });
     }
 
-    // 2. 在地圖左上角生成一個開關按鈕
+   // 2. 在地圖左上角生成一個開關按鈕
     function createLayerToggleButton(mapInstance) {
-        // 【修改 1】位置改為 topleft
         const toggleControl = L.control({ position: 'topleft' });
 
         toggleControl.onAdd = function() {
@@ -1473,9 +1472,9 @@
             div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
             div.style.userSelect = 'none';
             
-            // 【修改 2】加上左邊距與上邊距，避開你的左側直式工具列與地圖邊緣
-            div.style.marginLeft = '12px';  // 往右推一點，避免跟左側工具列重疊
-            div.style.marginTop = '12px';   // 往下一點，比較美觀
+            // 【修正關鍵】往右推 65px，完美靠在直式工具列的右手邊
+            div.style.marginLeft = '65px';  
+            div.style.marginTop = '12px';   
 
             // 預設關閉狀態
             div.innerHTML = '☔ 開啟雨量圖層';
@@ -1500,26 +1499,6 @@
 
         toggleControl.addTo(mapInstance);
     }
-    // 3. 自動偵測地圖物件並執行
-    const detectInterval = setInterval(() => {
-        let foundMap = null;
-        if (typeof map !== 'undefined' && map instanceof L.Map) {
-            foundMap = map;
-        } else {
-            for (let key in window) {
-                if (window[key] instanceof L.Map) {
-                    foundMap = window[key];
-                    break;
-                }
-            }
-        }
-
-        if (foundMap) {
-            clearInterval(detectInterval);
-            initWeatherFeatures(foundMap);
-        }
-    }, 500);
-})();
     </script>
 </body>
 </html>
