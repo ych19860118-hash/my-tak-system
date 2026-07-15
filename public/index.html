@@ -953,11 +953,14 @@
                 document.getElementById('chat-input').focus();
                 const msgBox = document.getElementById('chat-messages');
                 msgBox.scrollTop = msgBox.scrollHeight;
+
+                // 【新增】點開聊天室時，隱藏紅點通知
+                const badge = document.getElementById('chat-badge');
+                if (badge) badge.style.display = 'none';
             } else {
                 btn.classList.remove('active');
             }
         }
-
         function sendChat() {
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
