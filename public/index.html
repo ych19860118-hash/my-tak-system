@@ -784,8 +784,6 @@
                 const actionText = data.action === 'joined' ? '進入' : '離開';
                 showToast(`[系統通知] ${data.name} 已經${actionText}頻道`);
             });
-
-// 當接收到新訊息時
 // 當接收到新訊息時
             socket.on('receive_chat', function(data) {
                 appendChatMessage(data.sender, data.message, data.time);
@@ -797,16 +795,6 @@
                     // 紅點顯示（你已經成功的部分）
                     const badge = document.getElementById('chat-badge');
                     if (badge) badge.style.display = 'block';
-
-                    // 【優化音效播放】
-                    const sound = document.getElementById('chat-sound');
-                    if (sound) {
-                        sound.currentTime = 0; // 重設播放時間回到最開始，防止連續觸發時卡住
-                        sound.play().catch(err => {
-                            // 如果被阻擋，會在瀏覽器主控台 (F12 -> Console) 印出原因
-                            console.error('音效播放失敗，原因：', err);
-                        });
-                    }
                 }
             });
             socket.on('event_added', function(evtData) {
