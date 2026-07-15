@@ -1336,11 +1336,11 @@
             );
         }
 // ==========================================================
-// RainViewer 雷達雨量圖層開關 + 點擊地圖顯示即時溫度與中暑熱危害旗幟
+// RainViewer 雷達雨量圖層開關 (預設關閉) + 點擊地圖顯示即時溫度與中暑熱危害旗幟
 // ==========================================================
 (function() {
     let radarLayer = null;
-    let isRadarVisible =false; // 預設開啟
+    let isRadarVisible = false; // 【修改 1】預設改為關閉 (false)
 
     // 1. 初始化雷達圖層與建立自訂開關
     function initWeatherFeatures(mapInstance) {
@@ -1363,8 +1363,8 @@
                     zIndex: 999
                 });
 
-                // 預設直接加到地圖上
-                radarLayer.addTo(mapInstance);
+                // 【修改 2】移除原本在此處的 radarLayer.addTo(mapInstance); 
+                // 這樣一開始地圖上就不會載入雨量圖層
 
                 // 建立一個漂浮在畫面上的「雨量圖層切換按鈕」
                 createLayerToggleButton(mapInstance);
@@ -1395,7 +1395,6 @@
                     const code = current.weather_code;
 
                     // --- 計算中暑危險係數 ---
-                    // 公式：溫度 + (濕度 * 0.1)
                     const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
 
                     // 判斷旗幟等級、顏色與防護警語
@@ -1472,7 +1471,10 @@
             div.style.borderRadius = '6px';
             div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
             div.style.userSelect = 'none';
-            div.innerHTML = '☔ 關閉雨量圖層';
+            
+            // 【修改 3】按鈕初始化時，外觀改為預設關閉狀態（灰色字、文字顯示為「開啟」）
+            div.innerHTML = '☔ 開啟雨量圖層';
+            div.style.color = '#64748b';
 
             L.DomEvent.on(div, 'click', function(e) {
                 L.DomEvent.stopPropagation(e);
