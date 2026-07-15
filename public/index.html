@@ -256,8 +256,7 @@
             font-family: 'Courier New', monospace !important; border-radius: 2px !important; padding: 1px 4px !important; box-shadow: none !important; opacity: 0.85 !important; z-index: 10000 !important;
         }
         .tactical-tooltip::before { display: none !important; }
-        <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
-<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+        
         #admin-clear-btn {
             background: #9b1c1c !important; border-color: #ef4444 !important; color: #fca5a5 !important; margin-top: 10px !important; display: none;
         }
@@ -485,19 +484,7 @@
             if (map) return; 
             map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-            map.pm.setLang('zh_TW');
-    map.pm.addControls({
-        position: 'topleft',
-        drawMarker: false,
-        drawCircleMarker: false,
-        drawPolyline: false,
-        drawRectangle: false,
-        drawPolygon: false,
-        drawCircle: false,
-        cutPolygon: false,
-        removalMode: true,
-        editMode: true
-    });
+            
             // 阻斷控制項上的點擊事件穿透到 Leaflet 地圖
             ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
                 const el = document.getElementById(id);
