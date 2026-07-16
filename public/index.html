@@ -799,13 +799,7 @@
                         document.getElementById('admin-clear-btn').style.display = 'block';
                     }
                     
-                   initMapInstance(); 
-setTimeout(() => { 
-    if (map) map.invalidateSize(); 
-    // 登入成功並載入地圖後，自動觸發精準定位 (若要預設概略可改呼叫 processGPS('approx'))
-    processGPS('precise'); 
-}, 300); 
-initSocketAndLayers(); 
+                    initMapInstance(); setTimeout(() => { if (map) map.invalidateSize(); }, 300); initSocketAndLayers(); 
                 } else { document.getElementById('login-error').innerText = data.message; }
             } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
         }
