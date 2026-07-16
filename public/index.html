@@ -228,12 +228,22 @@
 
         .event-popup-img { width: 100%; max-height: 150px; object-fit: cover; margin-top: 6px; border-radius: 3px; cursor: pointer; }
 
-        #typhoon-info {
-            position: absolute; bottom: 68px; right: 1200px; background: #141619; 
-            padding: 15px; border-radius: 4px; color: #a0aec0; z-index: 1000;
-            border: 2px solid #22c55e; font-size: 12px; display: none; 
-            max-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); line-height: 1.6;
-        }
+ #typhoon-info {
+    position: absolute; 
+    bottom: 60px; /* 距離畫面底部的高度，可依需求調整 */
+    right: 20px;  /* 距離畫面右側的距離 */
+    background: #141619; 
+    padding: 15px; 
+    border-radius: 4px; 
+    color: #a0aec0; 
+    z-index: 1000;
+    border: 2px solid #22c55e; 
+    font-size: 12px; 
+    display: none; 
+    max-width: 260px; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6); 
+    line-height: 1.6;
+}
 
         #toast-container {
             position: absolute; bottom: 20px; left: 70px; z-index: 9999;
