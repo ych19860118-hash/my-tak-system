@@ -121,10 +121,21 @@ io.on('connection', (socket) => {
         io.to(myRoom).emit('user_notification', { name: myName, action: 'joined' });
     });
 
-    socket.on('share_my_gps', (gpsData) => {
-        if (!myRoom) return;
-        gpsData.username = myName; 
-        socket.to(myRoom).emit('peer_gps_updated', gpsData); 
+    // 📡 修正：GPS 廣播限制於當前房間內，防止跨頻道干擾
+    socket.on('update_gps_location', (data) => {
+        if (!socket.myRoom) return;
+        socket.to(socket.myRoom).emit('remote_gps_update', {
+            id: socket.id,
+            username: socket.myName,
+            lat: data.lat,
+            lng: data.lng
+        });
+    });
+
+    // 🛑 修正：停止 GPS 廣播限制於當前房間內
+    socket.on('stop_gps_broadcast', () => {
+        if (!socket.myRoom) return;
+        socket.to(socket.myRoom).emit('remote_gps_stop', { id: socket.id });
     });
 
     socket.on('send_chat', (messageText) => {
@@ -173,7 +184,6 @@ io.on('connection', (socket) => {
         
         const targetEvent = rooms[myRoom].events.find(e => e.id === eventId);
         const activeName = socket.myName || myName;
-        // 🔐 安全修正：嚴格檢查是否為登入過密鑰的 "管理者[Admin]"，避免暱稱模糊匹配漏洞
         const isAdmin = activeName === "管理者[Admin]";
         const isOwner = targetEvent && targetEvent.sender === activeName;
 
@@ -190,7 +200,6 @@ io.on('connection', (socket) => {
         if (!myRoom || !rooms[myRoom]) return;
         const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
         const activeName = socket.myName || myName;
-        // 🔐 安全修正：同上，採嚴格管理員名稱比對
         const isAdmin = activeName === "管理者[Admin]";
         const isCreator = targetObj && targetObj.creator === activeName;
         
@@ -220,6 +229,11 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', async () => {
         if (!myRoom) return;
+        
+        // 🛑 修正：斷線時精準在同房間內移除遠端 GPS 標記
+        if (socket.myRoom) {
+            socket.to(socket.myRoom).emit('remote_gps_stop', { id: socket.id });
+        }
         
         if (myName) {
             io.to(myRoom).emit('user_notification', { name: myName, action: 'left' });
