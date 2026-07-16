@@ -1654,7 +1654,7 @@
 
             const a = L.DomUtil.create('a', '', div);
             a.href = '#';
-            a.innerHTML = '☔圖層ON';
+            a.innerHTML = '☔';
             
             L.DomEvent.disableClickPropagation(div);
             L.DomEvent.on(a, 'click', function(e) {
@@ -1662,10 +1662,10 @@
                 L.DomEvent.stopPropagation(e);
                 if (isRadarVisible) {
                     mapInstance.removeLayer(radarLayer);
-                    a.innerHTML = '☔圖層ON';
+                    a.innerHTML = '☔';
                 } else {
                     mapInstance.addLayer(radarLayer);
-                    a.innerHTML = '☔圖層OFF';
+                    a.innerHTML = '☔';
                 }
                 isRadarVisible = !isRadarVisible;
             });
