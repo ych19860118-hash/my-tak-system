@@ -3,7 +3,6 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
-const https = require('https'); // 引入 HTTPS 模組用來請求 CWA API
 
 // 放大 JSON 請求主體容量限制（允許接收較大的圖片 Base64 數據）
 app.use(express.json({ limit: '10mb' }));
@@ -28,42 +27,6 @@ let roomTimers = {}; // 負責紀錄每個房間的 8 小時倒數計時器
 // 🔐 定義最高指揮官專屬密鑰
 const ADMIN_SECRET = "adminyu"; 
 
-// 🌤️ 中央氣象署 (CWA) 自動化災防告警模組設定
-const CWA_API_KEY = "CWA-2E7EC676-1235-48FF-906B-EAB529F3B533";
-let latestWeatherWarnings = [];
-
-// 定期向 CWA 抓取警特報資料的函數
-function fetchCwaWarnings() {
-    // 範例採用 CWA 氣象警特報一般資料集 (O-A0040-001)
-    const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0040-001?Authorization=${CWA_API_KEY}&format=JSON`;
-
-    https.get(url, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-            try {
-                const parsed = JSON.parse(data);
-                if (parsed.success && parsed.records) {
-                    latestWeatherWarnings = parsed.records;
-                    console.log(`[CWA API] 成功更新災防告警資料`);
-                    
-                    // 即時廣播給所有在線的客戶端
-                    io.emit('cwa_warnings_update', latestWeatherWarnings);
-                }
-            } catch (e) {
-                console.error("[CWA API] 解析氣象警特報 JSON 失敗:", e);
-            }
-        });
-    }).on('error', (err) => {
-        console.error("[CWA API] 連線取得警特報發生錯誤:", err.message);
-    });
-}
-
-// 伺服器啟動後 3 秒抓取一次，之後每 10 分鐘自動更新一次
-setTimeout(fetchCwaWarnings, 3000);
-setInterval(fetchCwaWarnings, 10 * 60 * 1000);
-
-
 app.post('/api/login', async (req, res) => {
     const { username, password, roomName, roomPassword, adminSecret } = req.body;
     const rName = roomName ? roomName.trim() : "公開頻道(風災)";
@@ -80,6 +43,7 @@ app.post('/api/login', async (req, res) => {
         }
         uName = "管理者[Admin]";
     } else {
+        // 🚨 安全阻擋：不允許一般使用者暱稱包含 [Admin] 或 [管理者] 關鍵字，防止偽造權限
         const lowerName = uName.toLowerCase();
         if (lowerName.includes('admin') || lowerName.includes('管理者')) {
             return res.json({ success: false, message: "登入失敗：非管理員暱稱不得包含 'Admin' 或 '管理者' 字眼！" });
@@ -100,6 +64,7 @@ app.post('/api/login', async (req, res) => {
         }
     }
 
+    // 🕵️‍♂️ 暱稱重名檢查（使用相容且安全的方式獲取當前房間內 Sockets）
     let isNameTaken = false;
     try {
         const sockets = await io.in(rName).fetchSockets();
@@ -147,11 +112,10 @@ io.on('connection', (socket) => {
             delete roomTimers[myRoom];
         }
 
-        // 登入時同步回傳歷史資料、對話與當前最新的氣象警報
+        // 登入時同步回傳歷史資料與對話
         socket.emit('history_objects', rooms[myRoom] ? rooms[myRoom].objects : []);
         socket.emit('history_events', rooms[myRoom] ? rooms[myRoom].events : []);
         socket.emit('history_chats', rooms[myRoom] && rooms[myRoom].chatHistory ? rooms[myRoom].chatHistory : []);
-        socket.emit('cwa_warnings_update', latestWeatherWarnings); // 主動推播給剛加入的使用者
 
         sendUserCount(myRoom);
         io.to(myRoom).emit('user_notification', { name: myName, action: 'joined' });
@@ -201,6 +165,7 @@ io.on('connection', (socket) => {
 
         rooms[myRoom].events.push(enrichedEvent);
         io.to(myRoom).emit('event_added', enrichedEvent);
+        console.log(`【新事件回報】房間 ${myRoom} 由 ${myName} 回報：${enrichedEvent.category}`);
     });
 
     socket.on('delete_event', (eventId) => {
@@ -208,12 +173,16 @@ io.on('connection', (socket) => {
         
         const targetEvent = rooms[myRoom].events.find(e => e.id === eventId);
         const activeName = socket.myName || myName;
+        // 🔐 安全修正：嚴格檢查是否為登入過密鑰的 "管理者[Admin]"，避免暱稱模糊匹配漏洞
         const isAdmin = activeName === "管理者[Admin]";
         const isOwner = targetEvent && targetEvent.sender === activeName;
 
         if (isAdmin || isOwner) {
             rooms[myRoom].events = rooms[myRoom].events.filter(e => e.id !== eventId);
             io.to(myRoom).emit('event_deleted', eventId);
+            console.log(`【事件刪除成功】事件 ${eventId} 已由 ${activeName} 刪除`);
+        } else {
+            console.log(`事件刪除被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
@@ -221,12 +190,16 @@ io.on('connection', (socket) => {
         if (!myRoom || !rooms[myRoom]) return;
         const targetObj = rooms[myRoom].objects.find(o => o.id === objectId);
         const activeName = socket.myName || myName;
+        // 🔐 安全修正：同上，採嚴格管理員名稱比對
         const isAdmin = activeName === "管理者[Admin]";
         const isCreator = targetObj && targetObj.creator === activeName;
         
         if (isAdmin || isCreator) {
             rooms[myRoom].objects = rooms[myRoom].objects.filter(o => o.id !== objectId);
             io.to(myRoom).emit('object_deleted', objectId);
+            console.log(`【物件刪除成功】物件 ${objectId} 已由 ${activeName} 刪除`);
+        } else {
+            console.log(`物件刪除被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
@@ -239,6 +212,9 @@ io.on('connection', (socket) => {
             rooms[myRoom].events = []; 
             rooms[myRoom].chatHistory = []; 
             io.to(myRoom).emit('clear_all_objects');
+            console.log(`【緊急清空】房間 ${myRoom} 的所有圖資、事件與聊天對話已由指揮官 ${activeName} 清空`);
+        } else {
+            console.log(`清空被拒絕：操作者 (${activeName}) 權限不足`);
         }
     });
 
@@ -251,16 +227,19 @@ io.on('connection', (socket) => {
         
         sendUserCount(myRoom);
 
+        // 偵測房間剩餘人數
         const sockets = await io.in(myRoom).fetchSockets();
         const currentCount = sockets.length;
 
         if (currentCount === 0) {
             if (roomTimers[myRoom]) clearTimeout(roomTimers[myRoom]);
             
+            // 8 小時定時自動銷毀邏輯
             roomTimers[myRoom] = setTimeout(() => {
                 if (rooms[myRoom]) {
                     if (rooms[myRoom].chatHistory && rooms[myRoom].chatHistory.length > 0) {
                         chatHistoryBackups[myRoom] = rooms[myRoom].chatHistory;
+                        console.log(`[備份成功] 房間 ${myRoom} 即將銷毀，已備份其 ${rooms[myRoom].chatHistory.length} 筆歷史對話。`);
                     }
 
                     if (myRoom === "公開頻道(風災)" || myRoom === "公開頻道(震災)") {
@@ -269,6 +248,7 @@ io.on('connection', (socket) => {
                     } else {
                         delete rooms[myRoom];
                     }
+                    console.log(`應變房間 ${myRoom} 已超過 8 小時無人在線，已被伺服器自動銷毀。`);
                 }
                 delete roomTimers[myRoom];
             }, 8 * 60 * 60 * 1000); 
@@ -276,6 +256,7 @@ io.on('connection', (socket) => {
     });
 });
 
+// 💡 升級：採用 fetchSockets 非同步取得最新在線用戶名單
 async function sendUserCount(roomName) {
     try {
         const sockets = await io.in(roomName).fetchSockets();
@@ -291,5 +272,5 @@ async function sendUserCount(roomName) {
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
-    console.log(`防災協同伺服器已在連接埠 ${PORT} 啟動，並已成功掛載 CWA 災防告警模組...`);
+    console.log(`防災協同伺服器已在連接埠 ${PORT} 啟動...`);
 });
