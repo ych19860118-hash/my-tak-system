@@ -298,9 +298,26 @@
             color: #0d0e10 !important;
             border-color: #39ff14 !important;
         }
+        #weather-panel {
+        position: absolute; top: 20px; right: 20px; z-index: 1000;
+        background: rgba(20, 22, 25, 0.9); border: 1px solid #22c55e;
+        padding: 10px; border-radius: 4px; color: #39ff14;
+        font-family: 'Courier New', monospace; font-size: 12px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        display: none; /* 預設隱藏，收到資料後顯示 */
+    }
+    #weather-panel h4 { margin: 0 0 5px 0; color: #fff; font-size: 13px; }
+    #weather-panel p { margin: 2px 0; }
     </style>
 </head>
 <body>
+    <div id="map"></div>
+    
+    <!-- 新增：氣象顯示面板 -->
+    <div id="weather-panel">
+        <h4>即時氣象資訊</h4>
+        <div id="weather-content">正在同步...</div>
+    </div>
     <!-- 登入面板 -->
     <div id="login-box">
         <h2>COP System協同地理圖資</h2>
@@ -465,79 +482,176 @@
     <div id="map"></div>
 
     <script>
-        const SERVER_URL = window.location.origin; 
-        let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
-        let allEventLayers = {};
-        let currentTool = "pan", tempPoints = [], tempShape = null;
-        let pendingEventLatLng = null, pendingPhotoBase64 = null;
-        let onlineUsersList = [];
-        let searchTempMarker = null; 
+const SERVER_URL = window.location.origin; 
+    let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
+    let allEventLayers = {};
+    let currentTool = "pan", tempPoints = [], tempShape = null;
+    let pendingEventLatLng = null, pendingPhotoBase64 = null;
+    let onlineUsersList = [];
+    let searchTempMarker = null; 
 
-        // 雷達圖層全域變數
-        let radarLayer = null;
-        let isRadarVisible = false;
+    // 雷達圖層全域變數
+    let radarLayer = null;
+    let isRadarVisible = false;
 
-        function getFormattedTime() {
-            const now = new Date();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const d = String(now.getDate()).padStart(2, '0');
-            const h = String(now.getHours()).padStart(2, '0');
-            const min = String(now.getMinutes()).padStart(2, '0');
-            return `${m}/${d} ${h}:${min}`;
+    function getFormattedTime() {
+        const now = new Date();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        return `${m}/${d} ${h}:${min}`;
+    }
+
+    function checkAdminInput() {
+        const userIn = document.getElementById('username').value.trim().toLowerCase();
+        document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
+    }
+
+    function checkRoomType() {
+        const select = document.getElementById('room-select').value;
+        const pwdInput = document.getElementById('room-password');
+        const customRoomInput = document.getElementById('custom-room-name');
+        customRoomInput.style.display = (select === 'custom') ? 'block' : 'none';
+        
+        if (select.startsWith("公開頻道")) {
+            pwdInput.value = "";
+            pwdInput.disabled = true; 
+            pwdInput.style.opacity = "0.6";
+            document.getElementById('login-error').innerText = "提示：公開頻道不需輸入密碼。";
+        } else {
+            pwdInput.disabled = false;
+            pwdInput.style.opacity = "1";
+            document.getElementById('login-error').innerText = "";
         }
+    }
 
-        function checkAdminInput() {
-            const userIn = document.getElementById('username').value.trim().toLowerCase();
-            document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
-        }
+    function showToast(message) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast-msg';
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
 
-        function checkRoomType() {
-            const select = document.getElementById('room-select').value;
-            const pwdInput = document.getElementById('room-password');
-            const customRoomInput = document.getElementById('custom-room-name');
-            
-            customRoomInput.style.display = (select === 'custom') ? 'block' : 'none';
-            
-            if (select.startsWith("公開頻道")) {
-                pwdInput.value = "";
-                pwdInput.placeholder = "公開頻道免密碼即可進入";
-                pwdInput.disabled = true; 
-                pwdInput.style.opacity = "0.6";
-                
-                document.getElementById('login-error').style.color = "#39ff14"; 
-                document.getElementById('login-error').innerText = "提示：公開頻道不需輸入密碼。";
-            } else {
-                pwdInput.placeholder = "SECURE ACCESS KEY (房間密碼)";
-                pwdInput.disabled = false;
-                pwdInput.style.opacity = "1";
-                document.getElementById('login-error').innerText = "";
-            }
-        }
+    // --- 地圖與 Socket 初始化邏輯 ---
 
-        function showToast(message) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'toast-msg';
-            toast.innerText = message;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3500);
-        }
+    function initMapInstance() {
+        if (map) return; 
+        map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        
+        ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) L.DomEvent.disableClickPropagation(el);
+        });
 
-        function initMapInstance() {
-            if (map) return; 
-            map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-            
-            // 阻斷控制項上的點擊事件穿透到 Leaflet 地圖
-            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) L.DomEvent.disableClickPropagation(el);
+        window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
+        initDrawingEvents();
+        initWeatherFeatures(map);
+    }
+
+    async function login() {
+        const userIn = document.getElementById('username').value.trim();
+        const passIn = document.getElementById('room-password').value;
+        const adminSecIn = document.getElementById('admin-secret').value;
+        const roomSel = document.getElementById('room-select').value;
+        let targetRoom = roomSel === 'custom' ? document.getElementById('custom-room-name').value.trim() : roomSel;
+        
+        if(!userIn) { alert("請輸入通報暱稱！"); return; }
+        
+        try {
+            const res = await fetch(`${SERVER_URL}/api/login`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom, adminSecret: adminSecIn })
             });
+            const data = await res.json();
+            if (data.success) {
+                currentUser = data.username; 
+                currentRoom = data.roomName;
+                document.getElementById('login-box').style.display = 'none';
+                document.getElementById('map').style.display = 'block'; 
+                document.getElementById('custom-toolbar').style.display = 'flex'; 
+                document.getElementById('toggle-info-btn').style.display = 'flex';
+                document.getElementById('toggle-chat-btn').style.display = 'flex';
+                document.getElementById('toggle-users-btn').style.display = 'flex';
+                document.getElementById('toggle-help-btn').style.display = 'flex';
+                document.getElementById('state-room').innerText = currentRoom;
+                
+                if (currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]')) {
+                    document.getElementById('admin-clear-btn').style.display = 'block';
+                }
+                
+                initMapInstance(); 
+                setTimeout(() => { if (map) map.invalidateSize(); }, 300); 
+                initSocketAndLayers(); // <--- 登入成功後才呼叫初始化 socket
+            } else { document.getElementById('login-error').innerText = data.message; }
+        } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
+    }
 
-            window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
-            initDrawingEvents();
-            initWeatherFeatures(map);
-        }
+    function initSocketAndLayers() {
+        // 確保 socket 初始化在這裡
+        socket = io(); 
+        
+        socket.emit('join_room', { roomName: currentRoom, username: currentUser });
+        
+        socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
+        socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
+        socket.on('history_chats', function(chats) {
+            if (Array.isArray(chats)) {
+                document.getElementById('chat-messages').innerHTML = '';
+                chats.forEach(chat => appendChatMessage(chat.sender, chat.message, chat.time));
+            }
+        });
+        socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
+        socket.on('update_user_list', (users) => { onlineUsersList = Array.isArray(users) ? users : []; renderOnlineUsers(); });
+        socket.on('user_notification', function(data) { showToast(`[系統通知] ${data.name} 已經${data.action === 'joined' ? '進入' : '離開'}頻道`); });
+        
+        socket.on('receive_chat', function(data) {
+            appendChatMessage(data.sender, data.message, data.time);
+            const chatPanel = document.getElementById('chat-panel');
+            if (window.getComputedStyle(chatPanel).display === 'none') {
+                const badge = document.getElementById('chat-badge');
+                if (badge) badge.style.display = 'block';
+            }
+        });
+        
+        socket.on('event_added', function(evtData) { renderEventOnMap(evtData); showToast(`🚨 [${evtData.category}] ${evtData.sender} 剛剛回報了新狀況！`); });
+        socket.on('event_deleted', function(eventId) { if (allEventLayers[eventId]) { map.removeLayer(allEventLayers[eventId].layer); delete allEventLayers[eventId]; } showToast("🗑️ 事件回報已被移除"); });
+        
+        let peerGPSMarkers = {}; 
+        socket.on('peer_gps_updated', function(gpsData) {
+            const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
+            if (peerGPSMarkers[pName]) map.removeLayer(peerGPSMarkers[pName]);
+            const peerCenterDot = L.circle(pLatLng, { radius: gpsData.isApprox ? 250 : 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
+                .bindTooltip(pName + (gpsData.isApprox ? ' (概略)' : ''), { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
+            peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 })]).addTo(map);
+        });
+
+        socket.on('object_added', data => renderObjectOnMap(data));
+        socket.on('object_deleted', id => {
+            if (allMapLayers[id]) {
+                map.removeLayer(allMapLayers[id].layer);
+                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
+                delete allMapLayers[id];
+            }
+        });
+        
+        socket.on('clear_all_objects', () => {
+            Object.keys(allMapLayers).forEach(id => {
+                map.removeLayer(allMapLayers[id].layer);
+                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
+                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
+                if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
+            });
+            Object.keys(allEventLayers).forEach(id => map.removeLayer(allEventLayers[id].layer));
+            allMapLayers = {}; allEventLayers = {};
+            showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資與事件！");
+        });
+    }
 
         function switchTool(tool) {
             if ((currentTool === 'polyline' || currentTool === 'polygon') && tempPoints.length > 0) {
