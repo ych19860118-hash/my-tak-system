@@ -284,7 +284,7 @@
             color: #39ff14 !important;
             font-family: 'Courier New', Courier, monospace, sans-serif !important;
             font-weight: bold !important;
-            font-size: 14px !important;
+            font-size: 12px !important;
             text-decoration: none !important;
             border-radius: 4px !important;
             border: 1px solid #2d3748 !important;
@@ -298,26 +298,9 @@
             color: #0d0e10 !important;
             border-color: #39ff14 !important;
         }
-        #weather-panel {
-        position: absolute; top: 20px; right: 20px; z-index: 1000;
-        background: rgba(20, 22, 25, 0.9); border: 1px solid #22c55e;
-        padding: 10px; border-radius: 4px; color: #39ff14;
-        font-family: 'Courier New', monospace; font-size: 12px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        display: none; /* 預設隱藏，收到資料後顯示 */
-    }
-    #weather-panel h4 { margin: 0 0 5px 0; color: #fff; font-size: 13px; }
-    #weather-panel p { margin: 2px 0; }
     </style>
 </head>
 <body>
-    <div id="map"></div>
-    
-    <!-- 新增：氣象顯示面板 -->
-    <div id="weather-panel">
-        <h4>即時氣象資訊</h4>
-        <div id="weather-content">正在同步...</div>
-    </div>
     <!-- 登入面板 -->
     <div id="login-box">
         <h2>COP System協同地理圖資</h2>
@@ -450,7 +433,6 @@
                 <li><strong>錨點調整：</strong>點擊自己繪製的線條或多邊形，即可拉動各個頂點錨點即時調整形狀。</li>
                 <li><strong>GPS工具：</strong>可點擊選擇「精準」或「概略」模式回報目前位置。</li>
                 <li><strong>搜尋工具：</strong>可輸入地址或經緯度直接飛至該地點。</li>
-                <li><strong>雨量雷達：</strong>點擊左上角 ☔ 按鈕可疊加即時雨量/氣象雷達圖。</li>
             </ul>
         </div>
     </div>
@@ -482,176 +464,74 @@
     <div id="map"></div>
 
     <script>
-const SERVER_URL = window.location.origin; 
-    let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
-    let allEventLayers = {};
-    let currentTool = "pan", tempPoints = [], tempShape = null;
-    let pendingEventLatLng = null, pendingPhotoBase64 = null;
-    let onlineUsersList = [];
-    let searchTempMarker = null; 
+        const SERVER_URL = window.location.origin; 
+        let socket, currentUser = "", currentRoom = "", map, allMapLayers = {};
+        let allEventLayers = {};
+        let currentTool = "pan", tempPoints = [], tempShape = null;
+        let pendingEventLatLng = null, pendingPhotoBase64 = null;
+        let onlineUsersList = [];
+        let searchTempMarker = null; 
 
-    // 雷達圖層全域變數
-    let radarLayer = null;
-    let isRadarVisible = false;
-
-    function getFormattedTime() {
-        const now = new Date();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        const h = String(now.getHours()).padStart(2, '0');
-        const min = String(now.getMinutes()).padStart(2, '0');
-        return `${m}/${d} ${h}:${min}`;
-    }
-
-    function checkAdminInput() {
-        const userIn = document.getElementById('username').value.trim().toLowerCase();
-        document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
-    }
-
-    function checkRoomType() {
-        const select = document.getElementById('room-select').value;
-        const pwdInput = document.getElementById('room-password');
-        const customRoomInput = document.getElementById('custom-room-name');
-        customRoomInput.style.display = (select === 'custom') ? 'block' : 'none';
-        
-        if (select.startsWith("公開頻道")) {
-            pwdInput.value = "";
-            pwdInput.disabled = true; 
-            pwdInput.style.opacity = "0.6";
-            document.getElementById('login-error').innerText = "提示：公開頻道不需輸入密碼。";
-        } else {
-            pwdInput.disabled = false;
-            pwdInput.style.opacity = "1";
-            document.getElementById('login-error').innerText = "";
+        function getFormattedTime() {
+            const now = new Date();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            return `${m}/${d} ${h}:${min}`;
         }
-    }
 
-    function showToast(message) {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast-msg';
-        toast.innerText = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
-    }
+        function checkAdminInput() {
+            const userIn = document.getElementById('username').value.trim().toLowerCase();
+            document.getElementById('admin-secret').style.display = (userIn === 'admin') ? 'block' : 'none';
+        }
 
-    // --- 地圖與 Socket 初始化邏輯 ---
-
-    function initMapInstance() {
-        if (map) return; 
-        map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        
-        ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) L.DomEvent.disableClickPropagation(el);
-        });
-
-        window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
-        initDrawingEvents();
-        initWeatherFeatures(map);
-    }
-
-    async function login() {
-        const userIn = document.getElementById('username').value.trim();
-        const passIn = document.getElementById('room-password').value;
-        const adminSecIn = document.getElementById('admin-secret').value;
-        const roomSel = document.getElementById('room-select').value;
-        let targetRoom = roomSel === 'custom' ? document.getElementById('custom-room-name').value.trim() : roomSel;
-        
-        if(!userIn) { alert("請輸入通報暱稱！"); return; }
-        
-        try {
-            const res = await fetch(`${SERVER_URL}/api/login`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ username: userIn, roomPassword: passIn, roomName: targetRoom, adminSecret: adminSecIn })
-            });
-            const data = await res.json();
-            if (data.success) {
-                currentUser = data.username; 
-                currentRoom = data.roomName;
-                document.getElementById('login-box').style.display = 'none';
-                document.getElementById('map').style.display = 'block'; 
-                document.getElementById('custom-toolbar').style.display = 'flex'; 
-                document.getElementById('toggle-info-btn').style.display = 'flex';
-                document.getElementById('toggle-chat-btn').style.display = 'flex';
-                document.getElementById('toggle-users-btn').style.display = 'flex';
-                document.getElementById('toggle-help-btn').style.display = 'flex';
-                document.getElementById('state-room').innerText = currentRoom;
+        function checkRoomType() {
+            const select = document.getElementById('room-select').value;
+            const pwdInput = document.getElementById('room-password');
+            const customRoomInput = document.getElementById('custom-room-name');
+            
+            customRoomInput.style.display = (select === 'custom') ? 'block' : 'none';
+            
+            if (select.startsWith("公開頻道")) {
+                pwdInput.value = "";
+                pwdInput.placeholder = "公開頻道免密碼即可進入";
+                pwdInput.disabled = true; 
+                pwdInput.style.opacity = "0.6";
                 
-                if (currentUser.trim().toLowerCase() === 'admin' || currentUser.includes('[Admin]')) {
-                    document.getElementById('admin-clear-btn').style.display = 'block';
-                }
-                
-                initMapInstance(); 
-                setTimeout(() => { if (map) map.invalidateSize(); }, 300); 
-                initSocketAndLayers(); // <--- 登入成功後才呼叫初始化 socket
-            } else { document.getElementById('login-error').innerText = data.message; }
-        } catch (err) { document.getElementById('login-error').innerText = "連線後端錯誤！"; }
-    }
+                document.getElementById('login-error').style.color = "#39ff14"; 
+                document.getElementById('login-error').innerText = "提示：公開頻道不需輸入密碼。";
+            } else {
+                pwdInput.placeholder = "SECURE ACCESS KEY (房間密碼)";
+                pwdInput.disabled = false;
+                pwdInput.style.opacity = "1";
+                document.getElementById('login-error').innerText = "";
+            }
+        }
 
-    function initSocketAndLayers() {
-        // 確保 socket 初始化在這裡
-        socket = io(); 
-        
-        socket.emit('join_room', { roomName: currentRoom, username: currentUser });
-        
-        socket.on('history_objects', function(objects) { if (Array.isArray(objects)) objects.forEach(obj => renderObjectOnMap(obj)); });
-        socket.on('history_events', function(events) { if (Array.isArray(events)) events.forEach(evt => renderEventOnMap(evt)); }); 
-        socket.on('history_chats', function(chats) {
-            if (Array.isArray(chats)) {
-                document.getElementById('chat-messages').innerHTML = '';
-                chats.forEach(chat => appendChatMessage(chat.sender, chat.message, chat.time));
-            }
-        });
-        socket.on('update_user_count', function(count) { document.getElementById('state-count').innerText = count; });
-        socket.on('update_user_list', (users) => { onlineUsersList = Array.isArray(users) ? users : []; renderOnlineUsers(); });
-        socket.on('user_notification', function(data) { showToast(`[系統通知] ${data.name} 已經${data.action === 'joined' ? '進入' : '離開'}頻道`); });
-        
-        socket.on('receive_chat', function(data) {
-            appendChatMessage(data.sender, data.message, data.time);
-            const chatPanel = document.getElementById('chat-panel');
-            if (window.getComputedStyle(chatPanel).display === 'none') {
-                const badge = document.getElementById('chat-badge');
-                if (badge) badge.style.display = 'block';
-            }
-        });
-        
-        socket.on('event_added', function(evtData) { renderEventOnMap(evtData); showToast(`🚨 [${evtData.category}] ${evtData.sender} 剛剛回報了新狀況！`); });
-        socket.on('event_deleted', function(eventId) { if (allEventLayers[eventId]) { map.removeLayer(allEventLayers[eventId].layer); delete allEventLayers[eventId]; } showToast("🗑️ 事件回報已被移除"); });
-        
-        let peerGPSMarkers = {}; 
-        socket.on('peer_gps_updated', function(gpsData) {
-            const pName = gpsData.username, pLatLng = L.latLng(gpsData.lat, gpsData.lng);
-            if (peerGPSMarkers[pName]) map.removeLayer(peerGPSMarkers[pName]);
-            const peerCenterDot = L.circle(pLatLng, { radius: gpsData.isApprox ? 250 : 10, color: '#39ff14', fillColor: '#39ff14', fillOpacity: 0.8, weight: 1 })
-                .bindTooltip(pName + (gpsData.isApprox ? ' (概略)' : ''), { permanent: true, direction: 'top', className: 'tactical-tooltip', interactive: false });
-            peerGPSMarkers[pName] = L.layerGroup([peerCenterDot, L.circle(pLatLng, { radius: gpsData.accuracy, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1 })]).addTo(map);
-        });
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-msg';
+            toast.innerText = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
 
-        socket.on('object_added', data => renderObjectOnMap(data));
-        socket.on('object_deleted', id => {
-            if (allMapLayers[id]) {
-                map.removeLayer(allMapLayers[id].layer);
-                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
-                delete allMapLayers[id];
-            }
-        });
-        
-        socket.on('clear_all_objects', () => {
-            Object.keys(allMapLayers).forEach(id => {
-                map.removeLayer(allMapLayers[id].layer);
-                if (allMapLayers[id].pin) map.removeLayer(allMapLayers[id].pin);
-                if (allMapLayers[id].resizePin) map.removeLayer(allMapLayers[id].resizePin);
-                if (allMapLayers[id].vertexPins) allMapLayers[id].vertexPins.forEach(vp => map.removeLayer(vp));
+        function initMapInstance() {
+            if (map) return; 
+            map = L.map('map', { doubleClickZoom: false, zoomControl: false, tapHold: false }).setView([23.6, 121], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            
+            // 阻斷控制項上的點擊事件穿透到 Leaflet 地圖
+            ['custom-toolbar', 'typhoon-info', 'toggle-info-btn', 'toggle-chat-btn', 'toggle-users-btn', 'toggle-help-btn', 'users-panel', 'chat-panel', 'tactical-help-panel', 'event-modal', 'gps-modal', 'search-modal'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) L.DomEvent.disableClickPropagation(el);
             });
-            Object.keys(allEventLayers).forEach(id => map.removeLayer(allEventLayers[id].layer));
-            allMapLayers = {}; allEventLayers = {};
-            showToast("⚠️ [安全公告] 系統最高權限指揮官已清空所有地圖圖資與事件！");
-        });
-    }
+
+            window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
+            initDrawingEvents();
+        }
 
         function switchTool(tool) {
             if ((currentTool === 'polyline' || currentTool === 'polygon') && tempPoints.length > 0) {
@@ -1658,142 +1538,163 @@ const SERVER_URL = window.location.origin;
             );
         }
 
-        // 初始化氣象圖資與點擊天氣查詢功能
-        function initWeatherFeatures(mapInstance) {
-            if (!mapInstance) return;
+(function() {
+    let radarLayer = null;
+    let isRadarVisible = false;
 
-            // 載入 RainViewer 雷達圖
-            fetch('https://api.rainviewer.com/public/weather-maps.json')
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
+    function initWeatherFeatures(mapInstance) {
+        if (!mapInstance) return;
 
-                    const latestRadar = data.radar.past[data.radar.past.length - 1];
-                    const path = latestRadar.path;
-                    const host = data.host;
-                    const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
+        fetch('https://api.rainviewer.com/public/weather-maps.json')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.radar || !data.radar.past || data.radar.past.length === 0) return;
 
-                    radarLayer = L.tileLayer(radarUrl, {
-                        attribution: '<a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>',
-                        opacity: 0.5,
-                        zIndex: 999
-                    });
+                const latestRadar = data.radar.past[data.radar.past.length - 1];
+                const path = latestRadar.path;
+                const host = data.host;
+                const radarUrl = `${host}${path}/256/{z}/{x}/{y}/1/1_1.png`;
 
-                    createLayerToggleButton(mapInstance);
-                })
-                .catch(err => console.error("RainViewer 載入失敗:", err));
-
-            // 地圖點擊氣象與熱危害查詢
-            mapInstance.on('click', function(e) {
-                if (currentTool !== 'pan' && currentTool !== 'locate') return;
-
-                const lat = e.latlng.lat.toFixed(4);
-                const lng = e.latlng.lng.toFixed(4);
-
-                const popup = L.popup()
-                    .setLatLng(e.latlng)
-                    .setContent(`<div style="font-family: sans-serif; font-size:13px; padding: 5px;">⏳ 正在查詢 [${lat}, ${lng}] 的天氣與熱危害指標...</div>`)
-                    .openOn(mapInstance);
-
-                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
-                    .then(response => {
-                        if (!response.ok) throw new Error("天氣資料查詢失敗");
-                        return response.json();
-                    })
-                    .then(weatherData => {
-                        const current = weatherData.current;
-                        const temp = current.temperature_2m;
-                        const humidity = current.relative_humidity_2m;
-                        const code = current.weather_code;
-
-                        const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
-
-                        let flagEmoji = "🔵";
-                        let flagText = "藍旗 (注意)";
-                        let flagColor = "#3b82f6";
-                        let adviceText = "正常作息，充分補充水分。";
-
-                        if (heatIndex >= 35 && heatIndex < 40) {
-                            flagEmoji = "🟡";
-                            flagText = "黃旗 (警戒)";
-                            flagColor = "#eab308";
-                            adviceText = "避免劇烈運動，強制飲水與休息。";
-                        } else if (heatIndex >= 40) {
-                            flagEmoji = "🔴";
-                            flagText = "紅旗 (危險)";
-                            flagColor = "#ef4444";
-                            adviceText = "嚴禁高強度訓練，注意熱衰竭與中暑！";
-                        }
-
-                        let weatherDesc = "多雲時晴";
-                        if (code === 0) weatherDesc = "☀️ 晴朗無雲";
-                        else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
-                        else if (code >= 45 && code <= 48) weatherDesc = "🌫️ 霧氣籠罩";
-                        else if (code >= 51 && code <= 67) weatherDesc = "🌧️ 細雨/陣雨";
-                        else if (code >= 71 && code <= 77) weatherDesc = "❄️ 降雪";
-                        else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
-                        else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
-
-                        const content = `
-                            <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 170px; line-height: 1.4;">
-                                <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 即時氣象與熱危害</h4>
-                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-                                    <span style="font-size: 22px; font-weight: bold; color: #1e293b;">${temp}°C</span>
-                                    <span style="font-size: 12px; color: #64748b;">${weatherDesc}</span>
-                                </div>
-                                <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">濕度: ${humidity}%</div>
-                                
-                                <div style="background-color: #f8fafc; border-left: 4px solid ${flagColor}; padding: 6px 8px; border-radius: 0 4px 4px 0; margin-bottom: 6px;">
-                                    <div style="font-size: 11px; color: #64748b; font-weight: 500;">中暑危險係數</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: ${flagColor};">${heatIndex}</div>
-                                    <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">${flagEmoji} ${flagText}</div>
-                                </div>
-                                
-                                <div style="font-size: 11px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 4px; font-weight: 500;">
-                                    💡 建議: ${adviceText}
-                                </div>
-                            </div>
-                        `;
-                        popup.setContent(content);
-                    })
-                    .catch(err => {
-                        console.error("天氣 API 錯誤:", err);
-                        popup.setContent(`<div style="color: red; font-size: 12px;">❌ 無法取得該點天氣與係數資訊</div>`);
-                    });
-            });
-        }
-
-        function createLayerToggleButton(mapInstance) {
-            const toggleControl = L.control({ position: 'topleft' });
-
-            toggleControl.onAdd = function() {
-                const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control tactical-layer-control');
-                div.style.marginLeft = '65px';  
-                div.style.marginTop = '12px';   
-
-                const a = L.DomUtil.create('a', '', div);
-                a.href = '#';
-                a.innerHTML = '☔';
-                
-                L.DomEvent.disableClickPropagation(div);
-                L.DomEvent.on(a, 'click', function(e) {
-                    L.DomEvent.preventDefault(e);
-                    L.DomEvent.stopPropagation(e);
-                    if (isRadarVisible) {
-                        mapInstance.removeLayer(radarLayer);
-                        a.style.background = '#1a1d21';
-                    } else {
-                        mapInstance.addLayer(radarLayer);
-                        a.style.background = '#22c55e';
-                    }
-                    isRadarVisible = !isRadarVisible;
+                radarLayer = L.tileLayer(radarUrl, {
+                    attribution: '<a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>',
+                    opacity: 0.5,
+                    zIndex: 999
                 });
 
-                return div;
-            };
+                createLayerToggleButton(mapInstance);
+            })
+            .catch(err => console.error("RainViewer 載入失敗:", err));
 
-            toggleControl.addTo(mapInstance);
+        mapInstance.on('click', function(e) {
+            if (currentTool !== 'pan' && currentTool !== 'locate') return;
+
+            const lat = e.latlng.lat.toFixed(4);
+            const lng = e.latlng.lng.toFixed(4);
+
+            const popup = L.popup()
+                .setLatLng(e.latlng)
+                .setContent(`<div style="font-family: sans-serif; font-size:13px; padding: 5px;">⏳ 正在查詢 [${lat}, ${lng}] 的天氣與熱危害指標...</div>`)
+                .openOn(mapInstance);
+
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`)
+                .then(response => {
+                    if (!response.ok) throw new Error("天氣資料查詢失敗");
+                    return response.json();
+                })
+                .then(weatherData => {
+                    const current = weatherData.current;
+                    const temp = current.temperature_2m;
+                    const humidity = current.relative_humidity_2m;
+                    const code = current.weather_code;
+
+                    const heatIndex = (temp + (humidity * 0.1)).toFixed(1);
+
+                    let flagEmoji = "🔵";
+                    let flagText = "藍旗 (注意)";
+                    let flagColor = "#3b82f6";
+                    let adviceText = "正常作息，充分補充水分。";
+
+                    if (heatIndex >= 35 && heatIndex < 40) {
+                        flagEmoji = "🟡";
+                        flagText = "黃旗 (警戒)";
+                        flagColor = "#eab308";
+                        adviceText = "避免劇烈運動，強制飲水與休息。";
+                    } else if (heatIndex >= 40) {
+                        flagEmoji = "🔴";
+                        flagText = "紅旗 (危險)";
+                        flagColor = "#ef4444";
+                        adviceText = "嚴禁高強度訓練，注意熱衰竭與中暑！";
+                    }
+
+                    let weatherDesc = "多雲時晴";
+                    if (code === 0) weatherDesc = "☀️ 晴朗無雲";
+                    else if (code >= 1 && code <= 3) weatherDesc = "⛅ 多雲時晴";
+                    else if (code >= 45 && code <= 48) weatherDesc = "🌫️ 霧氣籠罩";
+                    else if (code >= 51 && code <= 67) weatherDesc = "🌧️ 細雨/陣雨";
+                    else if (code >= 71 && code <= 77) weatherDesc = "❄️ 降雪";
+                    else if (code >= 80 && code <= 82) weatherDesc = "🌦️ 陣雨";
+                    else if (code >= 95 && code <= 99) weatherDesc = "⛈️ 雷陣雨";
+
+                    const content = `
+                        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 170px; line-height: 1.4;">
+                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 即時氣象與熱危害</h4>
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                                <span style="font-size: 22px; font-weight: bold; color: #1e293b;">${temp}°C</span>
+                                <span style="font-size: 12px; color: #64748b;">${weatherDesc}</span>
+                            </div>
+                            <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">濕度: ${humidity}%</div>
+                            
+                            <div style="background-color: #f8fafc; border-left: 4px solid ${flagColor}; padding: 6px 8px; border-radius: 0 4px 4px 0; margin-bottom: 6px;">
+                                <div style="font-size: 11px; color: #64748b; font-weight: 500;">中暑危險係數</div>
+                                <div style="font-size: 16px; font-weight: bold; color: ${flagColor};">${heatIndex}</div>
+                                <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">${flagEmoji} ${flagText}</div>
+                            </div>
+                            
+                            <div style="font-size: 11px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 4px; font-weight: 500;">
+                                💡 建議: ${adviceText}
+                            </div>
+                        </div>
+                    `;
+                    popup.setContent(content);
+                })
+                .catch(err => {
+                    console.error("天氣 API 錯誤:", err);
+                    popup.setContent(`<div style="color: red; font-size: 12px;">❌ 無法取得該點天氣與係數資訊</div>`);
+                });
+        });
+    }
+
+    function createLayerToggleButton(mapInstance) {
+        const toggleControl = L.control({ position: 'topleft' });
+
+        toggleControl.onAdd = function() {
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control tactical-layer-control');
+            div.style.marginLeft = '65px';  
+            div.style.marginTop = '12px';   
+
+            const a = L.DomUtil.create('a', '', div);
+            a.href = '#';
+            a.innerHTML = '☔';
+            
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.on(a, 'click', function(e) {
+                L.DomEvent.preventDefault(e);
+                L.DomEvent.stopPropagation(e);
+                if (isRadarVisible) {
+                    mapInstance.removeLayer(radarLayer);
+                    a.innerHTML = '☔';
+                } else {
+                    mapInstance.addLayer(radarLayer);
+                    a.innerHTML = '☔';
+                }
+                isRadarVisible = !isRadarVisible;
+            });
+
+            return div;
+        };
+
+        toggleControl.addTo(mapInstance);
+    }
+
+    const detectInterval = setInterval(() => {
+        let foundMap = null;
+        if (typeof map !== 'undefined' && map instanceof L.Map) {
+            foundMap = map;
+        } else {
+            for (let key in window) {
+                if (window[key] instanceof L.Map) {
+                    foundMap = window[key];
+                    break;
+                }
+            }
         }
+
+        if (foundMap) {
+            clearInterval(detectInterval);
+            initWeatherFeatures(foundMap);
+        }
+    }, 500);
+})();
     </script>
 </body>
 </html>
